@@ -1,4 +1,4 @@
-$( Step 02 — Stack machine sanity fixture
+$( Step 02 - Stack machine sanity fixture
    This fixture is designed to demonstrate that Metamath proofs
    execute as stack programs.
 $)

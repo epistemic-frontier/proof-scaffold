@@ -1,3 +1,5 @@
+# tests/test_sanity.py
+
 import subprocess
 import sys
 from pathlib import Path
@@ -5,7 +7,8 @@ from pathlib import Path
 
 def verify_with_mmverify(test_script: Path) -> subprocess.CompletedProcess:
     root = Path(__file__).resolve().parents[1]
-    mmverify = root / "verifier" / "mmverify.py"
+    mmverify = root / "verifier" / "metamath-knife"
+    # mmverify =  root / "verifier" / "mmverify.py"
     proc = subprocess.run(
         [sys.executable, str(test_script), "--mmverify", str(mmverify)],
         stdout=subprocess.PIPE,

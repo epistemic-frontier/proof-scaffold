@@ -4,22 +4,15 @@
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License
 
-# To run the program, type
-#   $ python3 mmverify.py < set.mm 2> set.log
-# and set.log will have the verification results.
-
-# (nm 27-Jun-2005) mmverify.py requires that a $f hypothesis must not occur
-# after a $e hypothesis in the same scope, even though this is allowed by
-# the Metamath spec.  This is not a serious limitation since it can be
-# met by rearranging the hypothesis order.
-# (rl 2-Oct-2006) removed extraneous line found by Jason Orendorff
-# (sf 27-Jan-2013) ported to Python 3, added support for compressed proofs
-# and file inclusion
+# Usage:
+#   $ python3 mmverify.py set.mm
+#
 
 import sys
 import itertools
 import collections
 import os.path
+import argparse
 
 verbosity = 1
 
@@ -350,6 +343,14 @@ class MM:
     def dump(self): print(self.labels)
 
 if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description="Proof verifier for the Metamath language")
+    parser.add_argument("filename", help="Metamath database file to verify")
+    args = parser.parse_args()
+
     mm = MM()
-    mm.read(toks(sys.stdin))
-    #mm.dump()
+    try:
+        with open(args.filename, 'r') as f:
+            mm.read(toks(f))
+    except FileNotFoundError:
+        print(f"Error: File '{args.filename}' not found.", file=sys.stderr)
+        sys.exit(1)

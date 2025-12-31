@@ -1,4 +1,4 @@
-$( Step 00 — Environment sanity fixture
+$( Step 00 - Environment sanity fixture
    This file defines the smallest Metamath database that can be
    successfully verified after appending a trivial $p proof.
 $)

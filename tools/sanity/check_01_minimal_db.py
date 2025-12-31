@@ -19,7 +19,7 @@ def main() -> None:
     )
     args = ap.parse_args()
 
-    mmverify_py = Path(args.mmverify).resolve()
+    mm_verifier = Path(args.mmverify).resolve()
     fixture_path = Path(args.fixture).resolve()
 
     mm_src = fixture_path.read_text(encoding="utf-8")
@@ -38,7 +38,7 @@ def main() -> None:
     with tempfile.TemporaryDirectory() as td:
         out_mm = Path(td) / "out.mm"
         out_mm.write_text(out_src, encoding="utf-8")
-        verify(mmverify_py, out_mm, timeout_sec=30)
+        verify(mm_verifier, out_mm, timeout_sec=30)
 
     print("SANITY 01 OK")
 

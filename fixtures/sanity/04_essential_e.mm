@@ -6,8 +6,10 @@ $v ph $.
 
 wph $f wff ph $.
 
-$( Hypothesis: |- ph $)
-hph $e |- ph $.
+${
+    $( Hypothesis: |- ph (Local to this block) $)
+    hph $e |- ph $.
 
-$( Rule: from |- ph derive |- ph $)
-id-e $a |- ph $.
+    $( Rule: from |- ph derive |- ph $)
+    id-e $a |- ph $.
+$}

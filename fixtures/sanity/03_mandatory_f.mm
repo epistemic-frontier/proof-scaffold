@@ -1,4 +1,4 @@
-$( Step 03 — Mandatory $f hypotheses fixture
+$( Step 03 - Mandatory $f hypotheses fixture
    This fixture is used to test that required $f labels can be computed
    for an assertion that mentions multiple variables.
 $)

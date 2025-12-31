@@ -1,19 +1,16 @@
-# ProofScaffold — Design Notes
+# ProofScaffold — Design Notes (Rev. 2)
 
 ## 1. Purpose
 
-ProofScaffold is an experimental framework for **structured, verifiable mathematical proofs**
-based on a strict separation of concerns:
+ProofScaffold is an experimental framework for **structured, verifiable mathematical proofs**, designed as a **layered build and linking system** rather than a monolithic proof assistant.
 
-- **Human-facing mathematics** (documents)
-- **Proof generation and organization** (Python)
-- **Formal verification** (Metamath)
+It relies on a strict separation of concerns:
 
-The goal is *not* to build a new proof assistant, but to explore a **layered proof ecosystem**
-in which mathematical insight, mechanical proof labor, and trust are cleanly decoupled.
+* **Human-facing mathematics** (Documents)
+* **Proof compilation and linking** (Python)
+* **Formal verification** (Metamath)
 
-This repository currently focuses on a **minimal, sanity-checked core**:
-propositional logic, basic arithmetic, and small classical examples (e.g. the irrationality of √2).
+The goal is to explore a **modernized architecture for formal proof systems**, treating mathematical proofs not as static artifacts, but as modular software components that are **assembled, relocated, linearized, and verified**.
 
 ---
 
@@ -21,167 +18,125 @@ propositional logic, basic arithmetic, and small classical examples (e.g. the ir
 
 ### 2.1 Document Layer (Human-facing)
 
-- Format: Markdown / LaTeX (not part of this repo yet)
-- Role:
-  - Explain motivation, ideas, and proof strategy
-  - Identify key lemmas and proof structure
-  - Remain readable and compact
-- Non-goals:
-  - Full formal rigor
-  - Machine-checkable completeness
+* **Format**: Markdown / LaTeX
+* **Role**: Express mathematical intent, motivation, and high-level strategy.
+* **Non-goals**: Formal rigor or machine-checkability.
 
-The document layer expresses **mathematical intent**, not proof mechanics.
+### 2.2 Python Layer (The Compiler & Linker)
 
----
+* **Location**: `tools/`
+* **Role**:
+* **Compile**: Translate high-level proof strategies into Metamath steps.
+* **Link**: Resolve dependencies, manage namespaces, and flatten DAGs into linear streams.
+* **Map**: Maintain traceability between generated artifacts and source code (Source Maps).
 
-### 2.2 Python Layer (Proof Generation)
 
-- Location: `tools/`
-- Role:
-  - Generate formal proofs mechanically
-  - Organize proofs modularly
-  - Eliminate repetitive bookkeeping (e.g. mandatory `$f` hypotheses)
-- Key principle:
-  > Python code is **not the proof**.  
-  > Python code is a *proof generator*.
+* **Principle**:
+> Python code is **not the proof**. Python code is the *builder* of the proof.
 
-This layer is free to use:
-- Abstraction
-- Parameterization
-- Meta-programming
-- Iteration and composition
 
-As long as the generated result is accepted by the verifier, the Python layer itself
-is **not part of the trusted computing base**.
+
+### 2.3 Metamath Layer (The Binary Artifact)
+
+* **Location**: Generated in-memory streams or temporary fixtures.
+* **Role**: The "object code" of the system. Extremely trustworthy, machine-checkable, but not intended for human authoring.
 
 ---
 
-### 2.3 Metamath Layer (Formal Evidence)
+## 3. Core Architecture: The "Linker" Analogy
 
-- Location: `fixtures/`, generated temporary files
-- Role:
-  - Provide final, machine-checkable proof objects
-  - Act as the *court of last appeal*
-- Characteristics:
-  - Minimal, explicit, stack-based
-  - Unfriendly to humans
-  - Extremely trustworthy
+From an engineering perspective, ProofScaffold functions as a **Compiler Toolchain**:
 
-Metamath files are treated as **artifacts**, not as primary authoring material.
+1. **Parser (Input)**:
+Modular Python objects define *what* should exist (theorems, axioms, proofs).
+2. **Linker (Python Core)**:
+This is the heart of the system. It performs tasks analogous to a C/C++ linker:
+* **Dependency Resolution**: Calculating the topological sort of Python modules.
+* **Symbol Management**: Maintaining a global Symbol Table to prevent collisions.
+* **Relocation**: Dynamically renaming local labels (e.g., transforming `th1` in `logic.py` to `logic.th1` in the output stream).
+* **Linearization**: Flattening the dependency DAG into a strict sequential stream.
 
----
 
-## 3. Trust Model
+3. **Executor (Verifier)**:
+The Metamath verifier acts as the CPU. It executes the linearized instruction stream to validate correctness.
 
-Only the following components are trusted:
-
-1. The Metamath verifier (`verifier/mmverify.py`)
-2. The Metamath specification itself
-
-Everything else (Python code, scripts, generators) is *untrusted by design* and must
-justify itself by producing verifiable `.mm` proofs.
+**Crucial Insight**: Correctness flows from *linking discipline* (structural integrity) and *verifier execution* (logical integrity), not from the heuristics of generation.
 
 ---
 
-## 4. Sanity Checks
+## 4. Trust Model
 
-### 4.1 Purpose of Sanity Checks
+**Trusted Computing Base (TCB):**
 
-Sanity checks answer one question only:
+1. The Metamath Verifier (`verifier/mmverify.py` or Rust backend).
+2. The Metamath Specification (syntax and semantics).
 
-> “Does the minimal proof pipeline still work?”
+**Untrusted:**
 
-They are **not**:
-- Exhaustive tests
-- Performance benchmarks
-- Mathematical coverage checks
-
----
-
-### 4.2 Current Sanity Check
-
-- Script: `tools/check_sanity.py`
-- Fixture: `fixtures/mini.mm`
-- What it verifies:
-  - A minimal `.mm` database can be extended
-  - Mandatory `$f` hypotheses are correctly identified
-  - A new `$p` theorem can be generated
-  - The external Metamath verifier accepts the result
-
-This check is intentionally small, fast, and non-negotiable.
+* All Python generation logic.
+* The Linker itself.
+* If the Linker produces garbage, the Verifier must reject it.
 
 ---
 
-### 4.3 Philosophy
+## 5. Sanity Checks & Development Philosophy
 
-Sanity checks should be:
-- Few in number
-- Extremely stable
-- Easy to run manually
-- Suitable as CI entry points
+> **"Does the minimal pipeline link and execute?"**
 
-Future checks may cover:
-- `$e` hypotheses
-- Scoped `${ ... $}` behavior
-- Basic `apply` / goal-stack semantics
+Every new capability must be verified by a minimal, non-negotiable sanity check (`tools/check_sanity.py`).
 
-But **sanity checks must never grow into a second proof system**.
+* **Small**: No long-running benchmarks.
+* **Stable**: If this fails, the build is broken.
+* **Incremental**: We grow by small, verifiable steps.
 
 ---
 
-## 5. Minimal Metamath Interface (`mm_min.py`)
+## 6. Non-Goals
 
-`tools/mm_min.py` provides a **minimal semantic interface** to Metamath databases.
+This project explicitly does **NOT** aim to:
 
-It is explicitly:
-- **Not a verifier**
-- **Not a full parser**
-- **Not a replacement for Metamath semantics**
-
-Its sole purpose is to support *proof planning*, e.g.:
-
-- Determine which `$f` labels are mandatory for a given assertion
-- Enable automatic stack preparation in generated proofs
-
-This file may grow *incrementally*, driven only by concrete needs from sanity checks
-and small proof generators.
+* Be an automated **Theorem Prover** (AI/Solver).
+* Compete with interactive assistants like Lean/Coq (UI/UX).
+* Translate Metamath back to English.
 
 ---
 
-## 6. Non-Goals (Explicit)
+## 7. Key Engineering Challenges (The "Deep" Roadmap)
 
-This project intentionally does **not** aim to:
+### 7.1 Ecosystem Leverage (Package Management)
 
-- Re-implement Metamath
-- Compete with Lean / Coq / Isabelle
-- Provide interactive proof editing
-- Automatically discover new proofs
-- Translate Metamath proofs back into human-readable text
+Instead of inventing a "Math Package Manager," we strictly use the **Python Ecosystem**:
 
-Any feature that blurs the separation between layers should be treated with suspicion.
+* **Distribution**: PyPI.
+* **Versioning**: `pip` & `requirements.txt`.
+* **Imports**: Python `import` statements define the logical dependency graph.
 
----
+### 7.2 Compute over I/O (Performance Strategy)
 
-## 7. Development Principle
+To scale, we must eliminate the I/O bottleneck.
 
-> **Small, verifiable steps. Always.**
+* **In-Memory Generation**: Python generates proof streams directly in RAM.
+* **Zero-Copy Verification**: The verifier should access these streams via **Shared Memory** or **Buffer Protocols**, avoiding disk writes and memory copying.
 
-Every new capability should be introduced by:
-1. A minimal design discussion
-2. A tiny sanity check
-3. A clear success/failure criterion
+### 7.3 The Relocation Problem (Namespace Flattening)
 
-If a change cannot be sanity-checked, it is probably too large.
+Metamath has a flat global namespace. Python has scoped modules.
+The Linker must bridge this gap by performing **Relocation**:
+
+* All exported symbols from a module must be namespaced (e.g., `arithmetic.add_comm`).
+* All internal references in proof steps must be rewritten to match the namespaced labels.
+
+### 7.4 The Debugging Gap (Source Maps)
+
+**Risk**: A verifier error in a 50MB generated stream is impossible to debug.
+**Solution**: The Linker must generate **Source Maps** (metadata) that map:
+`Byte Offset 1048576 (Error)` -> `arithmetic.py: Line 42 (Generator Function)`
+This allows the developer to fix the Python logic, not the Metamath artifact.
 
 ---
 
 ## 8. Current Status
 
-- Minimal pipeline: ✅
-- External verifier integration: ✅
-- Automatic `$f` dependency handling: ✅
-- Sanity check infrastructure: ✅
-
-Next steps are intentionally incremental.
-
----
+* **Pipeline**: Minimal Python -> `.mm` -> Verifier loop is active. ✅
+* **Dependency**: Basic `$f` hypothesis injection is working. ✅
+* **Next Step**: Implementing the first "Linker" prototype to handle multi-module symbol relocation. 🚧

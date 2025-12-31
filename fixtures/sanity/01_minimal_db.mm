@@ -1,4 +1,4 @@
-$( Step 01 — Minimal Metamath database fixture
+$( Step 01 - Minimal Metamath database fixture
    This fixture introduces the smallest meaningful structure:
    constants, variables, typing hypotheses, and axioms.
 $)

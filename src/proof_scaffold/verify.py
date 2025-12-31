@@ -1,25 +1,31 @@
+# proof_scaffold/verify.py
+
 import subprocess
 from pathlib import Path
 
 
-def verify(mmverify_py: Path, mm_file: Path, timeout_sec: int = 60) -> None:
-    if not mmverify_py.exists():
-        raise FileNotFoundError(f"mmverify.py not found: {mmverify_py}")
+def verify(verifier: Path, mm_file: Path, timeout_sec: int = 60) -> None:
+    if not verifier.exists():
+        raise FileNotFoundError(f"verifier not found: {verifier}")
     if not mm_file.exists():
         raise FileNotFoundError(f".mm file not found: {mm_file}")
 
-    cmd = ["python3", str(mmverify_py)]
+    if verifier.suffix == ".jar":
+        cmd = ["java", "-jar", str(verifier)]
+    elif verifier.suffix == ".py":
+        cmd = ["python3", str(verifier)]
+    else:
+        cmd = [str(verifier)]
 
-    # 关键：stdin 喂给它
-    with mm_file.open("rb") as f:
-        proc = subprocess.run(
-            cmd,
-            stdin=f,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True,
-            timeout=timeout_sec,
-        )
+    cmd.append(str(mm_file))
+
+    proc = subprocess.run(
+        cmd,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        timeout=timeout_sec,
+    )
 
     print(proc.stdout)
     if proc.returncode != 0:

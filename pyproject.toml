@@ -1,0 +1,82 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "proof-scaffold"
+version = "0.0.1"
+description = "A layered, sanity-checked scaffold for formal mathematical proofs"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "GPL-2.0-or-later"
+
+authors = [
+  { name = "Mingli Yuan" }
+]
+
+dependencies = [
+  # Runtime dependencies (keep minimal)
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.0",
+  "ruff>=0.3",
+  "mypy>=1.8",
+  "types-setuptools",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+# --------------------------------------------------
+# Pytest
+# --------------------------------------------------
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+addopts = "-q"
+
+# --------------------------------------------------
+# Ruff (lint + style + import sorting)
+# --------------------------------------------------
+
+[tool.ruff]
+line-length = 88
+target-version = "py310"
+exclude = ["verifier/"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
+ignore = ["E501"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["tools"]
+
+# --------------------------------------------------
+# Mypy (static typing)
+# --------------------------------------------------
+
+[tool.mypy]
+python_version = "3.10"
+strict = true
+
+# Gradual typing strategy:
+# Allow missing annotations at first, but enforce consistency where annotated.
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+
+warn_unused_ignores = true
+warn_redundant_casts = true
+warn_unused_configs = true
+
+no_implicit_optional = true
+check_untyped_defs = true
+
+files = ["tools"]
+
+# Avoid noise from external code
+exclude = [
+  "verifier/",
+]

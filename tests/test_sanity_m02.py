@@ -56,7 +56,6 @@ def verify_expect_fail(mm_fixture: Path) -> None:
 
 @pytest.mark.sanity_m02
 @pytest.mark.step05
-@pytest.mark.skip(reason="M0.2 step 05 not implemented: provide 05_mp_happy.mm and remove skip")
 def test_05_mp_happy_path() -> None:
     mm = Path("fixtures/sanity/m02/05_mp_happy.mm")
     verify_expect_ok(mm)
@@ -64,7 +63,6 @@ def test_05_mp_happy_path() -> None:
 
 @pytest.mark.sanity_m02
 @pytest.mark.step05
-@pytest.mark.skip(reason="M0.2 step 05 not implemented: provide 05_mp_missing_hyp.mm and remove skip or switch to xfail(strict=True)")
 def test_05_mp_missing_hyp_fails() -> None:
     mm = Path("fixtures/sanity/m02/05_mp_missing_hyp.mm")
     verify_expect_fail(mm)
@@ -72,7 +70,6 @@ def test_05_mp_missing_hyp_fails() -> None:
 
 @pytest.mark.sanity_m02
 @pytest.mark.step05
-@pytest.mark.skip(reason="M0.2 step 05 not implemented: provide 05_mp_bad_proof_tokens.mm and remove skip or switch to xfail(strict=True)")
 def test_05_mp_bad_proof_tokens_fails() -> None:
     mm = Path("fixtures/sanity/m02/05_mp_bad_proof_tokens.mm")
     verify_expect_fail(mm)

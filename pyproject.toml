@@ -36,7 +36,13 @@ where = ["src"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
-addopts = "-q"
+addopts = "-q -ra"
+markers = [
+  "sanity_m02: M0.2 progress tests (skipped by default until implemented)",
+  "step05: M0.2 Step 05 (mp) tests",
+  "step06: M0.2 Step 06 (scopes) tests",
+  "step07: M0.2 Step 07 (multi-unit linkage) tests",
+]
 
 # --------------------------------------------------
 # Ruff (lint + style + import sorting)

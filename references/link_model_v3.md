@@ -458,4 +458,100 @@ v3 explicitly does not standardize:
 
 ---
 
+## 13. FAQ (Design Clarifications)
+
+### Q1. Does `$d` inference turn the Linker into an automated theorem prover?
+
+No. In ProofScaffold, the Linker is a **build/link** component, not a prover.
+
+* The Linker may *propagate* already-declared semantic obligations (e.g., disjoint-variable contracts) through **recorded substitutions** (when HIR metadata exists), but it performs **no proof search**, **no backtracking**, and **no theorem discovery**.
+* The output remains **untrusted**: any incorrect `$d` handling must be rejected by the Metamath verifier.
+
+Practical note: for clarity, the `$d` “solver” phrasing should be read as **constraint propagation**, not theorem proving.
+
+### Q2. `$d` is “non-repairable”. How do we develop proofs without getting stuck?
+
+`$d` must be active at an assertion’s definition site; missing `$d` cannot be safely patched later by rearranging scopes.
+
+To keep development incremental, the linker model supports staged workflows:
+
+* **Pass-through mode**: generators provide explicit `$d` (and/or explicit `dv_contract`), and the linker only places them at binding points.
+* **Linter-driven mode**: if `$d` is missing, the verifier error is mapped back (via SourceMap) to the generating unit/step so the developer can amend contracts or local `$d`.
+* **HIR-assisted propagation mode**: when HIR substitutions are available, the linker can propagate known disjointness requirements through those substitutions.
+
+### Q3. How do we keep the Linker “dumb” while avoiding `$d` bloat or over-constraining interfaces?
+
+The intended balance is achieved by **separating interface obligations from local proof safety**:
+
+* **Interface `$d`** should be limited to what is required on the theorem’s **mandatory variables** (Metamath’s interface surface).
+* **Local `$d`** may be more conservative, but must be **scoped** (via ScopeFrames) so it does not leak into unrelated theorems.
+
+Two engineering levers keep `$d` growth under control:
+
+1. Make `Vars(expr)` (free-variable sets) as **precise** as practical in HIR substitution metadata.
+2. Treat any `$d` “minimization” as an **optional optimization pass**, never as a semantic requirement.
+
+### Q4. Will the IR be too memory-heavy if implemented as Python objects per token?
+
+The IR types (SymbolId/SymbolRef/Statements) are a **semantic model**, not an implementation mandate.
+
+For large libraries, the recommended representation is:
+
+* SymbolRef as **integer IDs** (dense indices), not heap objects.
+* Token lists as **contiguous arrays** (e.g., `array('I')`, `numpy`/`pyarrow`-like buffers, or custom packed buffers).
+* “Struct-of-arrays” layouts for tables (symbol table, statement table), to reduce per-object overhead and improve locality.
+
+This keeps Python as the orchestrator while allowing data to live in compact, GC-friendly memory.
+
+### Q5. What does “zero-copy verification” mean here?
+
+“Zero-copy” refers to avoiding:
+
+* writing intermediate `.mm` files to disk, and/or
+* copying large proof streams between components.
+
+A typical strategy is:
+
+* the linker emits a **single contiguous byte buffer** (or shared-memory segment) for the Metamath stream,
+* the verifier backend consumes it via **buffer protocols / shared memory views**.
+
+The goal is to keep the hot path as “compute over I/O”, while still preserving verifier authority.
+
+### Q6. If names are mangled by relocation, how do we keep debugging humane?
+
+Relocation is required because Metamath’s namespace is global, while Python modules are scoped.
+
+To prevent “linker-error nightmares”, SourceMaps should support an **unmangled view**:
+
+* Map verifier spans and labels back to: `(origin module, local_name, unit_id, stmt_id, proof_step_idx)`.
+* Provide a “debug slice” view: show the surrounding scope frame and the active context snapshot (active `$f/$e/$d` digests) near the failing step.
+* Optionally emit a **minimal reproducer stream** for the failing ProofUnit (still verifier-checkable, but small enough to inspect).
+
+The guiding rule is: developers should fix **Python generators and contracts**, not hand-edit emitted Metamath.
+
+### Q7. Is HIR optional or required?
+
+HIR is optional for **bootstrap linkage**, but it becomes effectively required for “modern” capabilities:
+
+* Without HIR, the system can still answer “**where** did this fail?” (unit/statement/step localization).
+* With HIR, the system can often explain “**why** did this fail?” (substitution provenance, `$d` propagation, MVP strict checks).
+
+A practical way to formalize this is via conformance levels:
+
+* **Level 0 (Bootstrap)**: LIR-only; no strict substitution checks; `$d` handled via pass-through or linter-driven workflows.
+* **Level 1 (MVP Strict)**: requires substitution metadata sufficient to enforce “variable-free substitution” within MVP scope.
+* **Level 2 (FOL-ready)**: requires HIR with free-variable sets (or equivalent digests) to support robust `$d` propagation and richer diagnostics.
+
+### Q8. What “toy models” should we build early to de-risk the design?
+
+Three minimal experiments cover most structural risks:
+
+1. **`$d` propagation stress test**: feed small HIR patterns with substitutions and measure growth of required `$d` pairs, especially at the interface boundary.
+2. **Representation microbenchmark**: compare per-token Python objects vs packed integer buffers for millions of tokens.
+3. **Diagnostics loop test**: intentionally introduce a verifier error and ensure it maps back to a single ProofUnit + proof-step context with an unmangled view.
+
+These should be kept as “sanity checks”: small, stable, and always runnable.
+
+---
+
 **End of specification.**

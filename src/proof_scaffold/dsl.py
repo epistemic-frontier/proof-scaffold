@@ -1,6 +1,7 @@
 # proof_scaffold/dsl.py
 from __future__ import annotations
 
+import inspect
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from types import TracebackType
@@ -20,6 +21,7 @@ from .ir import (
 )
 from .ir import (
     LIRStmt,
+    Origin,
     ProofUnitIR,
     SymbolRef,
 )
@@ -234,6 +236,21 @@ class MMBuilder:
         t = _clean_comment_ascii(text) if self._ascii_comments else text
         self._lines.append(f"$( {t} $)")
         return self
+
+    # -------------
+    # Origin helper
+    # -------------
+    def _origin_here(self) -> Origin:
+        try:
+            # 2 frames up: caller of DSL method
+            frame = inspect.stack()[2]
+        except Exception:
+            frame = inspect.stack()[1]
+        mod = frame.frame.f_globals.get("__name__")
+        file = frame.filename
+        line = frame.lineno
+        return Origin(module=mod, file=file, line=line)
+
 
     def c(self, *symbols: str) -> MMBuilder:
         if not symbols:

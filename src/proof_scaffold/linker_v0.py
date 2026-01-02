@@ -4,6 +4,7 @@ from __future__ import annotations
 from collections.abc import Iterable
 from dataclasses import dataclass
 
+from .diag import Diagnostic
 from .ir import (
     Axiom,
     ConstDecl,
@@ -24,6 +25,34 @@ from .ir import (
 class LinkerError(Exception):
     """Linker errors (not frozen; allow traceback attachment)."""
     pass
+
+
+class LinkerDiagError(LinkerError):
+    def __init__(self, diag: Diagnostic) -> None:
+        super().__init__(f"{diag.error_code}: {diag.message}")
+        self.diag = diag
+
+    def __str__(self) -> str:  # include origin hints to satisfy existing tests
+        def fmt(o: Origin | None) -> str:
+            if o is None:
+                return "<unknown origin>"
+            parts: list[str] = []
+            if o.file:
+                parts.append(str(o.file))
+            if o.line is not None:
+                parts.append(str(o.line))
+            return ":".join(parts) if parts else "<unknown origin>"
+
+        base = f"{self.diag.error_code}: {self.diag.message}"
+        segs: list[str] = []
+        if self.diag.primary_origin is not None:
+            segs.append(fmt(self.diag.primary_origin))
+        for ro in self.diag.related_origins:
+            if ro is not None:
+                segs.append(fmt(ro))
+        if segs:
+            return base + " [" + ", ".join(segs) + "]"
+        return base
 
 
 @dataclass
@@ -92,6 +121,32 @@ class LinkerV0:
             label_kind_by_unit=label_kind_by_unit,
         )
 
+    def build_symbol_table(self, units: Iterable[ProofUnitIR]) -> list[tuple[str, str, str, int]]:
+        """
+        Build a deterministic global symbol table snapshot for tests.
+        Returns a list of tuples: (origin_id, local_name, kind, ordinal_id)
+        origin_id := unit_id for labels; '<global>' for $c/$v
+        Ordering policy:
+        - All global tokens ($c and $v) are combined and sorted by name (stable), not grouped by kind.
+        - Then per-unit blocks ordered by unit_id; inside each unit, labels sorted by name.
+        """
+        unit_list = [u for u in units]
+        infos, global_consts, global_vars, label_owners, label_kind_by_unit = self._stage1(unit_list)
+        rows: list[tuple[str, str, str]] = []
+        globals_rows: list[tuple[str, str, str]] = []
+        for c in global_consts:
+            globals_rows.append(("<global>", c, "CONST"))
+        for v in global_vars:
+            globals_rows.append(("<global>", v, "VAR"))
+        # sort all globals by token name deterministically
+        globals_rows.sort(key=lambda t: t[1])
+        rows.extend(globals_rows)
+        # then units in unit_id order, and names within unit sorted
+        for info in sorted(infos, key=lambda x: x.unit_id):
+            for name, kind in sorted(info.labels.items()):
+                rows.append((info.unit_id, name, kind))
+        return [(o, n, k, idx) for idx, (o, n, k) in enumerate(rows)]
+
     # --------
     # Stages
     # --------
@@ -136,25 +191,41 @@ class LinkerV0:
                 elif isinstance(st, ScopeExit):
                     depth -= 1
                     if depth < 0:
-                        raise LinkerError(
-                            f"scope imbalance detected in unit {u.unit_id}: extra ScopeExit (at {fmt_origin(u.origin)})"
-                        )
+                        raise LinkerDiagError(Diagnostic(
+                            error_code="E_SCOPE_IMBALANCE",
+                            message=f"scope imbalance detected in unit {u.unit_id}: extra ScopeExit",
+                            primary_origin=u.origin,
+                            origin_chain=("Stage1", f"unit={u.unit_id}"),
+                        ))
             if depth != 0:
-                raise LinkerError(
-                    f"scope imbalance detected in unit {u.unit_id}: unmatched ScopeEnter/ScopeExit (at {fmt_origin(u.origin)})"
-                )
+                raise LinkerDiagError(Diagnostic(
+                    error_code="E_SCOPE_IMBALANCE",
+                    message=f"scope imbalance detected in unit {u.unit_id}: unmatched ScopeEnter/ScopeExit",
+                    primary_origin=u.origin,
+                    origin_chain=("Stage1", f"unit={u.unit_id}"),
+                ))
 
             # Collect and early lint
             for st in u.lir:
                 if isinstance(st, ConstDecl):
                     for s in st.symbols:
                         if not isinstance(s, SymbolRef):
-                            raise LinkerError("ConstDecl contains non-SymbolRef token")
+                            raise LinkerDiagError(Diagnostic(
+                                error_code="E_RAW_TOKEN_FORBIDDEN",
+                                message="ConstDecl contains non-SymbolRef token",
+                                primary_origin=st.origin,
+                                origin_chain=("Stage1", f"unit={u.unit_id}"),
+                            ))
                         global_consts.add(s.name)
                 elif isinstance(st, VarDecl):
                     for s in st.symbols:
                         if not isinstance(s, SymbolRef):
-                            raise LinkerError("VarDecl contains non-SymbolRef token")
+                            raise LinkerDiagError(Diagnostic(
+                                error_code="E_RAW_TOKEN_FORBIDDEN",
+                                message="VarDecl contains non-SymbolRef token",
+                                primary_origin=st.origin,
+                                origin_chain=("Stage1", f"unit={u.unit_id}"),
+                            ))
                         global_vars.add(s.name)
                 elif isinstance(st, FloatingHyp):
                     lab = st.label
@@ -189,9 +260,12 @@ class LinkerV0:
                     # Inspect proof tokens for uses (names only; owners resolved later)
                     for tk in st.proof_tokens:
                         if not isinstance(tk, SymbolRef):
-                            raise LinkerError(
-                                f"proof token is not a SymbolRef (raw string token forbidden) at {fmt_origin(st.origin)}"
-                            )
+                            raise LinkerDiagError(Diagnostic(
+                                error_code="E_RAW_TOKEN_FORBIDDEN",
+                                message="proof token is not a SymbolRef (raw string token forbidden)",
+                                primary_origin=st.origin,
+                                origin_chain=("Stage1", f"unit={u.unit_id}", f"stmt={lab}"),
+                            ))
                         step = tk.name
                         # mark that this theorem uses an assertion name; real edges computed in Stage 4
                         # (not strictly needed but kept for potential diagnostics)
@@ -237,18 +311,27 @@ class LinkerV0:
                             continue
                         owners = label_owners.get(step)
                         if not owners:
-                            raise LinkerError(
-                                f"unresolved label in proof: '{step}' (in unit {info.unit_id}); at {fmt_origin(st.origin)}"
-                            )
+                            raise LinkerDiagError(Diagnostic(
+                                error_code="E_UNRESOLVED_LABEL",
+                                message=f"unresolved label in proof: '{step}' (in unit {info.unit_id})",
+                                primary_origin=st.origin,
+                                origin_chain=("Stage1", f"unit={info.unit_id}", f"stmt={st.label}"),
+                                details={"label": step},
+                            ))
                         # leakage via $f/$e
                         leak_from = [own for own in owners if label_kind_by_unit.get((own, step)) in ("$f", "$e")]
                         if leak_from:
                             offender = sorted(leak_from)[0]
                             off_o = next((i for i in infos if i.unit_id == offender), None)
                             off_origin = off_o.label_origin.get(step) if off_o else None
-                            raise LinkerError(
-                                f"cross-unit hypothesis leakage: '{step}' from {offender} (def at {fmt_origin(off_origin)}) used in {info.unit_id} (use at {fmt_origin(st.origin)})"
-                            )
+                            raise LinkerDiagError(Diagnostic(
+                                error_code="E_CROSS_UNIT_HYP_LEAKAGE",
+                                message=f"cross-unit hypothesis leakage: '{step}'",
+                                primary_origin=st.origin,
+                                related_origins=(off_origin,),
+                                origin_chain=("Stage1", f"unit={info.unit_id}", f"stmt={st.label}"),
+                                details={"offender_unit": offender, "label": step},
+                            ))
                         # non-exported $a/$p usage
                         ap_owners = [own for own in owners if label_kind_by_unit.get((own, step)) in ("$a", "$p")]
                         if ap_owners:
@@ -262,9 +345,14 @@ class LinkerV0:
                                 owner = sorted(ap_owners)[0]
                                 own_info = next((i for i in infos if i.unit_id == owner), None)
                                 def_origin = own_info.label_origin.get(step) if own_info else None
-                                raise LinkerError(
-                                    f"non-exported label reference: '{step}' from {owner} (def at {fmt_origin(def_origin)}) used in {info.unit_id} (use at {fmt_origin(st.origin)})"
-                                )
+                                raise LinkerDiagError(Diagnostic(
+                                    error_code="E_NON_EXPORTED_LABEL_REF",
+                                    message=f"non-exported label reference: '{step}'",
+                                    primary_origin=st.origin,
+                                    related_origins=(def_origin,),
+                                    origin_chain=("Stage1", f"unit={info.unit_id}", f"stmt={st.label}"),
+                                    details={"owner_unit": owner, "label": step},
+                                ))
         return infos, global_consts, global_vars, label_owners, label_kind_by_unit
 
     def _stage4(
@@ -322,10 +410,16 @@ class LinkerV0:
                 # cycle detected; reconstruct a small path
                 cycle_stack.append(n)
                 path = cycle_stack + [n]
-                pretty = " -> ".join(
-                    f"{uid}({fmt_origin(info_by_id[uid].unit_origin)})" for uid in path
-                )
-                raise LinkerError("dependency cycle detected: " + pretty)
+                # include origins for all units in the detected cycle for better diagnostics
+                related = tuple(info_by_id[uid].unit_origin for uid in path if uid != n)
+                raise LinkerDiagError(Diagnostic(
+                    error_code="E_DEP_CYCLE",
+                    message="dependency cycle detected",
+                    primary_origin=info_by_id[n].unit_origin,
+                    related_origins=related,
+                    origin_chain=("Stage4", f"unit={n}"),
+                    details={"cycle": path},
+                ))
             temp_mark.add(n)
             cycle_stack.append(n)
             for m in sorted(deps[n]):
@@ -334,6 +428,7 @@ class LinkerV0:
             temp_mark.remove(n)
             perm_mark.add(n)
             order.append(n)
+
 
         
         for uid in sorted(deps.keys()):

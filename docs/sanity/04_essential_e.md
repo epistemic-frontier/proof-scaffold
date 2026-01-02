@@ -38,19 +38,17 @@ This dependency is computed by the verifier, not inferred by the proof.
 
 ---
 
-## Generated Proof
+## Embedded Proof in the Fixture
 
-The companion program appends:
+The fixture already contains a minimal proof inside the same local scope:
 
 ```mm
-sanity.04 $p |- ph $=
-  wph
-  hph
-  id-e
+sanity.e1 $p |- ph $=
+  wph hph id-e
 $.
-````
+```
 
-This proof is intentionally minimal.
+Our sanity script simply verifies this database as-is with the selected verifier.
 
 ---
 

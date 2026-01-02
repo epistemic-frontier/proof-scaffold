@@ -88,15 +88,15 @@ You should see:
 SANITY 04 OK
 ```
 
-The generated proof has the following structure:
+Note: the fixture already embeds the minimal proof inside the local scope as:
 
 ```mm
-sanity.04 $p |- ph $=
-  wph
-  hph
-  id-e
+sanity.e1 $p |- ph $=
+  wph hph id-e
 $.
 ```
+
+The sanity script verifies the fixture as-is; it does not generate an extra theorem.
 
 ---
 

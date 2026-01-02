@@ -213,6 +213,36 @@ This step resolves a common misconception and clarifies how rules consume hypoth
 
 ---
 
+### Step 05 — Modus Ponens (M0.2)
+
+**Goal:**
+See your first real inference rule in action: applying two essential hypotheses to derive a conclusion.
+
+* Tutorial: `tutorial/sanity/05_mp.md`
+* Runners/Fixtures:
+  * Happy path: `tools/sanity/check_05_mp.py`, `fixtures/sanity/05_mp_happy.mm`
+  * Missing hyp (must fail): `fixtures/sanity/05_mp_missing_hyp.mm`
+  * Bad proof tokens (must fail): `fixtures/sanity/05_mp_bad_proof_tokens.mm`
+
+This step reinforces `$f`/`$e` ordering and shows how multiple `$e` are consumed.
+
+---
+
+### Step 06 — Scoped Assertions and Label Visibility (M0.2)
+
+**Goal:**
+Understand `${ ... $}` blocks, label visibility, and why scope controls names but not active `$e`.
+
+* Tutorial: `tutorial/sanity/06_scope.md`
+* Fixtures:
+  * Happy path: `fixtures/sanity/06_scope_happy.mm`
+  * Leakage (must fail): `fixtures/sanity/06_scope_leakage.mm`
+  * Unbalanced (must fail to parse): `fixtures/sanity/06_scope_unbalanced.mm`
+
+This step shows how to structure local hypotheses/theorems and avoid scope leakage.
+
+---
+
 ## Troubleshooting (Common Failures)
 
 ### “Verifier not found” / “cannot execute verifier”
@@ -258,8 +288,8 @@ This tutorial **is not**:
 
 After completing Step 04, you will be ready to explore:
 
-* inference rules such as modus ponens,
-* scoped assertions (`${ ... $}`),
+* inference rules such as modus ponens (Step 05),
+* scoped assertions (`${ ... $}`) and label visibility (Step 06),
 * modular Metamath databases,
 * Python-based proof generators (apply, rewriting, normalization).
 

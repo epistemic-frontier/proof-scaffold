@@ -1,10 +1,10 @@
 $( 06_scope_leakage.mm - reference a block-local label outside its scope (must fail). $)
 
-$c wff -> $.
+$c wff ( ) -> $.
 $v ph ps $.
 
-ph $f wff ph $.
-ps $f wff ps $.
+wph $f wff ph $.
+wps $f wff ps $.
 
 ${
   $( Local hypotheses + local MP axiom + local theorem. $)
@@ -13,7 +13,7 @@ ${
   ax-mp-local $a wff ps $.
 
   tlocal $p wff ps $=
-    ph ps l1 l2 ax-mp-local
+    wph wps l1 l2 ax-mp-local
   $.
 $}
 

@@ -104,3 +104,7 @@ class ProofUnitIR:
     unit_id: str
     lir: list[LIRStmt] = field(default_factory=list)
     origin: Origin | None = None
+    # Optional explicit export list of label names ($a/$p) for this unit.
+    # When None, baseline v0 treats ALL $a/$p in this unit as exported (compat).
+    # When provided (list), ONLY those listed are considered exported.
+    exports: list[str] | None = None

@@ -11,6 +11,7 @@ from .ir import (
     EssentialHyp,
     FloatingHyp,
     LIRStmt,
+    Origin,
     ProofUnitIR,
     ScopeEnter,
     ScopeExit,
@@ -31,6 +32,8 @@ class _UnitInfo:
     stmts: list[LIRStmt]
     # labels: name -> kind ("$f","$e","$a","$p")
     labels: dict[str, str]
+    # label origins for diagnostics: name -> origin
+    label_origin: dict[str, Origin | None]
     # uses of other units' exported labels ($a/$p) by name
     uses_assertions: set[str]
     # per-unit floating hyp mapping and order
@@ -38,6 +41,10 @@ class _UnitInfo:
     f_order: list[str]
     # per-unit assertion statements (typecode + expr tokens)
     assertion_stmt: dict[str, list[str]]
+    # exported labels for this unit (only $a/$p). None means "all $a/$p exported" (compat)
+    exports: set[str] | None
+    # unit origin for diagnostics
+    unit_origin: Origin | None
 
 
 class LinkerV0:
@@ -95,6 +102,19 @@ class LinkerV0:
         global_consts: set[str] = set()
         global_vars: set[str] = set()
 
+        # helper to pretty-print origin
+        def fmt_origin(o: Origin | None) -> str:
+            if o is None:
+                return "<unknown origin>"
+            parts: list[str] = []
+            if o.module:
+                parts.append(str(o.module))
+            if o.file:
+                parts.append(str(o.file))
+            if o.line is not None:
+                parts.append(str(o.line))
+            return ":".join(parts) if parts else "<unknown origin>"
+
         # label_name -> set[unit_id]
         label_owners: dict[str, set[str]] = {}
         # (unit_id, label_name) -> kind
@@ -102,6 +122,7 @@ class LinkerV0:
 
         for u in unit_list:
             labels: dict[str, str] = {}
+            label_origin: dict[str, Origin | None] = {}
             uses_assertions: set[str] = set()
             f_label_of_var: dict[str, str] = {}
             f_order: list[str] = []
@@ -115,9 +136,13 @@ class LinkerV0:
                 elif isinstance(st, ScopeExit):
                     depth -= 1
                     if depth < 0:
-                        raise LinkerError(f"scope imbalance detected in unit {u.unit_id}: extra ScopeExit")
+                        raise LinkerError(
+                            f"scope imbalance detected in unit {u.unit_id}: extra ScopeExit (at {fmt_origin(u.origin)})"
+                        )
             if depth != 0:
-                raise LinkerError(f"scope imbalance detected in unit {u.unit_id}: unmatched ScopeEnter/ScopeExit")
+                raise LinkerError(
+                    f"scope imbalance detected in unit {u.unit_id}: unmatched ScopeEnter/ScopeExit (at {fmt_origin(u.origin)})"
+                )
 
             # Collect and early lint
             for st in u.lir:
@@ -136,6 +161,7 @@ class LinkerV0:
                     label_owners.setdefault(lab, set()).add(u.unit_id)
                     label_kind_by_unit[(u.unit_id, lab)] = "$f"
                     labels[lab] = "$f"
+                    label_origin[lab] = st.origin
                     v = st.var.name
                     f_label_of_var[v] = lab
                     if v not in f_order:
@@ -145,22 +171,27 @@ class LinkerV0:
                     label_owners.setdefault(lab, set()).add(u.unit_id)
                     label_kind_by_unit[(u.unit_id, lab)] = "$e"
                     labels[lab] = "$e"
+                    label_origin[lab] = st.origin
                 elif isinstance(st, Axiom):
                     lab = st.label
                     label_owners.setdefault(lab, set()).add(u.unit_id)
                     label_kind_by_unit[(u.unit_id, lab)] = "$a"
                     labels[lab] = "$a"
+                    label_origin[lab] = st.origin
                     assertion_stmt[lab] = [st.typecode.name] + [t.name for t in st.expr]
                 elif isinstance(st, Theorem):
                     lab = st.label
                     label_owners.setdefault(lab, set()).add(u.unit_id)
                     label_kind_by_unit[(u.unit_id, lab)] = "$p"
                     labels[lab] = "$p"
+                    label_origin[lab] = st.origin
                     assertion_stmt[lab] = [st.typecode.name] + [t.name for t in st.expr]
                     # Inspect proof tokens for uses (names only; owners resolved later)
                     for tk in st.proof_tokens:
                         if not isinstance(tk, SymbolRef):
-                            raise LinkerError("proof token is not a SymbolRef (raw string token forbidden)")
+                            raise LinkerError(
+                                f"proof token is not a SymbolRef (raw string token forbidden) at {fmt_origin(st.origin)}"
+                            )
                         step = tk.name
                         # mark that this theorem uses an assertion name; real edges computed in Stage 4
                         # (not strictly needed but kept for potential diagnostics)
@@ -172,17 +203,30 @@ class LinkerV0:
                 else:  # pragma: no cover - future-proof
                     raise LinkerError(f"unknown LIR stmt: {type(st)}")
 
+            # compute exports set for this unit (only $a/$p)
+            if u.exports is None:
+                exports_set: set[str] | None = None  # compat: all $a/$p exported
+            else:
+                exports_set = set(u.exports)
+
             infos.append(_UnitInfo(
                 unit_id=u.unit_id,
                 stmts=list(u.lir),
                 labels=labels,
+                label_origin=label_origin,
                 uses_assertions=uses_assertions,
                 f_label_of_var=f_label_of_var,
                 f_order=f_order,
                 assertion_stmt=assertion_stmt,
+                exports=exports_set,
+                unit_origin=u.origin,
             ))
 
-        # Early lint: cross-unit $f/$e usage and unresolved symbols
+        # Early lint: cross-unit $f/$e usage, non-export references, unresolved symbols
+        # fmt_origin already defined above in this method
+
+        exports_by_unit: dict[str, set[str] | None] = {i.unit_id: i.exports for i in infos}
+
         for info in infos:
             for st in info.stmts:
                 if isinstance(st, Theorem):
@@ -194,15 +238,33 @@ class LinkerV0:
                         owners = label_owners.get(step)
                         if not owners:
                             raise LinkerError(
-                                f"unresolved label in proof: '{step}' (in unit {info.unit_id})"
+                                f"unresolved label in proof: '{step}' (in unit {info.unit_id}); at {fmt_origin(st.origin)}"
                             )
-                        # If any owner defines this name as $f/$e, it's a leakage
+                        # leakage via $f/$e
                         leak_from = [own for own in owners if label_kind_by_unit.get((own, step)) in ("$f", "$e")]
                         if leak_from:
                             offender = sorted(leak_from)[0]
+                            off_o = next((i for i in infos if i.unit_id == offender), None)
+                            off_origin = off_o.label_origin.get(step) if off_o else None
                             raise LinkerError(
-                                f"cross-unit hypothesis leakage: '{step}' from {offender} used in {info.unit_id}"
+                                f"cross-unit hypothesis leakage: '{step}' from {offender} (def at {fmt_origin(off_origin)}) used in {info.unit_id} (use at {fmt_origin(st.origin)})"
                             )
+                        # non-exported $a/$p usage
+                        ap_owners = [own for own in owners if label_kind_by_unit.get((own, step)) in ("$a", "$p")]
+                        if ap_owners:
+                            exported_ok = False
+                            for own in ap_owners:
+                                ex = exports_by_unit.get(own)
+                                if ex is None or step in ex:
+                                    exported_ok = True
+                                    break
+                            if not exported_ok:
+                                owner = sorted(ap_owners)[0]
+                                own_info = next((i for i in infos if i.unit_id == owner), None)
+                                def_origin = own_info.label_origin.get(step) if own_info else None
+                                raise LinkerError(
+                                    f"non-exported label reference: '{step}' from {owner} (def at {fmt_origin(def_origin)}) used in {info.unit_id} (use at {fmt_origin(st.origin)})"
+                                )
         return infos, global_consts, global_vars, label_owners, label_kind_by_unit
 
     def _stage4(
@@ -214,6 +276,18 @@ class LinkerV0:
         # Build unit dependency graph: unit A -> unit B if A uses an $a/$p from B
         deps: dict[str, set[str]] = {i.unit_id: set() for i in infos}
         info_by_id = {i.unit_id: i for i in infos}
+
+        def fmt_origin(o: Origin | None) -> str:
+            if o is None:
+                return "<unknown origin>"
+            parts: list[str] = []
+            if getattr(o, "module", None):
+                parts.append(str(o.module))
+            if getattr(o, "file", None):
+                parts.append(str(o.file))
+            if getattr(o, "line", None) is not None:
+                parts.append(str(o.line))
+            return ":".join(parts) if parts else "<unknown origin>"
         for i in infos:
             for st in i.stmts:
                 if isinstance(st, Theorem):
@@ -228,7 +302,12 @@ class LinkerV0:
                         for owner in owners:
                             kind = label_kind_by_unit.get((owner, step))
                             if kind in ("$a", "$p") and owner != i.unit_id:
-                                deps[i.unit_id].add(owner)
+                                # respect exports (None -> all exported; else must be listed)
+                                own_info = next((ii for ii in infos if ii.unit_id == owner), None)
+                                if own_info is None:
+                                    continue
+                                if own_info.exports is None or step in own_info.exports:
+                                    deps[i.unit_id].add(owner)
 
         # topo sort + cycle detection
         temp_mark: set[str] = set()
@@ -242,7 +321,11 @@ class LinkerV0:
             if n in temp_mark:
                 # cycle detected; reconstruct a small path
                 cycle_stack.append(n)
-                raise LinkerError("dependency cycle detected: " + " -> ".join(cycle_stack + [n]))
+                path = cycle_stack + [n]
+                pretty = " -> ".join(
+                    f"{uid}({fmt_origin(info_by_id[uid].unit_origin)})" for uid in path
+                )
+                raise LinkerError("dependency cycle detected: " + pretty)
             temp_mark.add(n)
             cycle_stack.append(n)
             for m in sorted(deps[n]):
@@ -252,6 +335,7 @@ class LinkerV0:
             perm_mark.add(n)
             order.append(n)
 
+        
         for uid in sorted(deps.keys()):
             if uid not in perm_mark:
                 visit(uid)

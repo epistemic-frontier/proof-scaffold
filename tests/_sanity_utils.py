@@ -33,13 +33,14 @@ def _parse_list(env_name: str, default_csv: str) -> list[Path]:
 
 
 def semantic_verifiers() -> list[Path]:
-    # proof-checking oracles
-    return _parse_list(ENV_SEM, "verifier/mmverify.py,verifier/shims/metamath.py")
+    # proof-checking oracles (CI default: minimal mmverify only)
+    return _parse_list(ENV_SEM, "verifier/mmverify.py")
 
 
 def lint_verifiers() -> list[Path]:
     # parser/lint tools (may not validate proofs)
-    return _parse_list(ENV_LINT, "verifier/metamath-knife")
+    # CI default: none (opt-in via PROOF_SCAFFOLD_LINT_VERIFIERS)
+    return _parse_list(ENV_LINT, "")
 
 
 def all_verifiers() -> list[Path]:

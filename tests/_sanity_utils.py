@@ -9,6 +9,7 @@ from pathlib import Path
 ENV_VERBOSE = "PROOF_SCAFFOLD_VERIFIERS_VERBOSE"
 ENV_SEM = "PROOF_SCAFFOLD_SEMANTIC_VERIFIERS"
 ENV_LINT = "PROOF_SCAFFOLD_LINT_VERIFIERS"
+ENV_ALL = "PROOF_SCAFFOLD_VERIFIERS"
 
 
 def _vprint(msg: str) -> None:
@@ -39,6 +40,16 @@ def semantic_verifiers() -> list[Path]:
 def lint_verifiers() -> list[Path]:
     # parser/lint tools (may not validate proofs)
     return _parse_list(ENV_LINT, "verifier/metamath-knife")
+
+
+def all_verifiers() -> list[Path]:
+    # Optional override: when PROOF_SCAFFOLD_VERIFIERS is set, use it verbatim.
+    override = os.environ.get(ENV_ALL, "").strip()
+    if override:
+        # Parse from ENV_ALL; default_csv unused since env is set.
+        return _parse_list(ENV_ALL, "")
+    # Default for M0.1: only semantic verifiers.
+    return semantic_verifiers()
 
 
 def fixture(relpath: str) -> Path:
@@ -104,12 +115,12 @@ def verify_expect_fail(mm_file: Path) -> None:
 
 
 def run_sanity_script_for_all_verifiers(script: Path) -> None:
-    # For M0.1 scripts: run only on semantic verifiers (they define correctness).
-    # Lint verifiers are not guaranteed to implement proof checking.
+    # For M0.1 scripts: by default run only on semantic verifiers (they define correctness).
+    # If PROOF_SCAFFOLD_VERIFIERS is set, it overrides the list (allowing inclusion of lint tools).
     if not script.exists():
         raise FileNotFoundError(f"sanity script not found: {script}")
 
-    for v in semantic_verifiers():
+    for v in all_verifiers():
         _vprint(f"[sanity-script] run {script} --mmverify {v}")
         proc = subprocess.run(
             [sys.executable, str(script), "--mmverify", str(v)],

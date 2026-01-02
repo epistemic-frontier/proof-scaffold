@@ -16,6 +16,16 @@ from ..context import LinkContext, UnitInfo
 from ..diag_helpers import raise_link_error
 
 
+def _ensure_symref(cond: bool, msg: str, primary, unit_id: str, *, chain_extra: tuple[str, ...] = ()) -> None:
+    if not cond:
+        raise_link_error(
+            "E_RAW_TOKEN_FORBIDDEN",
+            msg,
+            primary=primary,
+            chain=("Stage1", f"unit={unit_id}") + chain_extra,
+        )
+
+
 def run(ctx: LinkContext) -> None:
     infos: list[UnitInfo] = []
     global_consts: set[str] = set()
@@ -57,25 +67,15 @@ def run(ctx: LinkContext) -> None:
         for st in u.lir:
             if isinstance(st, ConstDecl):
                 for s in st.symbols:
-                    if not isinstance(s, SymbolRef):
-                        raise_link_error(
-                            "E_RAW_TOKEN_FORBIDDEN",
-                            "ConstDecl contains non-SymbolRef token",
-                            primary=st.origin,
-                            chain=("Stage1", f"unit={u.unit_id}"),
-                        )
+                    _ensure_symref(isinstance(s, SymbolRef), "ConstDecl contains non-SymbolRef token", st.origin, u.unit_id)
                     global_consts.add(s.name)
             elif isinstance(st, VarDecl):
                 for s in st.symbols:
-                    if not isinstance(s, SymbolRef):
-                        raise_link_error(
-                            "E_RAW_TOKEN_FORBIDDEN",
-                            "VarDecl contains non-SymbolRef token",
-                            primary=st.origin,
-                            chain=("Stage1", f"unit={u.unit_id}"),
-                        )
+                    _ensure_symref(isinstance(s, SymbolRef), "VarDecl contains non-SymbolRef token", st.origin, u.unit_id)
                     global_vars.add(s.name)
             elif isinstance(st, FloatingHyp):
+                _ensure_symref(isinstance(st.typecode, SymbolRef), "FloatingHyp.typecode must be SymbolRef", st.origin, u.unit_id)
+                _ensure_symref(isinstance(st.var, SymbolRef), "FloatingHyp.var must be SymbolRef", st.origin, u.unit_id)
                 lab = st.label
                 label_owners.setdefault(lab, set()).add(u.unit_id)
                 label_kind_by_unit[(u.unit_id, lab)] = "$f"
@@ -86,12 +86,18 @@ def run(ctx: LinkContext) -> None:
                 if v not in f_order:
                     f_order.append(v)
             elif isinstance(st, EssentialHyp):
+                _ensure_symref(isinstance(st.typecode, SymbolRef), "EssentialHyp.typecode must be SymbolRef", st.origin, u.unit_id)
+                for t in st.expr:
+                    _ensure_symref(isinstance(t, SymbolRef), "EssentialHyp.expr contains non-SymbolRef token", st.origin, u.unit_id)
                 lab = st.label
                 label_owners.setdefault(lab, set()).add(u.unit_id)
                 label_kind_by_unit[(u.unit_id, lab)] = "$e"
                 labels[lab] = "$e"
                 label_origin[lab] = st.origin
             elif isinstance(st, Axiom):
+                _ensure_symref(isinstance(st.typecode, SymbolRef), "Axiom.typecode must be SymbolRef", st.origin, u.unit_id)
+                for t in st.expr:
+                    _ensure_symref(isinstance(t, SymbolRef), "Axiom.expr contains non-SymbolRef token", st.origin, u.unit_id)
                 lab = st.label
                 label_owners.setdefault(lab, set()).add(u.unit_id)
                 label_kind_by_unit[(u.unit_id, lab)] = "$a"
@@ -99,6 +105,9 @@ def run(ctx: LinkContext) -> None:
                 label_origin[lab] = st.origin
                 assertion_stmt[lab] = [st.typecode.name] + [t.name for t in st.expr]
             elif isinstance(st, Theorem):
+                _ensure_symref(isinstance(st.typecode, SymbolRef), "Theorem.typecode must be SymbolRef", st.origin, u.unit_id, chain_extra=(f"stmt={st.label}",))
+                for t in st.expr:
+                    _ensure_symref(isinstance(t, SymbolRef), "Theorem.expr contains non-SymbolRef token", st.origin, u.unit_id, chain_extra=(f"stmt={st.label}",))
                 lab = st.label
                 label_owners.setdefault(lab, set()).add(u.unit_id)
                 label_kind_by_unit[(u.unit_id, lab)] = "$p"
@@ -140,6 +149,10 @@ def run(ctx: LinkContext) -> None:
             exports=exports_set,
             unit_origin=u.origin,
         ))
+
+    # Note: We do NOT treat same label names across different units as collisions.
+    # Relocation will namespace them deterministically; collision only makes sense when
+    # the same (origin, local_name, kind) pair appears twice, which is not represented here.
 
     ctx.infos = infos
     ctx.global_consts = global_consts

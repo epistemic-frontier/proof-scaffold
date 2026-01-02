@@ -26,7 +26,7 @@ CASES = [
 ]
 
 
-def run_verifier(mm_path: Path) -> subprocess.CompletedProcess:
+def run_verifier(mm_path: Path) -> subprocess.CompletedProcess[str]:
     if not VERIFIER.exists():
         raise FileNotFoundError(f"Verifier not found: {VERIFIER}")
     if not mm_path.exists():
@@ -34,12 +34,12 @@ def run_verifier(mm_path: Path) -> subprocess.CompletedProcess:
 
     # Assumption: `python verifier/mmverify.py <file>` returns exit code 0 on success.
     # If your verifier CLI differs, adjust args here (only here).
-    return subprocess.capture_output(
+    return subprocess.run(
         [sys.executable, str(VERIFIER), str(mm_path)],
         cwd=str(REPO_ROOT),
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        capture_output=True,
         text=True,
+        check=False,
     )
 
 

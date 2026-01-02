@@ -158,7 +158,7 @@ class MMBuilder:
 
     def _push_scope(self) -> None:
         self._lines.append("${")
-        self._lir.append(LIRScopeEnter())
+        self._lir.append(LIRScopeEnter(origin=self._origin_here()))
         self._scopes.append(_Scope(is_top_level=False))
 
 
@@ -166,7 +166,7 @@ class MMBuilder:
         if len(self._scopes) <= 1:
             raise MMDSLError("unbalanced scope pop")
         self._scopes.pop()
-        self._lir.append(LIRScopeExit())
+        self._lir.append(LIRScopeExit(origin=self._origin_here()))
         self._lines.append("$}")
 
 
@@ -225,7 +225,7 @@ class MMBuilder:
     # IR exposure (004 front-end contract)
     # -------------
     def to_proof_unit(self, unit_id: str) -> ProofUnitIR:
-        return ProofUnitIR(unit_id=unit_id, lir=list(self._lir))
+        return ProofUnitIR(unit_id=unit_id, lir=list(self._lir), origin=self._origin_here())
 
     # -------------
     # DSL methods
@@ -259,7 +259,7 @@ class MMBuilder:
             if s in self._variables:
                 raise MMDSLError(f"token '{s}' already declared as $v")
             self._constants.add(s)
-        self._lir.append(LIRConstDecl(tuple(SymbolRef(s) for s in symbols)))
+        self._lir.append(LIRConstDecl(tuple(SymbolRef(s) for s in symbols), origin=self._origin_here()))
         self._lines.append(f"$c {_join_tokens(symbols)} $.")
         return self
 
@@ -271,7 +271,7 @@ class MMBuilder:
             if s in self._constants:
                 raise MMDSLError(f"token '{s}' already declared as $c")
             self._variables.add(s)
-        self._lir.append(LIRVarDecl(tuple(SymbolRef(s) for s in symbols)))
+        self._lir.append(LIRVarDecl(tuple(SymbolRef(s) for s in symbols), origin=self._origin_here()))
         self._lines.append(f"$v {_join_tokens(symbols)} $.")
         return self
 
@@ -283,7 +283,7 @@ class MMBuilder:
             raise MMDSLError(f"$f typecode '{typecode}' not declared via $c")
         self._register_label(label)
         self._scope.active_f[var] = label
-        self._lir.append(LIRFloatingHyp(label=label, typecode=SymbolRef(typecode), var=SymbolRef(var)))
+        self._lir.append(LIRFloatingHyp(label=label, typecode=SymbolRef(typecode), var=SymbolRef(var), origin=self._origin_here()))
         self._lines.append(f"{label} $f {typecode} {var} $.")
         return self
 
@@ -301,7 +301,7 @@ class MMBuilder:
 
         self._register_label(label)
         self._scope.active_e.append(label)
-        self._lir.append(LIREssentialHyp(label=label, typecode=SymbolRef(typecode), expr=tuple(SymbolRef(t) for t in tokens)))
+        self._lir.append(LIREssentialHyp(label=label, typecode=SymbolRef(typecode), expr=tuple(SymbolRef(t) for t in tokens), origin=self._origin_here()))
         self._lines.append(f"{label} $e {typecode} {_join_tokens(tokens)} $.")
         return self
 
@@ -316,7 +316,7 @@ class MMBuilder:
         self._check_expr_tokens_declared(tokens)
 
         self._register_label(label)
-        self._lir.append(LIRAxiom(label=label, typecode=SymbolRef(typecode), expr=tuple(SymbolRef(t) for t in tokens)))
+        self._lir.append(LIRAxiom(label=label, typecode=SymbolRef(typecode), expr=tuple(SymbolRef(t) for t in tokens), origin=self._origin_here()))
         self._lines.append(f"{label} $a {typecode} {_join_tokens(tokens)} $.")
         return self
 
@@ -376,6 +376,7 @@ class MMBuilder:
                 typecode=SymbolRef(typecode),
                 expr=tuple(SymbolRef(t) for t in expr_tokens),
                 proof_tokens=tuple(lir_steps),
+                origin=self._origin_here(),
             )
         )
         self._lines.append(f"{label} $p {typecode} {_join_tokens(expr_tokens)} $=")

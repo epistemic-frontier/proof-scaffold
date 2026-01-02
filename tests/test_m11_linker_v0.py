@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import cast
 
 from proof_scaffold.dsl import MMBuilder
 from proof_scaffold.ir import (
@@ -8,6 +9,7 @@ from proof_scaffold.ir import (
     ConstDecl,
     EssentialHyp,
     FloatingHyp,
+    LIRStmt,
     Origin,
     ProofUnitIR,
     ScopeEnter,
@@ -245,7 +247,7 @@ def test_adv_m11_forbid_raw_string_tokens_default_off() -> None:
             origin=Origin(module="mod", file="x.py", line=5),
         ),
     ]
-    u = ProofUnitIR(unit_id="adv.raw", lir=lir, origin=Origin(module="mod", file="x.py", line=0))
+    u = ProofUnitIR(unit_id="adv.raw", lir=cast(list[LIRStmt], lir), origin=Origin(module="mod", file="x.py", line=0))
     try:
         LinkerV0().link([u])
         raise AssertionError("expected LinkerError for raw string proof token")

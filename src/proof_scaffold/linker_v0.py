@@ -18,7 +18,7 @@ from proof_scaffold.linker.passes import stage7_emit as pass_stage7_emit
 class LinkerV0:
     """
     M1.2 orchestrator-only LinkerV0:
-      - Stage 0.5: origin sealing (placeholder)
+      - Stage 0.5: origin sealing (strict)
       - Stage 1a: collect
       - Stage 1b: lint
       - Stage 4: deps closure + topo order

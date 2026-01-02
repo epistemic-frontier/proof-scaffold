@@ -52,7 +52,7 @@ def test_golden_m12_diagnostic_stable_snapshot() -> None:
         origin=Origin(file="gold.py", line=0),
     )
 
-    def run_once() -> dict:
+    def run_once() -> dict[str, object]:
         try:
             LinkerV0().link([u])
         except LinkerDiagError as e:

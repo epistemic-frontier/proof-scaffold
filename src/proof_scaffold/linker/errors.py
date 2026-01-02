@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from ..diag import Diagnostic
+from proof_scaffold.diag import Diagnostic
 
 
 class LinkerError(Exception):
@@ -16,7 +16,7 @@ class LinkerDiagError(LinkerError):
 
     def __str__(self) -> str:  # include origin hints to satisfy existing tests
         # Defer origin formatting to diag_helpers for consistency
-        from .diag_helpers import fmt_origin
+        from proof_scaffold.linker.diag_helpers import fmt_origin
         base = f"{self.diag.error_code}: {self.diag.message}"
         segs: list[str] = []
         if self.diag.primary_origin is not None:

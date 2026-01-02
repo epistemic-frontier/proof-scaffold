@@ -19,7 +19,8 @@ from proof_scaffold.ir import (
 from proof_scaffold.ir import (
     Theorem as LIRTheorem,
 )
-from proof_scaffold.linker_v0 import LinkerDiagError, LinkerV0
+from proof_scaffold.linker.errors import LinkerDiagError
+from proof_scaffold.linker_v0 import LinkerV0
 
 
 def _stable_json(obj: object) -> str:

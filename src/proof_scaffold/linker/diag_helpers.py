@@ -2,9 +2,9 @@ from __future__ import annotations
 
 from typing import Any, NoReturn
 
-from ..diag import Diagnostic
-from ..ir import Origin
-from .errors import LinkerDiagError
+from proof_scaffold.diag import Diagnostic
+from proof_scaffold.ir import Origin
+from proof_scaffold.linker.errors import LinkerDiagError
 
 
 def fmt_origin(o: Origin | None) -> str:

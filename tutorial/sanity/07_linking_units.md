@@ -18,7 +18,7 @@ This step deliberately keeps logic minimal so the “linking shape” is easy to
 
 ## The fixtures
 
-We use three fixtures under fixtures/sanity/m02/:
+We use three fixtures under fixtures/sanity/:
 
 1) 07_two_units_happy.mm — happy path, two units link and verify
 
@@ -32,8 +32,8 @@ wph $f wff ph $.
 wps $f wff ps $.
 
 $( Include MP unit providing an exported axiom, and a unit that proves a theorem using it. $)
-$[ fixtures/sanity/m02/07_unit_mp.mm $]
-$[ fixtures/sanity/m02/07_unit_thm.mm $]
+$[ fixtures/sanity/07_unit_mp.mm $]
+$[ fixtures/sanity/07_unit_thm.mm $]
 ```
 
 The two included units are:

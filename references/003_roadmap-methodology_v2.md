@@ -449,4 +449,3 @@ For implementation tracking, the linker pipeline stages are:
 - Stage 6: relocation (token-level)
 - Stage 7: two-phase emission
 - Stage 8: SourceMap + diagnostics
-

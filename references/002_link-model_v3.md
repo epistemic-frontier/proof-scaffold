@@ -554,4 +554,251 @@ These should be kept as “sanity checks”: small, stable, and always runnable.
 
 ---
 
+# Appendix A — LIR / HIR Format Specification (v0.1)
+
+## A.1 Purpose and Design Principles
+
+This appendix specifies the **Low-level Intermediate Representation (LIR)** and the **High-level Intermediate Representation (HIR)** used by the ProofScaffold toolchain.
+
+The core design principles are:
+
+1. **LIR is mandatory, HIR is optional.**
+2. **LIR is Metamath-shaped but symbol-normalized.**
+3. **HIR is semantic structure, not a proof language.**
+4. **All linking, relocation, and verification operate on IR, never on raw strings.**
+
+The IR formats are designed to support:
+
+* deterministic linking,
+* token-level relocation,
+* precise error diagnostics,
+* and future semantic extensions (e.g. `$d` propagation, MVP_STRICT).
+
+---
+
+## A.2 Symbol Model (Shared by LIR and HIR)
+
+All tokens appearing in LIR or HIR MUST be represented as `SymbolRef`.
+
+```text
+SymbolDef:
+  id: SymbolId
+  kind: CONST | VAR | TYPECODE | LABEL
+  origin: (module_id, file, line)
+  attributes: opaque map
+
+SymbolRef:
+  symbol_id: SymbolId
+```
+
+String literals MAY appear only as:
+
+* debug hints,
+* source annotations,
+* or legacy compatibility fields.
+
+They MUST NOT participate in linking or verification.
+
+---
+
+## A.3 LIR: Low-level Intermediate Representation
+
+### A.3.1 Scope Structure
+
+LIR explicitly represents Metamath scoping.
+
+```text
+ScopeEnter
+ScopeExit
+```
+
+Scopes are **atomic**: declarations and assertions are not interleaved across scopes.
+
+---
+
+### A.3.2 Unlabeled Statements
+
+```text
+ConstDecl(symbol)
+VarDecl(symbol)
+DisjointDecl(symbols[])
+```
+
+All symbols are `SymbolRef`.
+
+---
+
+### A.3.3 Labeled Statements
+
+```text
+FloatingHyp:
+  label
+  typecode
+  var
+
+EssentialHyp:
+  label
+  typecode
+  expr[]
+
+Axiom / Theorem:
+  label
+  typecode
+  expr[]
+  proof_tokens[]   // SymbolRef[]
+```
+
+`proof_tokens` MUST already be tokenized into symbol references.
+No string-level proof parsing occurs after this stage.
+
+---
+
+### A.3.4 Required Engineering Fields
+
+Each LIR statement MUST carry:
+
+```text
+stmt_id        // stable within compilation unit
+origin         // source provenance
+span_hint      // optional source map anchor
+```
+
+These fields are mandatory to enable deterministic diagnostics and relocation.
+
+---
+
+## A.4 HIR: High-level Intermediate Representation
+
+### A.4.1 Scope of HIR
+
+HIR provides **structured semantic traces** over LIR proofs.
+
+HIR:
+
+* does NOT perform proof search,
+* does NOT replace Metamath semantics,
+* does NOT define a new logic.
+
+HIR exists solely to make **implicit structure explicit**.
+
+---
+
+### A.4.2 Minimal HIR Kernel (v0.1)
+
+The only required HIR operation is `Apply`.
+
+```text
+Apply:
+  step_id
+  assertion_ref      // SymbolRef
+  substitution_map   // var_ref -> expr[]
+```
+
+Optionally, an `Apply` node MAY carry:
+
+```text
+free_vars: Set[SymbolRef]
+or
+expr_digest: Hash
+```
+
+Either is sufficient for:
+
+* MVP_STRICT checks,
+* `$d` constraint propagation,
+* semantic diagnostics.
+
+---
+
+### A.4.3 Stability Guarantees
+
+* LIR v0.1 is **frozen** except for additive fields.
+* HIR v0.1 is **experimental**, but its core `Apply` form is expected to remain stable.
+
+---
+
+# Appendix B — Relationship Between LIR / HIR and the Generator
+
+## B.1 Generator as IR Producer
+
+The Generator is responsible for producing **well-formed IR**, not Metamath source.
+
+Its responsibilities are:
+
+1. Emit complete LIR units.
+2. Allocate stable `SymbolId`s.
+3. Preserve source provenance.
+4. Optionally emit HIR traces.
+
+The Generator MUST NOT:
+
+* rely on global symbol names for correctness,
+* emit raw string proofs as final artifacts.
+
+---
+
+## B.2 Generator → LIR Contract
+
+The Generator guarantees that:
+
+* All symbols used are declared in-scope.
+* All proof tokens are resolved to `SymbolRef`.
+* Scope boundaries are explicit.
+* LIR units are internally consistent.
+
+The Linker is NOT required to:
+
+* infer missing scopes,
+* guess symbol intent,
+* recover from malformed LIR.
+
+Malformed LIR is a generator error.
+
+---
+
+## B.3 Generator → HIR Contract
+
+HIR emission is **optional**.
+
+If emitted, the Generator guarantees:
+
+* Each `Apply` references a valid LIR assertion.
+* Substitutions respect declared variables.
+* HIR steps are aligned with LIR proof order.
+
+The Linker MAY:
+
+* ignore HIR entirely,
+* partially consume HIR (e.g. for diagnostics),
+* or enforce stricter checks in MVP_STRICT mode.
+
+---
+
+## B.4 Compatibility and Degradation Strategy
+
+Three operational modes are defined:
+
+| Mode       | LIR      | HIR      |
+| ---------- | -------- | -------- |
+| MVP        | required | ignored  |
+| MVP_STRICT | required | optional |
+| FUTURE     | required | required |
+
+The system MUST degrade gracefully:
+
+* absence of HIR MUST NOT break linking,
+* presence of HIR MUST NOT alter proof semantics.
+
+---
+
+## B.5 Architectural Consequence
+
+This separation ensures that:
+
+* Metamath remains the semantic ground truth.
+* IR becomes the sole operational interface.
+* Advanced features can evolve without destabilizing the MVP.
+
+---
+
 **End of specification.**

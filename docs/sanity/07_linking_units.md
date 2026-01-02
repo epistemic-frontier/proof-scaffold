@@ -11,7 +11,7 @@ This note details the verifier-level behavior for the Step 07 sanity checks cove
 
 ## Fixtures Overview
 
-All files live under fixtures/sanity/m02.
+All files live under fixtures/sanity.
 
 1) 07_two_units_happy.mm
 

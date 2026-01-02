@@ -32,21 +32,21 @@ pytest -q -ra -m sanity_m02
 
 ### Unskip workflow
 
-1) Land a minimal implementation for a step (e.g., 05 mp) and add/replace the corresponding fixture(s) under `fixtures/sanity/m02/`.
+1) Land a minimal implementation for a step (e.g., 05 mp) and add/replace the corresponding fixture(s) under `fixtures/sanity/`.
 2) Remove the `@pytest.mark.skip` on the happy-path test.
 3) For adversarial tests, switch from `skip` to `xfail(strict=True)` until the early gate exists; then remove `xfail` and assert the precise diagnostic.
 
 ### Fixture conventions (to keep deltas small)
 
-- `fixtures/sanity/m02/05_mp_happy.mm`
-- `fixtures/sanity/m02/05_mp_missing_hyp.mm`
-- `fixtures/sanity/m02/05_mp_bad_proof_tokens.mm`
-- `fixtures/sanity/m02/06_scope_happy.mm`
-- `fixtures/sanity/m02/06_scope_leakage.mm`
-- `fixtures/sanity/m02/06_scope_unbalanced.mm`
-- `fixtures/sanity/m02/07_two_units_happy.mm`
-- `fixtures/sanity/m02/07_cycle.mm`
-- `fixtures/sanity/m02/07_non_exported_label_ref.mm`
+- `fixtures/sanity/05_mp_happy.mm`
+- `fixtures/sanity/05_mp_missing_hyp.mm`
+- `fixtures/sanity/05_mp_bad_proof_tokens.mm`
+- `fixtures/sanity/06_scope_happy.mm`
+- `fixtures/sanity/06_scope_leakage.mm`
+- `fixtures/sanity/06_scope_unbalanced.mm`
+- `fixtures/sanity/07_two_units_happy.mm`
+- `fixtures/sanity/07_cycle.mm`
+- `fixtures/sanity/07_non_exported_label_ref.mm`
 
 These are placeholders initially; replace them with minimal, verifiable `.mm` snippets (or generator scripts in `tools/sanity/` that emit them) as you implement each step.
 

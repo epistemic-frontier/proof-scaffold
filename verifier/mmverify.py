@@ -8,11 +8,11 @@
 #   $ python3 mmverify.py set.mm
 #
 
-import sys
-import itertools
-import collections
-import os.path
 import argparse
+import collections
+import itertools
+import os.path
+import sys
 
 verbosity = 1
 
@@ -48,7 +48,7 @@ class toks:
                 raise MMError('Incusion command not terminated')
             filename = os.path.realpath(filename)
             if filename not in self.imported_files:
-                self.lines_buf.append(open(filename, 'r'))
+                self.lines_buf.append(open(filename))
                 self.imported_files.add(filename)
             tok = self.read()
         return tok
@@ -102,9 +102,9 @@ class FrameStack(list):
 
     def add_f(self, var, kind, label):
         if not self.lookup_v(var):
-            raise MMError('var in $f not defined: {0}'.format(var))
+            raise MMError(f'var in $f not defined: {var}')
         if not self.lookup_c(kind):
-            raise MMError('const in $f not defined {0}'.format(kind))
+            raise MMError(f'const in $f not defined {kind}')
         frame = self[-1]
         if var in frame.f_labels.keys():
             raise MMError('var in $f already defined in scope')
@@ -121,8 +121,8 @@ class FrameStack(list):
         frame.d.update(((min(x,y), max(x,y))
                         for x, y in itertools.product(stat, stat) if x != y))
 
-    def lookup_c(self, tok): return any((tok in fr.c for fr in reversed(self)))
-    def lookup_v(self, tok): return any((tok in fr.v for fr in reversed(self)))
+    def lookup_c(self, tok): return any(tok in fr.c for fr in reversed(self))
+    def lookup_v(self, tok): return any(tok in fr.v for fr in reversed(self))
 
     def lookup_f(self, var):
         for frame in reversed(self):
@@ -131,7 +131,7 @@ class FrameStack(list):
         raise MMKeyError(var)
 
     def lookup_d(self, x, y):
-        return any(((min(x,y), max(x,y)) in fr.d for fr in reversed(self)))
+        return any((min(x,y), max(x,y)) in fr.d for fr in reversed(self))
 
     def lookup_e(self, stmt):
         stmt_t = tuple(stmt)
@@ -224,7 +224,7 @@ class MM:
     def find_vars(self, stat):
         vars = []
         for x in stat:
-            if not x in vars and self.fs.lookup_v(x): vars.append(x)
+            if x not in vars and self.fs.lookup_v(x): vars.append(x)
         return vars
 
     def decompress_proof(self, stat, proof):
@@ -322,8 +322,8 @@ class MM:
                     vprint(16, 'V(y) =', y_vars)
                     for x, y in itertools.product(x_vars, y_vars):
                         if x == y or not self.fs.lookup_d(x, y):
-                            raise MMError("disjoint violation: {0}, {1}"
-                                          .format(x, y))
+                            raise MMError(f"disjoint violation: {x}, {y}"
+                                          )
                 for h in hyp:
                     entry = stack[sp]
                     subst_h = self.apply_subst(h, subst)
@@ -349,7 +349,7 @@ if __name__ == '__main__':
 
     mm = MM()
     try:
-        with open(args.filename, 'r') as f:
+        with open(args.filename) as f:
             mm.read(toks(f))
     except FileNotFoundError:
         print(f"Error: File '{args.filename}' not found.", file=sys.stderr)

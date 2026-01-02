@@ -4,9 +4,8 @@ from __future__ import annotations
 
 import subprocess
 import sys
-from pathlib import Path
 from dataclasses import dataclass
-
+from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 VERIFIER = REPO_ROOT / "verifier" / "mmverify.py"
@@ -35,7 +34,7 @@ def run_verifier(mm_path: Path) -> subprocess.CompletedProcess:
 
     # Assumption: `python verifier/mmverify.py <file>` returns exit code 0 on success.
     # If your verifier CLI differs, adjust args here (only here).
-    return subprocess.run(
+    return subprocess.capture_output(
         [sys.executable, str(VERIFIER), str(mm_path)],
         cwd=str(REPO_ROOT),
         stdout=subprocess.PIPE,

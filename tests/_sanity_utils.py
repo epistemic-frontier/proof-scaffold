@@ -5,7 +5,6 @@ import os
 import subprocess
 import sys
 from pathlib import Path
-from typing import List, Tuple
 
 ENV_VERBOSE = "PROOF_SCAFFOLD_VERIFIERS_VERBOSE"
 ENV_SEM = "PROOF_SCAFFOLD_SEMANTIC_VERIFIERS"
@@ -21,10 +20,10 @@ def repo_root() -> Path:
     return Path(__file__).resolve().parents[1]
 
 
-def _parse_list(env_name: str, default_csv: str) -> List[Path]:
+def _parse_list(env_name: str, default_csv: str) -> list[Path]:
     root = repo_root()
     spec = os.environ.get(env_name, "").strip() or default_csv
-    out: List[Path] = []
+    out: list[Path] = []
     for part in spec.split(","):
         part = part.strip()
         if part:
@@ -32,12 +31,12 @@ def _parse_list(env_name: str, default_csv: str) -> List[Path]:
     return out
 
 
-def semantic_verifiers() -> List[Path]:
+def semantic_verifiers() -> list[Path]:
     # proof-checking oracles
     return _parse_list(ENV_SEM, "verifier/mmverify.py,verifier/shims/metamath.py")
 
 
-def lint_verifiers() -> List[Path]:
+def lint_verifiers() -> list[Path]:
     # parser/lint tools (may not validate proofs)
     return _parse_list(ENV_LINT, "verifier/metamath-knife")
 
@@ -49,7 +48,7 @@ def fixture(relpath: str) -> Path:
     return p
 
 
-def _run(verifier: Path, mm_file: Path, timeout_sec: int = 60) -> Tuple[int, str, List[str]]:
+def _run(verifier: Path, mm_file: Path, timeout_sec: int = 60) -> tuple[int, str, list[str]]:
     if verifier.suffix == ".jar":
         cmd = ["java", "-jar", str(verifier), str(mm_file)]
     elif verifier.suffix == ".py":

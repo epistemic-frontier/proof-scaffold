@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import argparse
-import tempfile
 from pathlib import Path
 
 from proof_scaffold.verify import verify

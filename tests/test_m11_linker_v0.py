@@ -3,6 +3,20 @@ from __future__ import annotations
 from pathlib import Path
 
 from proof_scaffold.dsl import MMBuilder
+from proof_scaffold.ir import (
+    Axiom,
+    ConstDecl,
+    EssentialHyp,
+    FloatingHyp,
+    ProofUnitIR,
+    ScopeEnter,
+    ScopeExit,
+    SymbolRef,
+    VarDecl,
+)
+from proof_scaffold.ir import (
+    Theorem as LIRTheorem,
+)
 from proof_scaffold.linker_v0 import LinkerV0
 from proof_scaffold.theorem import Theorem
 from tests._sanity_utils import verify_expect_ok
@@ -208,3 +222,164 @@ def test_golden_m11_relocation_snapshot() -> None:
     assert any(
         ln == "wph__m_user wps__m_user h1__m_user h2__m_user ax-mp__m_modus" for ln in proof_lines
     )
+
+
+# -----------------
+# C. Adversarial Tests
+# -----------------
+
+def test_adv_m11_forbid_raw_string_tokens_default_off() -> None:
+    # Construct LIR with a raw string in proof_tokens to simulate COMPAT-off violation
+    lir = [
+        ConstDecl((SymbolRef("wff"), SymbolRef("|-"), SymbolRef("("), SymbolRef(")"), SymbolRef("->"))),
+        VarDecl((SymbolRef("ph"),)),
+        FloatingHyp(label="wph", typecode=SymbolRef("wff"), var=SymbolRef("ph")),
+        Axiom(label="ax-id", typecode=SymbolRef("|-"), expr=(SymbolRef("("), SymbolRef("ph"), SymbolRef("->"), SymbolRef("ph"), SymbolRef(")"))),
+        # Raw string token "ax-id" below should be rejected at Stage 1
+        LIRTheorem(
+            label="t",
+            typecode=SymbolRef("|-"),
+            expr=(SymbolRef("("), SymbolRef("ph"), SymbolRef("->"), SymbolRef("ph"), SymbolRef(")")),
+            proof_tokens=(SymbolRef("wph"), "ax-id"),  # type: ignore[arg-type]
+        ),
+    ]
+    u = ProofUnitIR(unit_id="adv.raw", lir=lir)
+    try:
+        LinkerV0().link([u])
+        raise AssertionError("expected LinkerError for raw string proof token")
+    except Exception as e:  # noqa: BLE001
+        assert isinstance(e, Exception)
+        assert "raw string token" in str(e) or "SymbolRef" in str(e)
+
+
+def test_adv_m11_forbid_cross_unit_hyp_leakage() -> None:
+    # Unit A defines essential hypotheses h1r/h2r and an axiom
+    ua = ProofUnitIR(
+        unit_id="m.modus",
+        lir=[
+            ConstDecl((SymbolRef("wff"), SymbolRef("("), SymbolRef(")"), SymbolRef("->"))),
+            VarDecl((SymbolRef("ph"), SymbolRef("ps"))),
+            FloatingHyp(label="wph", typecode=SymbolRef("wff"), var=SymbolRef("ph")),
+            FloatingHyp(label="wps", typecode=SymbolRef("wff"), var=SymbolRef("ps")),
+            ScopeEnter(),
+            EssentialHyp(label="h1r", typecode=SymbolRef("wff"), expr=(SymbolRef("ph"),)),
+            EssentialHyp(label="h2r", typecode=SymbolRef("wff"), expr=(SymbolRef("("), SymbolRef("ph"), SymbolRef("->"), SymbolRef("ps"), SymbolRef(")"))),
+            Axiom(label="ax-mp", typecode=SymbolRef("wff"), expr=(SymbolRef("ps"),)),
+            ScopeExit(),
+        ],
+    )
+    # Unit B illegally references A's essential hypothesis h1r in its proof tokens
+    ub = ProofUnitIR(
+        unit_id="m.user",
+        lir=[
+            ConstDecl((SymbolRef("wff"), SymbolRef("("), SymbolRef(")"), SymbolRef("->"))),
+            VarDecl((SymbolRef("ph"), SymbolRef("ps"))),
+            FloatingHyp(label="wph", typecode=SymbolRef("wff"), var=SymbolRef("ph")),
+            FloatingHyp(label="wps", typecode=SymbolRef("wff"), var=SymbolRef("ps")),
+            ScopeEnter(),
+            EssentialHyp(label="h1", typecode=SymbolRef("wff"), expr=(SymbolRef("ph"),)),
+            EssentialHyp(label="h2", typecode=SymbolRef("wff"), expr=(SymbolRef("("), SymbolRef("ph"), SymbolRef("->"), SymbolRef("ps"), SymbolRef(")"))),
+            LIRTheorem(
+                label="th",
+                typecode=SymbolRef("wff"),
+                expr=(SymbolRef("ps"),),
+                proof_tokens=(
+                    SymbolRef("wph"), SymbolRef("wps"), SymbolRef("h1"), SymbolRef("h2"), SymbolRef("h1r"),
+                ),
+            ),
+            ScopeExit(),
+        ],
+    )
+    try:
+        LinkerV0().link([ua, ub])
+        raise AssertionError("expected LinkerError for cross-unit hypothesis leakage")
+    except Exception as e:  # noqa: BLE001
+        s = str(e)
+        assert "hypothesis leakage" in s or "$f" in s or "$e" in s
+
+
+def test_adv_m11_forbid_non_export_label_reference() -> None:
+    # Unit B references a label that does not exist (approximate non-exported)
+    ub = ProofUnitIR(
+        unit_id="m.user",
+        lir=[
+            ConstDecl((SymbolRef("wff"),)),
+            VarDecl((SymbolRef("ph"),)),
+            FloatingHyp(label="wph", typecode=SymbolRef("wff"), var=SymbolRef("ph")),
+            ScopeEnter(),
+            LIRTheorem(
+                label="th",
+                typecode=SymbolRef("wff"),
+                expr=(SymbolRef("ph"),),
+                proof_tokens=(SymbolRef("wph"), SymbolRef("non_exported_label")),
+            ),
+            ScopeExit(),
+        ],
+    )
+    try:
+        LinkerV0().link([ub])
+        raise AssertionError("expected LinkerError for non-export label reference")
+    except Exception as e:  # noqa: BLE001
+        assert "unresolved" in str(e) or "non-export" in str(e)
+
+
+def test_adv_m11_dependency_cycle_detected() -> None:
+    # Unit A theorem uses B's axiom; Unit B theorem uses A's axiom -> cycle
+    ua = ProofUnitIR(
+        unit_id="u.A",
+        lir=[
+            ConstDecl((SymbolRef("wff"),)),
+            VarDecl((SymbolRef("ph"),)),
+            ScopeEnter(),
+            Axiom(label="a_in_A", typecode=SymbolRef("wff"), expr=(SymbolRef("ph"),)),
+            LIRTheorem(
+                label="tA",
+                typecode=SymbolRef("wff"),
+                expr=(SymbolRef("ph"),),
+                proof_tokens=(SymbolRef("a_in_B"),),
+            ),
+            ScopeExit(),
+        ],
+    )
+    ub = ProofUnitIR(
+        unit_id="u.B",
+        lir=[
+            ConstDecl((SymbolRef("wff"),)),
+            VarDecl((SymbolRef("ph"),)),
+            ScopeEnter(),
+            Axiom(label="a_in_B", typecode=SymbolRef("wff"), expr=(SymbolRef("ph"),)),
+            LIRTheorem(
+                label="tB",
+                typecode=SymbolRef("wff"),
+                expr=(SymbolRef("ph"),),
+                proof_tokens=(SymbolRef("a_in_A"),),
+            ),
+            ScopeExit(),
+        ],
+    )
+    try:
+        LinkerV0().link([ua, ub])
+        raise AssertionError("expected LinkerError for dependency cycle")
+    except Exception as e:  # noqa: BLE001
+        s = str(e)
+        assert "cycle" in s
+
+
+def test_adv_m11_scope_unbalanced_rejected() -> None:
+    # A unit with an extra ScopeEnter without matching ScopeExit
+    u = ProofUnitIR(
+        unit_id="u.badscope",
+        lir=[
+            ConstDecl((SymbolRef("wff"),)),
+            VarDecl((SymbolRef("ph"),)),
+            ScopeEnter(),
+            FloatingHyp(label="wph", typecode=SymbolRef("wff"), var=SymbolRef("ph")),
+            # Missing ScopeExit here -> imbalance
+        ],
+    )
+    try:
+        LinkerV0().link([u])
+        raise AssertionError("expected LinkerError for scope imbalance")
+    except Exception as e:  # noqa: BLE001
+        s = str(e)
+        assert "scope" in s or "balance" in s

@@ -107,6 +107,18 @@ class LinkerV0:
             f_order: list[str] = []
             assertion_stmt: dict[str, list[str]] = {}
 
+            # Scope balance check (Stage 5/7 early guard): ensure unit-local scopes are balanced
+            depth = 0
+            for st in u.lir:
+                if isinstance(st, ScopeEnter):
+                    depth += 1
+                elif isinstance(st, ScopeExit):
+                    depth -= 1
+                    if depth < 0:
+                        raise LinkerError(f"scope imbalance detected in unit {u.unit_id}: extra ScopeExit")
+            if depth != 0:
+                raise LinkerError(f"scope imbalance detected in unit {u.unit_id}: unmatched ScopeEnter/ScopeExit")
+
             # Collect and early lint
             for st in u.lir:
                 if isinstance(st, ConstDecl):

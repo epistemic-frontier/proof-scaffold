@@ -44,12 +44,17 @@ def main() -> int:
         print(f"metamath binary not found: {metamath_bin}", file=sys.stderr)
         return 2
 
-    workdir = mm_file.parent
-    filename = mm_file.name
-
+    # Use absolute path in READ to decouple include resolution from script cwd.
+    # Keep cwd as repo root (caller cwd) so relative includes resolve like knife.
+    workdir = Path.cwd()
+    try:
+        mm_arg = mm_file.relative_to(workdir)
+    except Exception:
+        mm_arg = mm_file
+    # Quote the path to be robust across special chars
     script = "\n".join(
         [
-            f"READ {filename}",
+            f"READ \"{mm_arg}\"",
             "VERIFY PROOF *",
             "EXIT",
             "EXIT",

@@ -44,22 +44,17 @@ def test_06_scope_unbalanced_rejected_early() -> None:
 
 @pytest.mark.sanity_m02
 @pytest.mark.step07
-@pytest.mark.skip(reason="M0.2 step 07 not implemented: provide 07_two_units_happy.mm and remove skip")
 def test_07_two_units_link_and_verify() -> None:
-    verify_expect_ok(fixture("fixtures/sanity/07_two_units_happy.mm"))
+    verify_expect_ok(fixture("fixtures/sanity/m02/07_two_units_happy.mm"))
 
 
 @pytest.mark.sanity_m02
 @pytest.mark.step07
-@pytest.mark.skip(reason="M0.2 step 07 not implemented: provide 07_cycle.mm and remove skip or switch to xfail(strict=True)")
 def test_07_cycle_is_detected() -> None:
-    verify_expect_fail(fixture("fixtures/sanity/07_cycle.mm"))
+    verify_expect_fail(fixture("fixtures/sanity/m02/07_cycle.mm"))
 
 
 @pytest.mark.sanity_m02
 @pytest.mark.step07
-@pytest.mark.skip(
-    reason="M0.2 step 07 not implemented: provide 07_non_exported_label_ref.mm and remove skip or switch to xfail(strict=True)"
-)
 def test_07_non_exported_label_reference_fails_early() -> None:
-    verify_expect_fail(fixture("fixtures/sanity/07_non_exported_label_ref.mm"))
+    verify_expect_fail(fixture("fixtures/sanity/m02/07_non_exported_label_ref.mm"))

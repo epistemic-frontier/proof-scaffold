@@ -243,6 +243,21 @@ This step shows how to structure local hypotheses/theorems and avoid scope leaka
 
 ---
 
+### Step 07 — Linking Multiple Units (M0.2)
+
+**Goal:**
+Learn to compose small Metamath units using include ($[ ... $]) and the rules for cross-unit visibility.
+
+* Tutorial: `tutorial/sanity/07_linking_units.md`
+* Fixtures (under `fixtures/sanity/m02/`):
+  * Happy path: `07_two_units_happy.mm` (includes `07_unit_mp.mm` exporting `ax-mp` and `07_unit_thm.mm` proving `t_from_units`)
+  * Cycle (must fail): `07_cycle.mm` (mutual references)
+  * Non-exported label reference (must fail): `07_non_exported_label_ref.mm`
+
+This step highlights exported vs private labels across units and why cycles are invalid.
+
+---
+
 ## Troubleshooting (Common Failures)
 
 ### “Verifier not found” / “cannot execute verifier”

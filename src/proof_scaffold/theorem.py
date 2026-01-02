@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Tuple
 
 
 @dataclass(frozen=True)
@@ -32,5 +31,5 @@ class TheoremDef:
     name: str
     label: str
     typecode: str
-    expr: Tuple[str, ...]
-    requires: Tuple[str, ...]
+    expr: tuple[str, ...]
+    requires: tuple[str, ...]

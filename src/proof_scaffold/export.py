@@ -3,8 +3,9 @@ from __future__ import annotations
 
 import json
 import os
+from collections.abc import Iterable, Sequence
 from dataclasses import asdict, dataclass
-from typing import Dict, Iterable, Sequence, Tuple
+from typing import Any
 
 from .theorem import Theorem
 
@@ -23,8 +24,8 @@ def manifest_path(build_dir: str, module_id: str) -> str:
 class ExportRecord:
     label: str
     typecode: str
-    expr: Tuple[str, ...]
-    requires: Tuple[str, ...]
+    expr: tuple[str, ...]
+    requires: tuple[str, ...]
 
 
 def export(
@@ -54,15 +55,16 @@ def export(
     )
 
     path = manifest_path(build_dir, module_id)
+    data: dict[str, Any]
     if os.path.exists(path):
-        with open(path, "r", encoding="utf-8") as f:
-            data: Dict = json.load(f)
+        with open(path, encoding="utf-8") as f:
+            data = json.load(f)
         if data.get("module") != module_id:
             raise ValueError(f"manifest module mismatch: {data.get('module')} vs {module_id}")
     else:
         data = {"module": module_id, "exports": {}}
 
-    exports: Dict = data.setdefault("exports", {})
+    exports: dict[str, Any] = data.setdefault("exports", {})
     exports[name] = asdict(rec)
 
     with open(path, "w", encoding="utf-8") as f:

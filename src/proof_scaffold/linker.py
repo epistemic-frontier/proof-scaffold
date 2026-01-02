@@ -3,14 +3,15 @@ from __future__ import annotations
 
 import json
 import os
+from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import Dict, Iterable, List, Set, Tuple
+from typing import Any, cast
 
 from .export import manifest_path
 from .theorem import Theorem, TheoremDef
 
 
-def _parse_fqname(fqname: str) -> Tuple[str, str]:
+def _parse_fqname(fqname: str) -> tuple[str, str]:
     """
     "a.b.c" -> ("a.b", "c")
     """
@@ -22,25 +23,25 @@ def _parse_fqname(fqname: str) -> Tuple[str, str]:
 
 @dataclass
 class ResolveResult:
-    ordered: List[TheoremDef]   # topo: deps first
-    modules: List[str]          # module_id topo-ish (dedup)
-    missing: List[str]          # missing fqnames
+    ordered: list[TheoremDef]   # topo: deps first
+    modules: list[str]          # module_id topo-ish (dedup)
+    missing: list[str]          # missing fqnames
 
 
 class Linker:
     def __init__(self, *, build_dir: str = "build/mmdb") -> None:
         self.build_dir = build_dir
-        self._manifest_cache: Dict[str, Dict] = {}
-        self._def_cache: Dict[str, TheoremDef] = {}
+        self._manifest_cache: dict[str, dict[str, Any]] = {}
+        self._def_cache: dict[str, TheoremDef] = {}
 
-    def _load_manifest(self, module_id: str) -> Dict:
+    def _load_manifest(self, module_id: str) -> dict[str, Any]:
         if module_id in self._manifest_cache:
             return self._manifest_cache[module_id]
         path = manifest_path(self.build_dir, module_id)
         if not os.path.exists(path):
             raise FileNotFoundError(f"manifest not found for module '{module_id}': {path}")
-        with open(path, "r", encoding="utf-8") as f:
-            data = json.load(f)
+        with open(path, encoding="utf-8") as f:
+            data = cast(dict[str, Any], json.load(f))
         self._manifest_cache[module_id] = data
         return data
 
@@ -50,7 +51,7 @@ class Linker:
 
         module_id, name = _parse_fqname(fqname)
         mani = self._load_manifest(module_id)
-        exports = mani.get("exports", {})
+        exports: dict[str, Any] = cast(dict[str, Any], mani.get("exports", {}))
         if name not in exports:
             raise KeyError(f"export '{name}' not found in module '{module_id}'")
 
@@ -75,8 +76,8 @@ class Linker:
         for r in roots:
             root_fq.append(r.fqname if isinstance(r, Theorem) else r)
 
-        graph: Dict[str, Tuple[str, ...]] = {}
-        missing: List[str] = []
+        graph: dict[str, tuple[str, ...]] = {}
+        missing: list[str] = []
 
         def collect(fq: str) -> None:
             if fq in graph:
@@ -95,8 +96,8 @@ class Linker:
             collect(fq)
 
         # topo sort: deps first
-        indeg: Dict[str, int] = {k: 0 for k in graph.keys()}
-        rev: Dict[str, List[str]] = {k: [] for k in graph.keys()}
+        indeg: dict[str, int] = {k: 0 for k in graph.keys()}
+        rev: dict[str, list[str]] = {k: [] for k in graph.keys()}
 
         for u, deps in graph.items():
             for v in deps:
@@ -111,7 +112,7 @@ class Linker:
         queue = [k for k, d in indeg.items() if d == 0]
         queue.sort()
 
-        ordered_fq: List[str] = []
+        ordered_fq: list[str] = []
         while queue:
             n = queue.pop(0)
             ordered_fq.append(n)
@@ -125,9 +126,9 @@ class Linker:
         if len(ordered_fq) != len(indeg):
             ordered_fq = sorted(indeg.keys())
 
-        ordered_defs: List[TheoremDef] = []
-        modules: List[str] = []
-        seen_mod: Set[str] = set()
+        ordered_defs: list[TheoremDef] = []
+        modules: list[str] = []
+        seen_mod: set[str] = set()
 
         for fq in ordered_fq:
             if fq in missing:

@@ -1,8 +1,10 @@
 # proof_scaffold/dsl.py
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass, field
-from typing import Iterable, Iterator, Literal, Sequence, Union
+from types import TracebackType
+from typing import Literal
 
 from .theorem import Theorem
 
@@ -23,7 +25,7 @@ Token = str
 Label = str
 KindHyp = Literal["$f", "$e"]
 KindAssert = Literal["$a", "$p"]
-ProofStep = Union[str, Theorem]
+ProofStep = str | Theorem
 
 
 def _clean_comment_ascii(text: str) -> str:
@@ -112,7 +114,7 @@ class MMBuilder:
     # Scope helpers
     # -------------
 
-    def block(self) -> "_BlockCtx":
+    def block(self) -> _BlockCtx:
         return _BlockCtx(self)
 
     @property
@@ -181,12 +183,12 @@ class MMBuilder:
     # DSL methods
     # -------------
 
-    def comment(self, text: str) -> "MMBuilder":
+    def comment(self, text: str) -> MMBuilder:
         t = _clean_comment_ascii(text) if self._ascii_comments else text
         self._lines.append(f"$( {t} $)")
         return self
 
-    def c(self, *symbols: str) -> "MMBuilder":
+    def c(self, *symbols: str) -> MMBuilder:
         if not symbols:
             raise MMDSLError("$c must declare at least one symbol")
         for s in symbols:
@@ -196,7 +198,7 @@ class MMBuilder:
         self._lines.append(f"$c {_join_tokens(symbols)} $.")
         return self
 
-    def v(self, *symbols: str) -> "MMBuilder":
+    def v(self, *symbols: str) -> MMBuilder:
         if not symbols:
             raise MMDSLError("$v must declare at least one symbol")
         for s in symbols:
@@ -206,7 +208,7 @@ class MMBuilder:
         self._lines.append(f"$v {_join_tokens(symbols)} $.")
         return self
 
-    def f(self, label: str, typecode: TypeCode, var: str) -> "MMBuilder":
+    def f(self, label: str, typecode: TypeCode, var: str) -> MMBuilder:
         if var not in self._variables:
             raise MMDSLError(f"$f variable '{var}' not declared via $v")
         if typecode not in self._constants:
@@ -216,7 +218,7 @@ class MMBuilder:
         self._lines.append(f"{label} $f {typecode} {var} $.")
         return self
 
-    def e(self, label: str, typecode: TypeCode, eexpr: Sequence[str] | str) -> "MMBuilder":
+    def e(self, label: str, typecode: TypeCode, eexpr: Sequence[str] | str) -> MMBuilder:
         if self._strict and self._scope.is_top_level:
             raise MMDSLError("$e at top level is forbidden in strict mode; wrap it in ${ ... $}")
         if typecode not in self._constants:
@@ -232,7 +234,7 @@ class MMBuilder:
         self._lines.append(f"{label} $e {typecode} {_join_tokens(tokens)} $.")
         return self
 
-    def a(self, label: str, typecode: TypeCode, aexpr: Sequence[str] | str) -> "MMBuilder":
+    def a(self, label: str, typecode: TypeCode, aexpr: Sequence[str] | str) -> MMBuilder:
         if typecode not in self._constants:
             raise MMDSLError(f"$a typecode '{typecode}' not declared via $c")
 
@@ -253,7 +255,7 @@ class MMBuilder:
         proof: Sequence[ProofStep] | str,
         *,
         comment: str | None = None,
-    ) -> "MMBuilder":
+    ) -> MMBuilder:
         if typecode not in self._constants:
             raise MMDSLError(f"$p typecode '{typecode}' not declared via $c")
 
@@ -263,12 +265,12 @@ class MMBuilder:
         self._check_expr_tokens_declared(expr_tokens)
 
         # normalize proof
-        proof_steps: list[ProofStep]
+        proof_steps: Sequence[ProofStep]
         if isinstance(proof, str):
             # string proof: legacy mode, steps are labels only
-            proof_steps = proof.split()
+            proof_steps = tuple(proof.split())
         else:
-            proof_steps = list(proof)
+            proof_steps = tuple(proof)
         if not proof_steps:
             raise MMDSLError("$p proof must be non-empty")
 
@@ -305,7 +307,12 @@ class _BlockCtx:
         self.mm._push_scope()
         return self.mm
 
-    def __exit__(self, exc_type, exc, tb) -> bool:
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc: BaseException | None,
+        tb: TracebackType | None,
+    ) -> Literal[False]:
         if exc_type is None:
             self.mm._pop_scope()
         return False

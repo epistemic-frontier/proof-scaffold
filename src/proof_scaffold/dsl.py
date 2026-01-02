@@ -6,6 +6,35 @@ from dataclasses import dataclass, field
 from types import TracebackType
 from typing import Literal
 
+from .ir import (
+    Axiom as LIRAxiom,
+)
+from .ir import (
+    ConstDecl as LIRConstDecl,
+)
+from .ir import (
+    EssentialHyp as LIREssentialHyp,
+)
+from .ir import (
+    FloatingHyp as LIRFloatingHyp,
+)
+from .ir import (
+    LIRStmt,
+    ProofUnitIR,
+    SymbolRef,
+)
+from .ir import (
+    ScopeEnter as LIRScopeEnter,
+)
+from .ir import (
+    ScopeExit as LIRScopeExit,
+)
+from .ir import (
+    Theorem as LIRTheorem,
+)
+from .ir import (
+    VarDecl as LIRVarDecl,
+)
 from .theorem import Theorem
 
 # -----------------------------
@@ -109,6 +138,10 @@ class MMBuilder:
 
         # Cross-module theorem dependencies (fqnames)
         self._requires: set[str] = set()
+        # Parallel LIR capture (front-end IR per 004)
+        self._lir: list[LIRStmt] = []
+
+
 
     # -------------
     # Scope helpers
@@ -123,13 +156,20 @@ class MMBuilder:
 
     def _push_scope(self) -> None:
         self._lines.append("${")
+        self._lir.append(LIRScopeEnter())
         self._scopes.append(_Scope(is_top_level=False))
+
 
     def _pop_scope(self) -> None:
         if len(self._scopes) <= 1:
             raise MMDSLError("unbalanced scope pop")
         self._scopes.pop()
+        self._lir.append(LIRScopeExit())
         self._lines.append("$}")
+
+
+
+
 
     # -----------------
     # Core validations
@@ -180,8 +220,15 @@ class MMBuilder:
         return self.render()
 
     # -------------
+    # IR exposure (004 front-end contract)
+    # -------------
+    def to_proof_unit(self, unit_id: str) -> ProofUnitIR:
+        return ProofUnitIR(unit_id=unit_id, lir=list(self._lir))
+
+    # -------------
     # DSL methods
     # -------------
+
 
     def comment(self, text: str) -> MMBuilder:
         t = _clean_comment_ascii(text) if self._ascii_comments else text
@@ -195,8 +242,10 @@ class MMBuilder:
             if s in self._variables:
                 raise MMDSLError(f"token '{s}' already declared as $v")
             self._constants.add(s)
+        self._lir.append(LIRConstDecl(tuple(SymbolRef(s) for s in symbols)))
         self._lines.append(f"$c {_join_tokens(symbols)} $.")
         return self
+
 
     def v(self, *symbols: str) -> MMBuilder:
         if not symbols:
@@ -205,8 +254,10 @@ class MMBuilder:
             if s in self._constants:
                 raise MMDSLError(f"token '{s}' already declared as $c")
             self._variables.add(s)
+        self._lir.append(LIRVarDecl(tuple(SymbolRef(s) for s in symbols)))
         self._lines.append(f"$v {_join_tokens(symbols)} $.")
         return self
+
 
     def f(self, label: str, typecode: TypeCode, var: str) -> MMBuilder:
         if var not in self._variables:
@@ -215,8 +266,10 @@ class MMBuilder:
             raise MMDSLError(f"$f typecode '{typecode}' not declared via $c")
         self._register_label(label)
         self._scope.active_f[var] = label
+        self._lir.append(LIRFloatingHyp(label=label, typecode=SymbolRef(typecode), var=SymbolRef(var)))
         self._lines.append(f"{label} $f {typecode} {var} $.")
         return self
+
 
     def e(self, label: str, typecode: TypeCode, eexpr: Sequence[str] | str) -> MMBuilder:
         if self._strict and self._scope.is_top_level:
@@ -231,8 +284,10 @@ class MMBuilder:
 
         self._register_label(label)
         self._scope.active_e.append(label)
+        self._lir.append(LIREssentialHyp(label=label, typecode=SymbolRef(typecode), expr=tuple(SymbolRef(t) for t in tokens)))
         self._lines.append(f"{label} $e {typecode} {_join_tokens(tokens)} $.")
         return self
+
 
     def a(self, label: str, typecode: TypeCode, aexpr: Sequence[str] | str) -> MMBuilder:
         if typecode not in self._constants:
@@ -244,8 +299,10 @@ class MMBuilder:
         self._check_expr_tokens_declared(tokens)
 
         self._register_label(label)
+        self._lir.append(LIRAxiom(label=label, typecode=SymbolRef(typecode), expr=tuple(SymbolRef(t) for t in tokens)))
         self._lines.append(f"{label} $a {typecode} {_join_tokens(tokens)} $.")
         return self
+
 
     def p(
         self,
@@ -277,26 +334,39 @@ class MMBuilder:
         visible = self._visible_labels()
 
         rendered_steps: list[str] = []
+        lir_steps: list[SymbolRef] = []
         for step in proof_steps:
             if isinstance(step, Theorem):
                 # Cross-module: defer visibility to linker.
                 # Render as its Metamath label.
                 self._requires.add(step.fqname)
                 rendered_steps.append(step.label)
+                lir_steps.append(SymbolRef(step.label))
             else:
                 # Local label: must be visible now
                 if step not in visible:
                     raise MMDSLError(f"proof step '{step}' is not a visible label at this point")
                 rendered_steps.append(step)
+                lir_steps.append(SymbolRef(step))
 
         if comment:
             self.comment(comment)
 
         self._register_label(label)
+        self._lir.append(
+            LIRTheorem(
+                label=label,
+                typecode=SymbolRef(typecode),
+                expr=tuple(SymbolRef(t) for t in expr_tokens),
+                proof_tokens=tuple(lir_steps),
+            )
+        )
         self._lines.append(f"{label} $p {typecode} {_join_tokens(expr_tokens)} $=")
         self._lines.append(f"  {_join_tokens(rendered_steps)}")
         self._lines.append("$.")
         return self
+
+
 
 
 @dataclass

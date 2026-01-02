@@ -61,8 +61,12 @@ def export(
             data = json.load(f)
         if data.get("module") != module_id:
             raise ValueError(f"manifest module mismatch: {data.get('module')} vs {module_id}")
+        # ensure format_version exists
+        if "format_version" not in data:
+            data["format_version"] = "mmdb@2"
     else:
-        data = {"module": module_id, "exports": {}}
+        data = {"module": module_id, "format_version": "mmdb@2", "exports": {}}
+
 
     exports: dict[str, Any] = data.setdefault("exports", {})
     exports[name] = asdict(rec)

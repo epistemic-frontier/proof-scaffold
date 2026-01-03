@@ -12,7 +12,6 @@ from proof_scaffold.ir import (
     ProofUnitIR,
     ScopeEnter,
     ScopeExit,
-    SymbolRef,
     VarDecl,
 )
 from proof_scaffold.ir import (
@@ -21,27 +20,27 @@ from proof_scaffold.ir import (
 from proof_scaffold.linker.errors import LinkerDiagError
 from proof_scaffold.linker_v0 import LinkerV0
 
-# D1. After Stage 1, there must be no string tokens anywhere; all tokens are SymbolRef
+# D1. After Stage 1, there must be no string tokens anywhere; all tokens are int ids
 
 def _assert_no_string_tokens_in_lir(u: ProofUnitIR) -> None:
     for st in u.lir:
         if isinstance(st, ConstDecl):
-            assert all(isinstance(s, SymbolRef) for s in st.symbols)
+            assert all(isinstance(s, int) for s in st.symbols)
         elif isinstance(st, VarDecl):
-            assert all(isinstance(s, SymbolRef) for s in st.symbols)
+            assert all(isinstance(s, int) for s in st.symbols)
         elif isinstance(st, FloatingHyp):
-            assert isinstance(st.typecode, SymbolRef)
-            assert isinstance(st.var, SymbolRef)
+            assert isinstance(st.typecode, int)
+            assert isinstance(st.var, int)
         elif isinstance(st, EssentialHyp):
-            assert isinstance(st.typecode, SymbolRef)
-            assert all(isinstance(t, SymbolRef) for t in st.expr)
+            assert isinstance(st.typecode, int)
+            assert all(isinstance(t, int) for t in st.expr)
         elif isinstance(st, Axiom):
-            assert isinstance(st.typecode, SymbolRef)
-            assert all(isinstance(t, SymbolRef) for t in st.expr)
+            assert isinstance(st.typecode, int)
+            assert all(isinstance(t, int) for t in st.expr)
         elif isinstance(st, LIRTheorem):
-            assert isinstance(st.typecode, SymbolRef)
-            assert all(isinstance(t, SymbolRef) for t in st.expr)
-            assert all(isinstance(tk, SymbolRef) for tk in st.proof_tokens)
+            assert isinstance(st.typecode, int)
+            assert all(isinstance(t, int) for t in st.expr)
+            assert all(isinstance(tk, int) for tk in st.proof_tokens)
         elif isinstance(st, (ScopeEnter, ScopeExit)):
             # structural, no tokens
             pass
@@ -65,7 +64,7 @@ def test_struct_m12_no_string_tokens_after_stage1() -> None:
     # If raw tokens exist, LinkerV0.link will raise E_RAW_TOKEN_FORBIDDEN in Stage 1.
     LinkerV0().link([u])
 
-    # Structural assertion on IR payload (tokens are SymbolRef)
+    # Structural assertion on IR payload (tokens are int ids)
     _assert_no_string_tokens_in_lir(u)
 
 
@@ -77,16 +76,18 @@ def test_struct_m12_origin_chain_contains_pass_and_unit() -> None:
     u = ProofUnitIR(
         unit_id="struct.m12.chain",
         lir=[
-            FloatingHyp(label="wph", typecode=SymbolRef("wff"), var=SymbolRef("ph"), origin=Origin(file="chain.py", line=1)),
+            # Provide a minimal symtab so we can reference int tokens.
+            FloatingHyp(label="wph", typecode=0, var=1, origin=Origin(file="chain.py", line=1)),
             LIRTheorem(
                 label="bad",
-                typecode=SymbolRef("wff"),
-                expr=(SymbolRef("ph"),),
+                typecode=0,
+                expr=(1,),
                 proof_tokens=("wph",),  # type: ignore[arg-type]
                 origin=Origin(file="chain.py", line=2),
             ),
         ],
         origin=Origin(file="chain.py", line=0),
+        symtab=("wff", "ph"),
     )
 
     with pytest.raises(LinkerDiagError) as ei:

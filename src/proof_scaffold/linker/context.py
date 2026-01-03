@@ -38,3 +38,15 @@ class LinkContext:
 
     # Stage6 outputs
     relabel: dict[tuple[str, str], str] = field(default_factory=dict)
+
+    # Debug slice metadata (SPEC-0001 Path B):
+    # A global linearized proof token stream (after relocation name rewriting)
+    # for the linked artifact.
+    proof_tokens: list[str] = field(default_factory=list)
+    # Map (unit_id, theorem_label) -> (start,end) span into proof_tokens
+    theorem_to_span: dict[tuple[str, str], tuple[int, int]] = field(default_factory=dict)
+
+    # Path A sidecar mapping: emitted proof token index (1-based) -> step_id.
+    # Indexing is aligned with verifier's "Step N failed" when the verifier
+    # reports proof-step indices.
+    emitted_step_to_step_id: dict[int, int] = field(default_factory=dict)

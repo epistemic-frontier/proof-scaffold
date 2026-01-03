@@ -13,7 +13,6 @@ from proof_scaffold.ir import (
     ProofUnitIR,
     ScopeEnter,
     ScopeExit,
-    SymbolRef,
     VarDecl,
 )
 from proof_scaffold.ir import (
@@ -26,22 +25,22 @@ from tests._sanity_utils import verify_expect_ok
 def _assert_no_string_tokens_in_lir(u: ProofUnitIR) -> None:
     for st in u.lir:
         if isinstance(st, ConstDecl):
-            assert all(isinstance(s, SymbolRef) for s in st.symbols)
+            assert all(isinstance(s, int) for s in st.symbols)
         elif isinstance(st, VarDecl):
-            assert all(isinstance(s, SymbolRef) for s in st.symbols)
+            assert all(isinstance(s, int) for s in st.symbols)
         elif isinstance(st, FloatingHyp):
-            assert isinstance(st.typecode, SymbolRef)
-            assert isinstance(st.var, SymbolRef)
+            assert isinstance(st.typecode, int)
+            assert isinstance(st.var, int)
         elif isinstance(st, EssentialHyp):
-            assert isinstance(st.typecode, SymbolRef)
-            assert all(isinstance(t, SymbolRef) for t in st.expr)
+            assert isinstance(st.typecode, int)
+            assert all(isinstance(t, int) for t in st.expr)
         elif isinstance(st, Axiom):
-            assert isinstance(st.typecode, SymbolRef)
-            assert all(isinstance(t, SymbolRef) for t in st.expr)
+            assert isinstance(st.typecode, int)
+            assert all(isinstance(t, int) for t in st.expr)
         elif isinstance(st, LIRTheorem):
-            assert isinstance(st.typecode, SymbolRef)
-            assert all(isinstance(t, SymbolRef) for t in st.expr)
-            assert all(isinstance(tk, SymbolRef) for tk in st.proof_tokens)
+            assert isinstance(st.typecode, int)
+            assert all(isinstance(t, int) for t in st.expr)
+            assert all(isinstance(tk, int) for tk in st.proof_tokens)
         elif isinstance(st, (ScopeEnter, ScopeExit)):
             # structural, no tokens
             pass
@@ -60,7 +59,7 @@ def test_sanity_m12_symbol_resolution_smoke(tmp_path: Path) -> None:
     """
     A1. Minimal single-unit IR -> Stage 1 via LinkerV0 -> emit & verify.
     Assertions:
-      - LIR contains no raw string tokens (all are SymbolRef)
+      - LIR contains no raw string tokens (all are int ids)
       - Link succeeds and produces a verifiable Metamath file
     """
     mm = MMBuilder()
@@ -73,7 +72,7 @@ def test_sanity_m12_symbol_resolution_smoke(tmp_path: Path) -> None:
 
     u = mm.to_proof_unit("sanity.m12.smoke")
 
-    # Structural assertion: all tokens are SymbolRef (no raw strings)
+    # Structural assertion: all tokens are int ids (no raw strings)
     _assert_no_string_tokens_in_lir(u)
 
     # Link & verify

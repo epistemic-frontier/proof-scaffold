@@ -46,6 +46,10 @@ class MMBuilder:
         self._lir = LIREmitter()
         self._emit = CompositeEmitter(self._text, self._lir)
 
+        # Debug Slice Path A support: allocate stable step_id for each proof token.
+        # This is intentionally minimal (LIR-only) and does not introduce HIR.
+        self._next_step_id: int = 1
+
     # -----------------
     # Scope helpers
     # -----------------
@@ -203,7 +207,10 @@ class MMBuilder:
 
         visible = self._scope.visible_labels()
         rendered_steps: list[str] = []
+        rendered_step_ids: list[int] = []
         for step in proof_steps:
+            sid = self._next_step_id
+            self._next_step_id += 1
             if isinstance(step, Theorem):
                 self._requires.add(step.fqname)
                 rendered_steps.append(step.label)
@@ -211,12 +218,20 @@ class MMBuilder:
                 if step not in visible:
                     raise MMDSLError(f"proof step '{step}' is not a visible label at this point")
                 rendered_steps.append(step)
+            rendered_step_ids.append(sid)
 
         if comment:
             self.comment(comment)
 
         self._register_label(label)
-        self._emit.theorem(label, typecode, expr_tokens, rendered_steps, self._origin.here())
+        self._emit.theorem(
+            label,
+            typecode,
+            expr_tokens,
+            rendered_steps,
+            self._origin.here(),
+            proof_step_ids=rendered_step_ids,
+        )
         return self
 
 

@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 
 from proof_scaffold.dsl import MMBuilder
-from proof_scaffold.ir import FloatingHyp, Origin, ProofUnitIR, SymbolRef
+from proof_scaffold.ir import FloatingHyp, Origin, ProofUnitIR
 from proof_scaffold.ir import (
     Theorem as LIRTheorem,
 )
@@ -17,9 +17,10 @@ def test_adv_m12_missing_origin_rejected_stage0() -> None:
     u = ProofUnitIR(
         unit_id="adv.missing.origin",
         lir=[
-            FloatingHyp(label="wph", typecode=SymbolRef("wff"), var=SymbolRef("ph"), origin=None),
+            FloatingHyp(label="wph", typecode=0, var=1, origin=None),
         ],
         origin=Origin(file="adv.py", line=0),
+        symtab=("wff", "ph"),
     )
     with pytest.raises(LinkerDiagError) as ei:
         LinkerV0().link([u])
@@ -35,16 +36,17 @@ def test_adv_m12_forbid_raw_string_tokens_default_off() -> None:
     u = ProofUnitIR(
         unit_id="adv.raw.token",
         lir=[
-            FloatingHyp(label="wph", typecode=SymbolRef("wff"), var=SymbolRef("ph"), origin=Origin(file="adv.py", line=1)),
+            FloatingHyp(label="wph", typecode=0, var=1, origin=Origin(file="adv.py", line=1)),
             LIRTheorem(
                 label="t",
-                typecode=SymbolRef("wff"),
-                expr=(SymbolRef("ph"),),
+                typecode=0,
+                expr=(1,),
                 proof_tokens=("wph",),  # type: ignore[arg-type]
                 origin=Origin(file="adv.py", line=2),
             ),
         ],
         origin=Origin(file="adv.py", line=0),
+        symtab=("wff", "ph"),
     )
     with pytest.raises(LinkerDiagError) as ei:
         LinkerV0().link([u])
@@ -66,16 +68,17 @@ def test_adv_m12_forbid_cross_unit_hyp_leakage() -> None:
     ub = ProofUnitIR(
         unit_id="unit.B",
         lir=[
-            FloatingHyp(label="wphB", typecode=SymbolRef("wff"), var=SymbolRef("ph"), origin=Origin(file="B.py", line=1)),
+            FloatingHyp(label="wphB", typecode=0, var=1, origin=Origin(file="B.py", line=1)),
             LIRTheorem(
                 label="tb",
-                typecode=SymbolRef("wff"),
-                expr=(SymbolRef("ph"),),
-                proof_tokens=(SymbolRef("wph"),),  # refers to A's $f
+                typecode=0,
+                expr=(1,),
+                proof_tokens=(2,),  # refers to A's $f (by name via symtab)
                 origin=Origin(file="B.py", line=2),
             ),
         ],
         origin=Origin(file="B.py", line=0),
+        symtab=("wff", "ph", "wph"),
     )
 
     with pytest.raises(LinkerDiagError) as ei:
@@ -100,16 +103,17 @@ def test_adv_m12_forbid_non_export_label_reference() -> None:
     ub = ProofUnitIR(
         unit_id="unit.B",
         lir=[
-            FloatingHyp(label="wphB", typecode=SymbolRef("wff"), var=SymbolRef("ph"), origin=Origin(file="B.py", line=1)),
+            FloatingHyp(label="wphB", typecode=0, var=1, origin=Origin(file="B.py", line=1)),
             LIRTheorem(
                 label="tb",
-                typecode=SymbolRef("wff"),
-                expr=(SymbolRef("ph"),),
-                proof_tokens=(SymbolRef("ax"),),
+                typecode=0,
+                expr=(1,),
+                proof_tokens=(2,),
                 origin=Origin(file="B.py", line=2),
             ),
         ],
         origin=Origin(file="B.py", line=0),
+        symtab=("wff", "ph", "ax"),
     )
 
     with pytest.raises(LinkerDiagError) as ei:

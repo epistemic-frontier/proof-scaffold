@@ -90,7 +90,16 @@ class TextEmitter:
 class LIREmitter:
     def __init__(self) -> None:
         self._lir: list[LIRStmt] = []
-        self._symtab: list[str] = []  # retained for debug/compat
+        # NOTE: LIR uses int tokens; symtab stores id->name for emission/debug.
+        self._symtab: list[str] = []
+
+    def _tok_id(self, name: str) -> int:
+        """Intern a token name into this unit's local symtab and return its int id."""
+        try:
+            return self._symtab.index(name)
+        except ValueError:
+            self._symtab.append(name)
+            return len(self._symtab) - 1
 
     # scope ---------------------------------------------------------------
     def open_scope(self, origin: Origin | None = None) -> None:
@@ -105,29 +114,43 @@ class LIREmitter:
 
     # decls ---------------------------------------------------------------
     def const_decl(self, symbols: Sequence[str], origin: Origin | None = None) -> None:
-        from ..ir import SymbolRef
-        self._lir.append(LIRConstDecl(tuple(SymbolRef(s) for s in symbols), origin=origin))
+        self._lir.append(LIRConstDecl(tuple(self._tok_id(s) for s in symbols), origin=origin))
 
     def var_decl(self, symbols: Sequence[str], origin: Origin | None = None) -> None:
-        from ..ir import SymbolRef
-        self._lir.append(LIRVarDecl(tuple(SymbolRef(s) for s in symbols), origin=origin))
+        self._lir.append(LIRVarDecl(tuple(self._tok_id(s) for s in symbols), origin=origin))
 
     # hyps/asserts --------------------------------------------------------
     def floating_hyp(self, label: str, typecode: str, var: str, origin: Origin | None = None) -> None:
-        from ..ir import SymbolRef
-        self._lir.append(LIRFloatingHyp(label=label, typecode=SymbolRef(typecode), var=SymbolRef(var), origin=origin))
+        self._lir.append(LIRFloatingHyp(label=label, typecode=self._tok_id(typecode), var=self._tok_id(var), origin=origin))
 
     def essential_hyp(self, label: str, typecode: str, expr_tokens: Sequence[str], origin: Origin | None = None) -> None:
-        from ..ir import SymbolRef
-        self._lir.append(LIREssentialHyp(label=label, typecode=SymbolRef(typecode), expr=tuple(SymbolRef(t) for t in expr_tokens), origin=origin))
+        self._lir.append(LIREssentialHyp(label=label, typecode=self._tok_id(typecode), expr=tuple(self._tok_id(t) for t in expr_tokens), origin=origin))
 
     def axiom(self, label: str, typecode: str, expr_tokens: Sequence[str], origin: Origin | None = None) -> None:
-        from ..ir import SymbolRef
-        self._lir.append(LIRAxiom(label=label, typecode=SymbolRef(typecode), expr=tuple(SymbolRef(t) for t in expr_tokens), origin=origin))
+        self._lir.append(LIRAxiom(label=label, typecode=self._tok_id(typecode), expr=tuple(self._tok_id(t) for t in expr_tokens), origin=origin))
 
-    def theorem(self, label: str, typecode: str, expr_tokens: Sequence[str], proof_tokens: Sequence[str], origin: Origin | None = None) -> None:
-        from ..ir import SymbolRef
-        self._lir.append(LIRTheorem(label=label, typecode=SymbolRef(typecode), expr=tuple(SymbolRef(t) for t in expr_tokens), proof_tokens=tuple(SymbolRef(t) for t in proof_tokens), origin=origin))
+    def theorem(
+        self,
+        label: str,
+        typecode: str,
+        expr_tokens: Sequence[str],
+        proof_tokens: Sequence[str],
+        origin: Origin | None = None,
+        *,
+        proof_step_ids: Sequence[int] | None = None,
+    ) -> None:
+        if proof_step_ids is not None and len(proof_step_ids) != len(proof_tokens):
+            raise ValueError("proof_step_ids length must equal proof_tokens length")
+        self._lir.append(
+            LIRTheorem(
+                label=label,
+                typecode=self._tok_id(typecode),
+                expr=tuple(self._tok_id(t) for t in expr_tokens),
+                proof_tokens=tuple(self._tok_id(t) for t in proof_tokens),
+                proof_step_ids=tuple(proof_step_ids) if proof_step_ids is not None else (),
+                origin=origin,
+            )
+        )
 
     def lir(self) -> list[LIRStmt]:
         return list(self._lir)
@@ -177,9 +200,18 @@ class CompositeEmitter:
         self.text.axiom(label, typecode, expr_tokens, origin)
         self.lir.axiom(label, typecode, expr_tokens, origin)
 
-    def theorem(self, label: str, typecode: str, expr_tokens: Sequence[str], proof_tokens: Sequence[str], origin: Origin | None = None) -> None:
+    def theorem(
+        self,
+        label: str,
+        typecode: str,
+        expr_tokens: Sequence[str],
+        proof_tokens: Sequence[str],
+        origin: Origin | None = None,
+        *,
+        proof_step_ids: Sequence[int] | None = None,
+    ) -> None:
         self.text.theorem(label, typecode, expr_tokens, proof_tokens, origin)
-        self.lir.theorem(label, typecode, expr_tokens, proof_tokens, origin)
+        self.lir.theorem(label, typecode, expr_tokens, proof_tokens, origin, proof_step_ids=proof_step_ids)
 
     # convenience accessors -------------------------------------------------
     def render_text(self) -> str:

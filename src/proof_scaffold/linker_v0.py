@@ -2,7 +2,9 @@
 from __future__ import annotations
 
 from collections.abc import Iterable
+from typing import cast
 
+from proof_scaffold.ir import ProofUnitIR
 from proof_scaffold.linker.context import LinkContext
 from proof_scaffold.linker.errors import (  # re-export for tests
     LinkerError,
@@ -34,12 +36,12 @@ class LinkerV0:
     # --------
     # Public API
     # --------
-    def link(self, units: Iterable[object]) -> str:
+    def link(self, units: Iterable[ProofUnitIR]) -> str:
         unit_list = [u for u in units]  # materialize
         if not unit_list:
             raise LinkerError("no units provided to linker")
 
-        ctx = LinkContext(units=unit_list)  # type: ignore[arg-type]
+        ctx = LinkContext(units=unit_list)
 
         # Stage 0.5: Origin sealing
         pass_origin_seal.run(ctx)
@@ -53,7 +55,7 @@ class LinkerV0:
         # Stage 7: emission
         return pass_stage7_emit.run(ctx)
 
-    def build_symbol_table(self, units: Iterable[object]) -> list[tuple[str, str, str, int]]:
+    def build_symbol_table(self, units: Iterable[ProofUnitIR]) -> list[tuple[str, str, str, int]]:
         """
         Deterministic global symbol table snapshot for tests.
         Returns list of (origin_id, local_name, kind, ordinal_id).
@@ -61,7 +63,7 @@ class LinkerV0:
         unit_list = [u for u in units]
         if not unit_list:
             return []
-        ctx = LinkContext(units=unit_list)  # type: ignore[arg-type]
+        ctx = LinkContext(units=unit_list)
         pass_stage1_collect.run(ctx)
         rows: list[tuple[str, str, str]] = []
         globals_rows: list[tuple[str, str, str]] = []
@@ -75,3 +77,26 @@ class LinkerV0:
             for name, kind in sorted(info.labels.items()):
                 rows.append((info.unit_id, name, kind))
         return [(o, n, k, idx) for idx, (o, n, k) in enumerate(rows)]
+
+
+def link_v0(units, *, return_context: bool = False):
+    """Convenience wrapper used by tests and debug tooling.
+
+    When return_context=True, returns (LinkContext, mm_text).
+    """
+    unit_list = [u for u in units]
+    if not unit_list:
+        raise LinkerError("no units provided to linker")
+
+    # Keep link_v0 permissive for tests/tooling; cast to the canonical type.
+    ctx = LinkContext(units=cast(list[ProofUnitIR], unit_list))
+    pass_origin_seal.run(ctx)
+    pass_stage1_collect.run(ctx)
+    pass_stage1_lint.run(ctx)
+    pass_stage4_deps.run(ctx)
+    pass_stage6_reloc.run(ctx)
+    mm = pass_stage7_emit.run(ctx)
+
+    if return_context:
+        return ctx, mm
+    return mm

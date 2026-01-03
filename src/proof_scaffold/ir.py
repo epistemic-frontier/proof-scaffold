@@ -14,11 +14,9 @@ LabelKind = Literal["$f", "$e", "$a", "$p"]
 # Runtime type for all tokens: int. We keep SymbolId alias for clarity.
 SymbolId = NewType("SymbolId", int)
 
-# Compatibility shim for existing tests and manual IR construction.
-# Preferred representation is int ids; SymbolRef is tolerated by passes.
-@dataclass(frozen=True)
-class SymbolRef:
-    name: str
+# NOTE: ADR-0001 requires tokens to be integer IDs.
+# The old SymbolRef(name: str) compatibility shim is removed as part of the
+# refactor towards layout-agnostic, contiguous, id-based token payloads.
 
 @runtime_checkable
 class TokenSeq(Protocol):
@@ -44,19 +42,19 @@ class SymbolDef:
 
 @dataclass(frozen=True)
 class ConstDecl:
-    symbols: tuple[int | SymbolRef, ...]  # TokenSeq of CONST ids (compat: SymbolRef)
+    symbols: tuple[int, ...]  # TokenSeq of CONST ids
     origin: Origin | None = None
 
 
 @dataclass(frozen=True)
 class VarDecl:
-    symbols: tuple[int | SymbolRef, ...]  # TokenSeq of VAR ids (compat: SymbolRef)
+    symbols: tuple[int, ...]  # TokenSeq of VAR ids
     origin: Origin | None = None
 
 
 @dataclass(frozen=True)
 class DisjointDecl:
-    symbols: tuple[int | SymbolRef, ...]  # TokenSeq of VAR ids (compat: SymbolRef)
+    symbols: tuple[int, ...]  # TokenSeq of VAR ids
     origin: Origin | None = None
 
 
@@ -73,33 +71,37 @@ class ScopeExit:
 @dataclass(frozen=True)
 class FloatingHyp:
     label: str
-    typecode: int | SymbolRef  # CONST id
-    var: int | SymbolRef       # VAR id
+    typecode: int  # CONST id
+    var: int       # VAR id
     origin: Origin | None = None
 
 
 @dataclass(frozen=True)
 class EssentialHyp:
     label: str
-    typecode: int | SymbolRef
-    expr: tuple[int | SymbolRef, ...]  # TokenSeq of ids (compat: SymbolRef)
+    typecode: int
+    expr: tuple[int, ...]  # TokenSeq of ids
     origin: Origin | None = None
 
 
 @dataclass(frozen=True)
 class Axiom:
     label: str
-    typecode: int | SymbolRef
-    expr: tuple[int | SymbolRef, ...]
+    typecode: int
+    expr: tuple[int, ...]
     origin: Origin | None = None
 
 
 @dataclass(frozen=True)
 class Theorem:
     label: str
-    typecode: int | SymbolRef
-    expr: tuple[int | SymbolRef, ...]
-    proof_tokens: tuple[int | SymbolRef, ...]  # TokenSeq of LABEL ids (compat)
+    typecode: int
+    expr: tuple[int, ...]
+    proof_tokens: tuple[int, ...]  # TokenSeq of LABEL ids
+    # Debug Slice Path A support:
+    # For each proof token, record the (stable) step_id it belongs to.
+    # Length must equal len(proof_tokens) when present.
+    proof_step_ids: tuple[int, ...] = ()
     origin: Origin | None = None
 
 
@@ -118,6 +120,14 @@ class ProofUnitIR:
     # When None, baseline v0 treats ALL $a/$p in this unit as exported (compat).
     # When provided (list), ONLY those listed are considered exported.
     exports: list[str] | None = None
+
+    # Optional debug metadata for SPEC-0001 (Debug Slice MVP)
+    # For a theorem label L, theorem_proof_span[L] provides the (start,end)
+    # span of its proof tokens within the *linearized proof token stream*.
+    # In current Linker v0, each theorem is emitted once and we treat the proof
+    # token index (1-based) reported by the verifier as indexing into this
+    # linear stream. This enables a usable debug slice without introducing HIR.
+    theorem_proof_span: dict[str, tuple[int, int]] = field(default_factory=dict)
 
     def name_of(self, tok_id: int) -> str:
         return self.symtab[tok_id]

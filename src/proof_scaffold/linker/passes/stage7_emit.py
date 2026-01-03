@@ -13,21 +13,20 @@ from ..context import LinkContext, UnitInfo
 from ..policy import stable_sorted
 
 
-def _tok_name(info: UnitInfo, tok: object) -> str:
-    """Resolve a token (int id or SymbolRef-like) to its string name."""
-    if isinstance(tok, int):
-        if info.symtab and 0 <= tok < len(info.symtab):
-            return str(info.symtab[tok])
-        return str(tok)
-    name = getattr(tok, "name", None)
-    if isinstance(name, str):
-        return name
-    # Explicitly cast unknowns to str for type-checkers
+def _tok_name(info: UnitInfo, tok: int) -> str:
+    """Resolve a token id to its string name."""
+    if info.symtab and 0 <= tok < len(info.symtab):
+        return str(info.symtab[tok])
     return str(tok)
 
 
 def run(ctx: LinkContext) -> str:
     out: list[str] = []
+
+    # Reset debug slice buffers for a deterministic build.
+    ctx.proof_tokens = []
+    ctx.theorem_to_span = {}
+    ctx.emitted_step_to_step_id = {}
 
     # Header: $c / $v
     if ctx.global_consts:
@@ -63,6 +62,7 @@ def run(ctx: LinkContext) -> str:
                 expr = " ".join(_tok_name(info, t) for t in st.expr)
                 lab = ctx.relabel[(info.unit_id, st.label)]
                 steps: list[str] = []
+                step_ids: list[int] = []
                 for tk in st.proof_tokens:
                     nm = _tok_name(info, tk)
                     key_local = (info.unit_id, nm)
@@ -76,6 +76,30 @@ def run(ctx: LinkContext) -> str:
                         steps.append(mapped)
                     else:
                         steps.append(nm)
+
+                # Align step_ids with relocated proof token list.
+                # When proof_step_ids is present, it must have the same length.
+                if st.proof_step_ids:
+                    if len(st.proof_step_ids) != len(st.proof_tokens):
+                        raise ValueError(
+                            f"proof_step_ids length mismatch for theorem {info.unit_id}:{st.label}"
+                        )
+                    step_ids = list(st.proof_step_ids)
+                else:
+                    # Fallback: if generator didn't provide step ids, use 0.
+                    step_ids = [0 for _ in st.proof_tokens]
+
+                # Record span in the global linear proof token stream.
+                start = len(ctx.proof_tokens)
+                ctx.proof_tokens.extend(steps)
+                end = len(ctx.proof_tokens)
+                ctx.theorem_to_span[(info.unit_id, st.label)] = (start, end)
+
+                # Path A sidecar: emitted_step_index (1-based) -> step_id
+                # emitted_step_index aligns with the global linear proof token stream.
+                for i, sid in enumerate(step_ids, start=start + 1):
+                    ctx.emitted_step_to_step_id[i] = sid
+
                 out.append(f"{lab} $p {tc} {expr} $=")
                 out.append("  " + " ".join(steps))
                 out.append("$.")

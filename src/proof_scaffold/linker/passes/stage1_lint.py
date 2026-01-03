@@ -6,14 +6,11 @@ from ..diag_helpers import raise_link_error
 
 
 def _tok_name(info: UnitInfo, tok: object) -> str:
-    if isinstance(tok, int):
-        if info.symtab and 0 <= tok < len(info.symtab):
-            return str(info.symtab[tok])
+    if not isinstance(tok, int):
+        # raw string / unknown token types should have been rejected in Stage1_collect
         return str(tok)
-    name = getattr(tok, "name", None)
-    if isinstance(name, str):
-        return name
-    # Treat raw string specifically to produce a clearer error upstream; default here is safe fallback
+    if info.symtab and 0 <= tok < len(info.symtab):
+        return str(info.symtab[tok])
     return str(tok)
 
 

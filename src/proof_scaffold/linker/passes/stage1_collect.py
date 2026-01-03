@@ -8,7 +8,6 @@ from ...ir import (
     FloatingHyp,
     ScopeEnter,
     ScopeExit,
-    SymbolRef,
     Theorem,
     VarDecl,
 )
@@ -17,15 +16,13 @@ from ..diag_helpers import raise_link_error
 
 
 def _is_token_allowed(tok: object) -> bool:
-    return isinstance(tok, (int, SymbolRef))
+    return isinstance(tok, int)
 
 
 def _tok_name(u, tok: object) -> str:
     if isinstance(tok, int):
         # tolerate empty symtab in compat: unknown id -> placeholder string
         return u.symtab[tok] if u.symtab and 0 <= tok < len(u.symtab) else str(tok)
-    if isinstance(tok, SymbolRef):
-        return tok.name
     # strings should not appear here; return as-is for diagnostics if they do
     return str(tok)
 
@@ -74,7 +71,7 @@ def run(ctx: LinkContext) -> None:
                     if not _is_token_allowed(s):
                         raise_link_error(
                             "E_RAW_TOKEN_FORBIDDEN",
-                            "ConstDecl contains non-SymbolRef/int token",
+                            "ConstDecl contains non-int token",
                             primary=st.origin,
                             chain=("Stage1", f"unit={u.unit_id}"),
                         )
@@ -84,7 +81,7 @@ def run(ctx: LinkContext) -> None:
                     if not _is_token_allowed(s):
                         raise_link_error(
                             "E_RAW_TOKEN_FORBIDDEN",
-                            "VarDecl contains non-SymbolRef/int token",
+                            "VarDecl contains non-int token",
                             primary=st.origin,
                             chain=("Stage1", f"unit={u.unit_id}"),
                         )
@@ -93,14 +90,14 @@ def run(ctx: LinkContext) -> None:
                 if not _is_token_allowed(st.typecode):
                     raise_link_error(
                         "E_RAW_TOKEN_FORBIDDEN",
-                        "FloatingHyp.typecode must be int/SymbolRef",
+                        "FloatingHyp.typecode must be int",
                         primary=st.origin,
                         chain=("Stage1", f"unit={u.unit_id}"),
                     )
                 if not _is_token_allowed(st.var):
                     raise_link_error(
                         "E_RAW_TOKEN_FORBIDDEN",
-                        "FloatingHyp.var must be int/SymbolRef",
+                        "FloatingHyp.var must be int",
                         primary=st.origin,
                         chain=("Stage1", f"unit={u.unit_id}"),
                     )
@@ -117,7 +114,7 @@ def run(ctx: LinkContext) -> None:
                 if not _is_token_allowed(st.typecode):
                     raise_link_error(
                         "E_RAW_TOKEN_FORBIDDEN",
-                        "EssentialHyp.typecode must be int/SymbolRef",
+                        "EssentialHyp.typecode must be int",
                         primary=st.origin,
                         chain=("Stage1", f"unit={u.unit_id}"),
                     )
@@ -125,7 +122,7 @@ def run(ctx: LinkContext) -> None:
                     if not _is_token_allowed(t):
                         raise_link_error(
                             "E_RAW_TOKEN_FORBIDDEN",
-                            "EssentialHyp.expr contains non-SymbolRef/int token",
+                            "EssentialHyp.expr contains non-int token",
                             primary=st.origin,
                             chain=("Stage1", f"unit={u.unit_id}"),
                         )
@@ -138,7 +135,7 @@ def run(ctx: LinkContext) -> None:
                 if not _is_token_allowed(st.typecode):
                     raise_link_error(
                         "E_RAW_TOKEN_FORBIDDEN",
-                        "Axiom.typecode must be int/SymbolRef",
+                        "Axiom.typecode must be int",
                         primary=st.origin,
                         chain=("Stage1", f"unit={u.unit_id}"),
                     )
@@ -146,7 +143,7 @@ def run(ctx: LinkContext) -> None:
                     if not _is_token_allowed(t):
                         raise_link_error(
                             "E_RAW_TOKEN_FORBIDDEN",
-                            "Axiom.expr contains non-SymbolRef/int token",
+                            "Axiom.expr contains non-int token",
                             primary=st.origin,
                             chain=("Stage1", f"unit={u.unit_id}"),
                         )
@@ -160,7 +157,7 @@ def run(ctx: LinkContext) -> None:
                 if not _is_token_allowed(st.typecode):
                     raise_link_error(
                         "E_RAW_TOKEN_FORBIDDEN",
-                        "Theorem.typecode must be int/SymbolRef",
+                        "Theorem.typecode must be int",
                         primary=st.origin,
                         chain=("Stage1", f"unit={u.unit_id}", f"stmt={st.label}"),
                     )
@@ -168,7 +165,7 @@ def run(ctx: LinkContext) -> None:
                     if not _is_token_allowed(t):
                         raise_link_error(
                             "E_RAW_TOKEN_FORBIDDEN",
-                            "Theorem.expr contains non-SymbolRef/int token",
+                            "Theorem.expr contains non-int token",
                             primary=st.origin,
                             chain=("Stage1", f"unit={u.unit_id}", f"stmt={st.label}"),
                         )
@@ -182,7 +179,7 @@ def run(ctx: LinkContext) -> None:
                     if not _is_token_allowed(tk):
                         raise_link_error(
                             "E_RAW_TOKEN_FORBIDDEN",
-                            "proof token is not a SymbolRef/int (raw token forbidden)",
+                            "proof token is not an int (raw token forbidden)",
                             primary=st.origin,
                             chain=("Stage1", f"unit={u.unit_id}", f"stmt={lab}"),
                         )

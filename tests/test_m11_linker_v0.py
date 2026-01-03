@@ -14,7 +14,6 @@ from proof_scaffold.ir import (
     ProofUnitIR,
     ScopeEnter,
     ScopeExit,
-    SymbolRef,
     VarDecl,
 )
 from proof_scaffold.ir import (
@@ -234,27 +233,32 @@ def test_golden_m11_relocation_snapshot() -> None:
 def test_adv_m11_forbid_raw_string_tokens_default_off() -> None:
     # Construct LIR with a raw string in proof_tokens to simulate COMPAT-off violation
     lir = [
-        ConstDecl((SymbolRef("wff"), SymbolRef("|-"), SymbolRef("("), SymbolRef(")"), SymbolRef("->")), origin=Origin(module="mod", file="x.py", line=1)),
-        VarDecl((SymbolRef("ph"),), origin=Origin(module="mod", file="x.py", line=2)),
-        FloatingHyp(label="wph", typecode=SymbolRef("wff"), var=SymbolRef("ph"), origin=Origin(module="mod", file="x.py", line=3)),
-        Axiom(label="ax-id", typecode=SymbolRef("|-"), expr=(SymbolRef("("), SymbolRef("ph"), SymbolRef("->"), SymbolRef("ph"), SymbolRef(")")), origin=Origin(module="mod", file="x.py", line=4)),
+        ConstDecl((0, 1, 2, 3, 4), origin=Origin(module="mod", file="x.py", line=1)),
+        VarDecl((5,), origin=Origin(module="mod", file="x.py", line=2)),
+        FloatingHyp(label="wph", typecode=0, var=5, origin=Origin(module="mod", file="x.py", line=3)),
+        Axiom(label="ax-id", typecode=1, expr=(2, 5, 4, 5, 3), origin=Origin(module="mod", file="x.py", line=4)),
         # Raw string token "ax-id" below should be rejected at Stage 1
         LIRTheorem(
             label="t",
-            typecode=SymbolRef("|-"),
-            expr=(SymbolRef("("), SymbolRef("ph"), SymbolRef("->"), SymbolRef("ph"), SymbolRef(")")),
-            proof_tokens=(SymbolRef("wph"), "ax-id"),  # type: ignore[arg-type]
+            typecode=1,
+            expr=(2, 5, 4, 5, 3),
+            proof_tokens=(6, "ax-id"),  # type: ignore[arg-type]
             origin=Origin(module="mod", file="x.py", line=5),
         ),
     ]
-    u = ProofUnitIR(unit_id="adv.raw", lir=cast(list[LIRStmt], lir), origin=Origin(module="mod", file="x.py", line=0))
+    u = ProofUnitIR(
+        unit_id="adv.raw",
+        lir=cast(list[LIRStmt], lir),
+        origin=Origin(module="mod", file="x.py", line=0),
+        symtab=("wff", "|-", "(", ")", "->", "ph", "wph"),
+    )
     try:
         LinkerV0().link([u])
         raise AssertionError("expected LinkerError for raw string proof token")
     except Exception as e:  # noqa: BLE001
         msg = str(e)
         assert isinstance(e, Exception)
-        assert "raw string token" in msg or "SymbolRef" in msg
+        assert "raw string" in msg or "non-int" in msg or "forbidden" in msg
         assert "x.py" in msg
 
 
@@ -263,41 +267,43 @@ def test_adv_m11_forbid_cross_unit_hyp_leakage() -> None:
     ua = ProofUnitIR(
         unit_id="m.modus",
         lir=[
-            ConstDecl((SymbolRef("wff"), SymbolRef("("), SymbolRef(")"), SymbolRef("->")), origin=Origin(file="a.py", line=1)),
-            VarDecl((SymbolRef("ph"), SymbolRef("ps")), origin=Origin(file="a.py", line=2)),
-            FloatingHyp(label="wph", typecode=SymbolRef("wff"), var=SymbolRef("ph"), origin=Origin(file="a.py", line=3)),
-            FloatingHyp(label="wps", typecode=SymbolRef("wff"), var=SymbolRef("ps"), origin=Origin(file="a.py", line=4)),
+            ConstDecl((0, 1, 2, 3), origin=Origin(file="a.py", line=1)),
+            VarDecl((4, 5), origin=Origin(file="a.py", line=2)),
+            FloatingHyp(label="wph", typecode=0, var=4, origin=Origin(file="a.py", line=3)),
+            FloatingHyp(label="wps", typecode=0, var=5, origin=Origin(file="a.py", line=4)),
             ScopeEnter(origin=Origin(file="a.py", line=5)),
-            EssentialHyp(label="h1r", typecode=SymbolRef("wff"), expr=(SymbolRef("ph"),), origin=Origin(file="a.py", line=6)),
-            EssentialHyp(label="h2r", typecode=SymbolRef("wff"), expr=(SymbolRef("("), SymbolRef("ph"), SymbolRef("->"), SymbolRef("ps"), SymbolRef(")")), origin=Origin(file="a.py", line=7)),
-            Axiom(label="ax-mp", typecode=SymbolRef("wff"), expr=(SymbolRef("ps"),), origin=Origin(file="a.py", line=8)),
+            EssentialHyp(label="h1r", typecode=0, expr=(4,), origin=Origin(file="a.py", line=6)),
+            EssentialHyp(label="h2r", typecode=0, expr=(1, 4, 3, 5, 2), origin=Origin(file="a.py", line=7)),
+            Axiom(label="ax-mp", typecode=0, expr=(5,), origin=Origin(file="a.py", line=8)),
             ScopeExit(origin=Origin(file="a.py", line=9)),
         ],
         origin=Origin(file="a.py", line=0),
+        symtab=("wff", "(", ")", "->", "ph", "ps"),
     )
     # Unit B illegally references A's essential hypothesis h1r in its proof tokens
     ub = ProofUnitIR(
         unit_id="m.user",
         lir=[
-            ConstDecl((SymbolRef("wff"), SymbolRef("("), SymbolRef(")"), SymbolRef("->")), origin=Origin(file="b.py", line=1)),
-            VarDecl((SymbolRef("ph"), SymbolRef("ps")), origin=Origin(file="b.py", line=2)),
-            FloatingHyp(label="wph", typecode=SymbolRef("wff"), var=SymbolRef("ph"), origin=Origin(file="b.py", line=3)),
-            FloatingHyp(label="wps", typecode=SymbolRef("wff"), var=SymbolRef("ps"), origin=Origin(file="b.py", line=4)),
+            ConstDecl((0, 1, 2, 3), origin=Origin(file="b.py", line=1)),
+            VarDecl((4, 5), origin=Origin(file="b.py", line=2)),
+            FloatingHyp(label="wph", typecode=0, var=4, origin=Origin(file="b.py", line=3)),
+            FloatingHyp(label="wps", typecode=0, var=5, origin=Origin(file="b.py", line=4)),
             ScopeEnter(origin=Origin(file="b.py", line=5)),
-            EssentialHyp(label="h1", typecode=SymbolRef("wff"), expr=(SymbolRef("ph"),), origin=Origin(file="b.py", line=6)),
-            EssentialHyp(label="h2", typecode=SymbolRef("wff"), expr=(SymbolRef("("), SymbolRef("ph"), SymbolRef("->"), SymbolRef("ps"), SymbolRef(")")), origin=Origin(file="b.py", line=7)),
+            EssentialHyp(label="h1", typecode=0, expr=(4,), origin=Origin(file="b.py", line=6)),
+            EssentialHyp(label="h2", typecode=0, expr=(1, 4, 3, 5, 2), origin=Origin(file="b.py", line=7)),
             LIRTheorem(
                 label="th",
-                typecode=SymbolRef("wff"),
-                expr=(SymbolRef("ps"),),
+                typecode=0,
+                expr=(5,),
                 proof_tokens=(
-                    SymbolRef("wph"), SymbolRef("wps"), SymbolRef("h1"), SymbolRef("h2"), SymbolRef("h1r"),
+                    6, 7, 8, 9, 10,
                 ),
                 origin=Origin(file="b.py", line=8),
             ),
             ScopeExit(origin=Origin(file="b.py", line=9)),
         ],
         origin=Origin(file="b.py", line=0),
+        symtab=("wff", "(", ")", "->", "ph", "ps", "wph", "wps", "h1", "h2", "h1r"),
     )
     try:
         LinkerV0().link([ua, ub])
@@ -313,37 +319,39 @@ def test_adv_m11_forbid_non_export_label_reference() -> None:
     ua = ProofUnitIR(
         unit_id="u.A",
         lir=[
-            ConstDecl((SymbolRef("wff"),), origin=Origin(file="A.py", line=1)),
-            VarDecl((SymbolRef("ph"),), origin=Origin(file="A.py", line=2)),
+            ConstDecl((0,), origin=Origin(file="A.py", line=1)),
+            VarDecl((1,), origin=Origin(file="A.py", line=2)),
             ScopeEnter(origin=Origin(file="A.py", line=3)),
             LIRTheorem(
                 label="secret_thm",
-                typecode=SymbolRef("wff"),
-                expr=(SymbolRef("ph"),),
-                proof_tokens=(SymbolRef("secret_thm"),),  # self-ref bogus, we only care about visibility
+                typecode=0,
+                expr=(1,),
+                proof_tokens=(2,),  # self-ref bogus, we only care about visibility
                 origin=Origin(file="A.py", line=4),
             ),
             ScopeExit(origin=Origin(file="A.py", line=5)),
         ],
         origin=Origin(file="A.py", line=0),
+        symtab=("wff", "ph", "secret_thm"),
         exports=[],  # explicitly export nothing
     )
     ub = ProofUnitIR(
         unit_id="u.B",
         lir=[
-            ConstDecl((SymbolRef("wff"),), origin=Origin(file="B.py", line=1)),
-            VarDecl((SymbolRef("ph"),), origin=Origin(file="B.py", line=2)),
+            ConstDecl((0,), origin=Origin(file="B.py", line=1)),
+            VarDecl((1,), origin=Origin(file="B.py", line=2)),
             ScopeEnter(origin=Origin(file="B.py", line=3)),
             LIRTheorem(
                 label="use_secret",
-                typecode=SymbolRef("wff"),
-                expr=(SymbolRef("ph"),),
-                proof_tokens=(SymbolRef("secret_thm"),),  # attempt to use A's non-exported label
+                typecode=0,
+                expr=(1,),
+                proof_tokens=(2,),  # attempt to use A's non-exported label
                 origin=Origin(file="B.py", line=4),
             ),
             ScopeExit(origin=Origin(file="B.py", line=5)),
         ],
         origin=Origin(file="B.py", line=0),
+        symtab=("wff", "ph", "secret_thm"),
     )
     try:
         LinkerV0().link([ua, ub])
@@ -359,38 +367,40 @@ def test_adv_m11_dependency_cycle_detected() -> None:
     ua = ProofUnitIR(
         unit_id="u.A",
         lir=[
-            ConstDecl((SymbolRef("wff"),), origin=Origin(file="A.py", line=1)),
-            VarDecl((SymbolRef("ph"),), origin=Origin(file="A.py", line=2)),
+            ConstDecl((0,), origin=Origin(file="A.py", line=1)),
+            VarDecl((1,), origin=Origin(file="A.py", line=2)),
             ScopeEnter(origin=Origin(file="A.py", line=3)),
-            Axiom(label="a_in_A", typecode=SymbolRef("wff"), expr=(SymbolRef("ph"),), origin=Origin(file="A.py", line=4)),
+            Axiom(label="a_in_A", typecode=0, expr=(1,), origin=Origin(file="A.py", line=4)),
             LIRTheorem(
                 label="tA",
-                typecode=SymbolRef("wff"),
-                expr=(SymbolRef("ph"),),
-                proof_tokens=(SymbolRef("a_in_B"),),
+                typecode=0,
+                expr=(1,),
+                proof_tokens=(2,),
                 origin=Origin(file="A.py", line=5),
             ),
             ScopeExit(origin=Origin(file="A.py", line=6)),
         ],
         origin=Origin(file="A.py", line=0),
+        symtab=("wff", "ph", "a_in_B"),
     )
     ub = ProofUnitIR(
         unit_id="u.B",
         lir=[
-            ConstDecl((SymbolRef("wff"),), origin=Origin(file="B.py", line=1)),
-            VarDecl((SymbolRef("ph"),), origin=Origin(file="B.py", line=2)),
+            ConstDecl((0,), origin=Origin(file="B.py", line=1)),
+            VarDecl((1,), origin=Origin(file="B.py", line=2)),
             ScopeEnter(origin=Origin(file="B.py", line=3)),
-            Axiom(label="a_in_B", typecode=SymbolRef("wff"), expr=(SymbolRef("ph"),), origin=Origin(file="B.py", line=4)),
+            Axiom(label="a_in_B", typecode=0, expr=(1,), origin=Origin(file="B.py", line=4)),
             LIRTheorem(
                 label="tB",
-                typecode=SymbolRef("wff"),
-                expr=(SymbolRef("ph"),),
-                proof_tokens=(SymbolRef("a_in_A"),),
+                typecode=0,
+                expr=(1,),
+                proof_tokens=(2,),
                 origin=Origin(file="B.py", line=5),
             ),
             ScopeExit(origin=Origin(file="B.py", line=6)),
         ],
         origin=Origin(file="B.py", line=0),
+        symtab=("wff", "ph", "a_in_A"),
     )
     try:
         LinkerV0().link([ua, ub])
@@ -406,13 +416,14 @@ def test_adv_m11_scope_unbalanced_rejected() -> None:
     u = ProofUnitIR(
         unit_id="u.badscope",
         lir=[
-            ConstDecl((SymbolRef("wff"),), origin=Origin(file="bad.py", line=1)),
-            VarDecl((SymbolRef("ph"),), origin=Origin(file="bad.py", line=2)),
+            ConstDecl((0,), origin=Origin(file="bad.py", line=1)),
+            VarDecl((1,), origin=Origin(file="bad.py", line=2)),
             ScopeEnter(origin=Origin(file="bad.py", line=3)),
-            FloatingHyp(label="wph", typecode=SymbolRef("wff"), var=SymbolRef("ph"), origin=Origin(file="bad.py", line=4)),
+            FloatingHyp(label="wph", typecode=0, var=1, origin=Origin(file="bad.py", line=4)),
             # Missing ScopeExit here -> imbalance
         ],
         origin=Origin(file="bad.py", line=0),
+        symtab=("wff", "ph"),
     )
     try:
         LinkerV0().link([u])

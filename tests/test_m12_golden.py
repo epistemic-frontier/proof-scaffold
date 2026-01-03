@@ -13,7 +13,6 @@ from proof_scaffold.ir import (
     ProofUnitIR,
     ScopeEnter,
     ScopeExit,
-    SymbolRef,
     VarDecl,
 )
 from proof_scaffold.ir import (
@@ -36,20 +35,21 @@ def test_golden_m12_diagnostic_stable_snapshot() -> None:
     u = ProofUnitIR(
         unit_id="gold.diag",
         lir=[
-            ConstDecl((SymbolRef("wff"),), origin=Origin(file="gold.py", line=1)),
-            VarDecl((SymbolRef("ph"),), origin=Origin(file="gold.py", line=2)),
+            ConstDecl((0,), origin=Origin(file="gold.py", line=1)),
+            VarDecl((1,), origin=Origin(file="gold.py", line=2)),
             ScopeEnter(origin=Origin(file="gold.py", line=3)),
-            FloatingHyp(label="wph", typecode=SymbolRef("wff"), var=SymbolRef("ph"), origin=Origin(file="gold.py", line=4)),
+            FloatingHyp(label="wph", typecode=0, var=1, origin=Origin(file="gold.py", line=4)),
             LIRTheorem(
                 label="bad",
-                typecode=SymbolRef("wff"),
-                expr=(SymbolRef("ph"),),
-                proof_tokens=(SymbolRef("missing_label"),),
+                typecode=0,
+                expr=(1,),
+                proof_tokens=(2,),
                 origin=Origin(file="gold.py", line=10),
             ),
             ScopeExit(origin=Origin(file="gold.py", line=20)),
         ],
         origin=Origin(file="gold.py", line=0),
+        symtab=("wff", "ph", "missing_label"),
     )
 
     def run_once() -> dict[str, object]:
@@ -76,27 +76,31 @@ def test_golden_m12_symbol_table_ordering() -> None:
     ua = ProofUnitIR(
         unit_id="u.alpha",
         lir=[
-            ConstDecl((SymbolRef("wff"), SymbolRef("|-")), origin=Origin(file="A.py", line=1)),
-            VarDecl((SymbolRef("ph"), SymbolRef("ps")), origin=Origin(file="A.py", line=2)),
+            ConstDecl((0, 1), origin=Origin(file="A.py", line=1)),
+            VarDecl((2, 3), origin=Origin(file="A.py", line=2)),
             ScopeEnter(origin=Origin(file="A.py", line=3)),
-            FloatingHyp(label="wph", typecode=SymbolRef("wff"), var=SymbolRef("ph"), origin=Origin(file="A.py", line=4)),
-            EssentialHyp(label="h", typecode=SymbolRef("wff"), expr=(SymbolRef("ph"),), origin=Origin(file="A.py", line=5)),
-            Axiom(label="ax", typecode=SymbolRef("wff"), expr=(SymbolRef("ps"),), origin=Origin(file="A.py", line=6)),
+            FloatingHyp(label="wph", typecode=0, var=2, origin=Origin(file="A.py", line=4)),
+            EssentialHyp(label="h", typecode=0, expr=(2,), origin=Origin(file="A.py", line=5)),
+            Axiom(label="ax", typecode=0, expr=(3,), origin=Origin(file="A.py", line=6)),
             ScopeExit(origin=Origin(file="A.py", line=7)),
         ],
         origin=Origin(file="A.py", line=0),
+        symtab=("wff", "|-", "ph", "ps"),
     )
 
     ub = ProofUnitIR(
         unit_id="u.beta",
         lir=[
-            ConstDecl((SymbolRef("("), SymbolRef(")")), origin=Origin(file="B.py", line=1)),
-            VarDecl((SymbolRef("ch"),), origin=Origin(file="B.py", line=2)),
+            ConstDecl((0, 1), origin=Origin(file="B.py", line=1)),
+            VarDecl((2,), origin=Origin(file="B.py", line=2)),
             ScopeEnter(origin=Origin(file="B.py", line=3)),
-            Axiom(label="bax", typecode=SymbolRef("wff"), expr=(SymbolRef("ch"),), origin=Origin(file="B.py", line=4)),
+            Axiom(label="bax", typecode=3, expr=(2,), origin=Origin(file="B.py", line=4)),
             ScopeExit(origin=Origin(file="B.py", line=5)),
         ],
         origin=Origin(file="B.py", line=0),
+        # Note: ub references typecode "wff" but doesn't declare it locally; this is OK
+        # for build_symbol_table ordering purposes (it only inspects local decl stmts).
+        symtab=("(", ")", "ch", "wff"),
     )
 
     linker = LinkerV0()

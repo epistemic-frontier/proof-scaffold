@@ -1,9 +1,21 @@
 from __future__ import annotations
 
 from ...ir import Theorem
-from ..context import LinkContext
+from ..context import LinkContext, UnitInfo
 from ..diag_helpers import raise_link_error
 from ..policy import stable_sorted
+
+
+def _tok_name(info: UnitInfo, tok: object) -> str:
+    if isinstance(tok, int):
+        if info.symtab and 0 <= tok < len(info.symtab):
+            return str(info.symtab[tok])
+        return str(tok)
+    name = getattr(tok, "name", None)
+    if isinstance(name, str):
+        return name
+    # Explicitly cast unknowns to str for type-checkers
+    return str(tok)
 
 
 def run(ctx: LinkContext) -> None:
@@ -18,14 +30,12 @@ def run(ctx: LinkContext) -> None:
         for st in i.stmts:
             if isinstance(st, Theorem):
                 for tk in st.proof_tokens:
-                    step = tk.name
+                    step = _tok_name(i, tk)
                     # skip local labels
                     if (i.unit_id, step) in label_kind_by_unit:
                         continue
                     owners = label_owners.get(step, set())
                     if not owners:
-                        # unresolved should have been caught in Stage1_lint; keep defensive LinkerError?
-                        # We use a generic error code via raise_link_error for consistency.
                         raise_link_error(
                             "E_UNRESOLVED_LABEL",
                             f"unresolved exported label: {step}",

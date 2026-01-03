@@ -1,8 +1,20 @@
 from __future__ import annotations
 
 from ...ir import Theorem
-from ..context import LinkContext
+from ..context import LinkContext, UnitInfo
 from ..diag_helpers import raise_link_error
+
+
+def _tok_name(info: UnitInfo, tok: object) -> str:
+    if isinstance(tok, int):
+        if info.symtab and 0 <= tok < len(info.symtab):
+            return str(info.symtab[tok])
+        return str(tok)
+    name = getattr(tok, "name", None)
+    if isinstance(name, str):
+        return name
+    # Treat raw string specifically to produce a clearer error upstream; default here is safe fallback
+    return str(tok)
 
 
 def run(ctx: LinkContext) -> None:
@@ -15,7 +27,7 @@ def run(ctx: LinkContext) -> None:
         for st in info.stmts:
             if isinstance(st, Theorem):
                 for tk in st.proof_tokens:
-                    step = tk.name
+                    step = _tok_name(info, tk)
                     # local label is always OK
                     if (info.unit_id, step) in label_kind_by_unit:
                         continue

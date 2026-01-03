@@ -9,6 +9,7 @@ from ..ir import LIRStmt, Origin, ProofUnitIR
 class UnitInfo:
     unit_id: str
     stmts: list[LIRStmt]
+    symtab: tuple[str, ...]
     labels: dict[str, str]  # name -> kind ("$f","$e","$a","$p")
     label_origin: dict[str, Origin | None]  # name -> origin
     uses_assertions: set[str]

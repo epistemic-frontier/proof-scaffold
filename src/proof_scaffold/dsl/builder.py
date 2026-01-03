@@ -85,7 +85,13 @@ class MMBuilder:
     # IR exposure
     # -------------
     def to_proof_unit(self, unit_id: str) -> ProofUnitIR:
-        return ProofUnitIR(unit_id=unit_id, lir=self._lir.lir(), origin=self._origin.here())
+        return ProofUnitIR(
+            unit_id=unit_id,
+            lir=self._lir.lir(),
+            origin=self._origin.here(),
+            symtab=self._emit.symtab(),
+        )
+
 
     # -----------------
     # Core validations (kept local for now; will migrate to validate.py)

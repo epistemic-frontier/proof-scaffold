@@ -9,8 +9,21 @@ from ...ir import (
     Theorem,
     VarDecl,
 )
-from ..context import LinkContext
+from ..context import LinkContext, UnitInfo
 from ..policy import stable_sorted
+
+
+def _tok_name(info: UnitInfo, tok: object) -> str:
+    """Resolve a token (int id or SymbolRef-like) to its string name."""
+    if isinstance(tok, int):
+        if info.symtab and 0 <= tok < len(info.symtab):
+            return str(info.symtab[tok])
+        return str(tok)
+    name = getattr(tok, "name", None)
+    if isinstance(name, str):
+        return name
+    # Explicitly cast unknowns to str for type-checkers
+    return str(tok)
 
 
 def run(ctx: LinkContext) -> str:
@@ -28,30 +41,30 @@ def run(ctx: LinkContext) -> str:
         out.append("${")
         for st in info.stmts:
             if isinstance(st, DisjointDecl):
-                toks = " ".join(s.name for s in st.symbols)
+                toks = " ".join(_tok_name(info, s) for s in st.symbols)
                 out.append(f"$d {toks} $.")
             elif isinstance(st, FloatingHyp):
-                tc = st.typecode.name
-                var = st.var.name
+                tc = _tok_name(info, st.typecode)
+                var = _tok_name(info, st.var)
                 lab = ctx.relabel[(info.unit_id, st.label)]
                 out.append(f"{lab} $f {tc} {var} $.")
             elif isinstance(st, EssentialHyp):
-                tc = st.typecode.name
-                expr = " ".join(t.name for t in st.expr)
+                tc = _tok_name(info, st.typecode)
+                expr = " ".join(_tok_name(info, t) for t in st.expr)
                 lab = ctx.relabel[(info.unit_id, st.label)]
                 out.append(f"{lab} $e {tc} {expr} $.")
             elif isinstance(st, Axiom):
-                tc = st.typecode.name
-                expr = " ".join(t.name for t in st.expr)
+                tc = _tok_name(info, st.typecode)
+                expr = " ".join(_tok_name(info, t) for t in st.expr)
                 lab = ctx.relabel[(info.unit_id, st.label)]
                 out.append(f"{lab} $a {tc} {expr} $.")
             elif isinstance(st, Theorem):
-                tc = st.typecode.name
-                expr = " ".join(t.name for t in st.expr)
+                tc = _tok_name(info, st.typecode)
+                expr = " ".join(_tok_name(info, t) for t in st.expr)
                 lab = ctx.relabel[(info.unit_id, st.label)]
                 steps: list[str] = []
                 for tk in st.proof_tokens:
-                    nm = tk.name
+                    nm = _tok_name(info, tk)
                     key_local = (info.unit_id, nm)
                     if key_local in ctx.relabel:
                         steps.append(ctx.relabel[key_local])

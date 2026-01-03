@@ -16,14 +16,18 @@ from ..context import LinkContext, UnitInfo
 from ..diag_helpers import raise_link_error
 
 
-def _ensure_symref(cond: bool, msg: str, primary, unit_id: str, *, chain_extra: tuple[str, ...] = ()) -> None:
-    if not cond:
-        raise_link_error(
-            "E_RAW_TOKEN_FORBIDDEN",
-            msg,
-            primary=primary,
-            chain=("Stage1", f"unit={unit_id}") + chain_extra,
-        )
+def _is_token_allowed(tok: object) -> bool:
+    return isinstance(tok, (int, SymbolRef))
+
+
+def _tok_name(u, tok: object) -> str:
+    if isinstance(tok, int):
+        # tolerate empty symtab in compat: unknown id -> placeholder string
+        return u.symtab[tok] if u.symtab and 0 <= tok < len(u.symtab) else str(tok)
+    if isinstance(tok, SymbolRef):
+        return tok.name
+    # strings should not appear here; return as-is for diagnostics if they do
+    return str(tok)
 
 
 def run(ctx: LinkContext) -> None:
@@ -67,62 +71,122 @@ def run(ctx: LinkContext) -> None:
         for st in u.lir:
             if isinstance(st, ConstDecl):
                 for s in st.symbols:
-                    _ensure_symref(isinstance(s, SymbolRef), "ConstDecl contains non-SymbolRef token", st.origin, u.unit_id)
-                    global_consts.add(s.name)
+                    if not _is_token_allowed(s):
+                        raise_link_error(
+                            "E_RAW_TOKEN_FORBIDDEN",
+                            "ConstDecl contains non-SymbolRef/int token",
+                            primary=st.origin,
+                            chain=("Stage1", f"unit={u.unit_id}"),
+                        )
+                    global_consts.add(_tok_name(u, s))
             elif isinstance(st, VarDecl):
                 for s in st.symbols:
-                    _ensure_symref(isinstance(s, SymbolRef), "VarDecl contains non-SymbolRef token", st.origin, u.unit_id)
-                    global_vars.add(s.name)
+                    if not _is_token_allowed(s):
+                        raise_link_error(
+                            "E_RAW_TOKEN_FORBIDDEN",
+                            "VarDecl contains non-SymbolRef/int token",
+                            primary=st.origin,
+                            chain=("Stage1", f"unit={u.unit_id}"),
+                        )
+                    global_vars.add(_tok_name(u, s))
             elif isinstance(st, FloatingHyp):
-                _ensure_symref(isinstance(st.typecode, SymbolRef), "FloatingHyp.typecode must be SymbolRef", st.origin, u.unit_id)
-                _ensure_symref(isinstance(st.var, SymbolRef), "FloatingHyp.var must be SymbolRef", st.origin, u.unit_id)
+                if not _is_token_allowed(st.typecode):
+                    raise_link_error(
+                        "E_RAW_TOKEN_FORBIDDEN",
+                        "FloatingHyp.typecode must be int/SymbolRef",
+                        primary=st.origin,
+                        chain=("Stage1", f"unit={u.unit_id}"),
+                    )
+                if not _is_token_allowed(st.var):
+                    raise_link_error(
+                        "E_RAW_TOKEN_FORBIDDEN",
+                        "FloatingHyp.var must be int/SymbolRef",
+                        primary=st.origin,
+                        chain=("Stage1", f"unit={u.unit_id}"),
+                    )
                 lab = st.label
                 label_owners.setdefault(lab, set()).add(u.unit_id)
                 label_kind_by_unit[(u.unit_id, lab)] = "$f"
                 labels[lab] = "$f"
                 label_origin[lab] = st.origin
-                v = st.var.name
+                v = _tok_name(u, st.var)
                 f_label_of_var[v] = lab
                 if v not in f_order:
                     f_order.append(v)
             elif isinstance(st, EssentialHyp):
-                _ensure_symref(isinstance(st.typecode, SymbolRef), "EssentialHyp.typecode must be SymbolRef", st.origin, u.unit_id)
+                if not _is_token_allowed(st.typecode):
+                    raise_link_error(
+                        "E_RAW_TOKEN_FORBIDDEN",
+                        "EssentialHyp.typecode must be int/SymbolRef",
+                        primary=st.origin,
+                        chain=("Stage1", f"unit={u.unit_id}"),
+                    )
                 for t in st.expr:
-                    _ensure_symref(isinstance(t, SymbolRef), "EssentialHyp.expr contains non-SymbolRef token", st.origin, u.unit_id)
+                    if not _is_token_allowed(t):
+                        raise_link_error(
+                            "E_RAW_TOKEN_FORBIDDEN",
+                            "EssentialHyp.expr contains non-SymbolRef/int token",
+                            primary=st.origin,
+                            chain=("Stage1", f"unit={u.unit_id}"),
+                        )
                 lab = st.label
                 label_owners.setdefault(lab, set()).add(u.unit_id)
                 label_kind_by_unit[(u.unit_id, lab)] = "$e"
                 labels[lab] = "$e"
                 label_origin[lab] = st.origin
             elif isinstance(st, Axiom):
-                _ensure_symref(isinstance(st.typecode, SymbolRef), "Axiom.typecode must be SymbolRef", st.origin, u.unit_id)
+                if not _is_token_allowed(st.typecode):
+                    raise_link_error(
+                        "E_RAW_TOKEN_FORBIDDEN",
+                        "Axiom.typecode must be int/SymbolRef",
+                        primary=st.origin,
+                        chain=("Stage1", f"unit={u.unit_id}"),
+                    )
                 for t in st.expr:
-                    _ensure_symref(isinstance(t, SymbolRef), "Axiom.expr contains non-SymbolRef token", st.origin, u.unit_id)
+                    if not _is_token_allowed(t):
+                        raise_link_error(
+                            "E_RAW_TOKEN_FORBIDDEN",
+                            "Axiom.expr contains non-SymbolRef/int token",
+                            primary=st.origin,
+                            chain=("Stage1", f"unit={u.unit_id}"),
+                        )
                 lab = st.label
                 label_owners.setdefault(lab, set()).add(u.unit_id)
                 label_kind_by_unit[(u.unit_id, lab)] = "$a"
                 labels[lab] = "$a"
                 label_origin[lab] = st.origin
-                assertion_stmt[lab] = [st.typecode.name] + [t.name for t in st.expr]
+                assertion_stmt[lab] = [_tok_name(u, st.typecode)] + [_tok_name(u, t) for t in st.expr]
             elif isinstance(st, Theorem):
-                _ensure_symref(isinstance(st.typecode, SymbolRef), "Theorem.typecode must be SymbolRef", st.origin, u.unit_id, chain_extra=(f"stmt={st.label}",))
+                if not _is_token_allowed(st.typecode):
+                    raise_link_error(
+                        "E_RAW_TOKEN_FORBIDDEN",
+                        "Theorem.typecode must be int/SymbolRef",
+                        primary=st.origin,
+                        chain=("Stage1", f"unit={u.unit_id}", f"stmt={st.label}"),
+                    )
                 for t in st.expr:
-                    _ensure_symref(isinstance(t, SymbolRef), "Theorem.expr contains non-SymbolRef token", st.origin, u.unit_id, chain_extra=(f"stmt={st.label}",))
+                    if not _is_token_allowed(t):
+                        raise_link_error(
+                            "E_RAW_TOKEN_FORBIDDEN",
+                            "Theorem.expr contains non-SymbolRef/int token",
+                            primary=st.origin,
+                            chain=("Stage1", f"unit={u.unit_id}", f"stmt={st.label}"),
+                        )
                 lab = st.label
                 label_owners.setdefault(lab, set()).add(u.unit_id)
                 label_kind_by_unit[(u.unit_id, lab)] = "$p"
                 labels[lab] = "$p"
                 label_origin[lab] = st.origin
-                assertion_stmt[lab] = [st.typecode.name] + [t.name for t in st.expr]
+                assertion_stmt[lab] = [_tok_name(u, st.typecode)] + [_tok_name(u, t) for t in st.expr]
                 for tk in st.proof_tokens:
-                    if not isinstance(tk, SymbolRef):
+                    if not _is_token_allowed(tk):
                         raise_link_error(
                             "E_RAW_TOKEN_FORBIDDEN",
-                            "proof token is not a SymbolRef (raw string token forbidden)",
+                            "proof token is not a SymbolRef/int (raw token forbidden)",
                             primary=st.origin,
                             chain=("Stage1", f"unit={u.unit_id}", f"stmt={lab}"),
                         )
-                    step = tk.name
+                    step = _tok_name(u, tk)
                     if any(label_kind_by_unit.get((own, step)) in ("$a", "$p") for own in label_owners.get(step, set())):
                         uses_assertions.add(step)
             elif isinstance(st, (ScopeEnter, ScopeExit, DisjointDecl)):
@@ -140,6 +204,7 @@ def run(ctx: LinkContext) -> None:
         infos.append(UnitInfo(
             unit_id=u.unit_id,
             stmts=list(u.lir),
+            symtab=u.symtab,
             labels=labels,
             label_origin=label_origin,
             uses_assertions=uses_assertions,
@@ -149,10 +214,6 @@ def run(ctx: LinkContext) -> None:
             exports=exports_set,
             unit_origin=u.origin,
         ))
-
-    # Note: We do NOT treat same label names across different units as collisions.
-    # Relocation will namespace them deterministically; collision only makes sense when
-    # the same (origin, local_name, kind) pair appears twice, which is not represented here.
 
     ctx.infos = infos
     ctx.global_consts = global_consts

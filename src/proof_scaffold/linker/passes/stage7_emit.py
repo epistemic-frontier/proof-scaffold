@@ -34,11 +34,18 @@ def run(ctx: LinkContext) -> str:
     if ctx.global_vars:
         out.append(f"$v {' '.join(stable_sorted(ctx.global_vars))} $.")
 
-    ordered_units = ctx.ordered_infos or ctx.infos
+    plan = ctx.linear_plan
+    if plan is None:
+        raise ValueError("Stage7 requires ctx.linear_plan (Stage5) to be present")
 
-    for info in ordered_units:
+    info_by_unit: dict[str, UnitInfo] = {i.unit_id: i for i in (ctx.ordered_infos or ctx.infos)}
+
+    # Body: per-frame emission
+    for frame in plan.frames:
+        info = info_by_unit[frame.unit_id]
         out.append("${")
-        for st in info.stmts:
+        for fs in frame.stmts:
+            st = fs.stmt
             if isinstance(st, DisjointDecl):
                 toks = " ".join(_tok_name(info, s) for s in st.symbols)
                 out.append(f"$d {toks} $.")
@@ -105,7 +112,7 @@ def run(ctx: LinkContext) -> str:
                 out.append("$.")
             elif isinstance(st, (ConstDecl, VarDecl)):
                 continue
-            else:  # ScopeEnter/Exit removed by framing
+            else:  # ScopeEnter/Exit handled by framing (outer ${/$}) or unit local scope
                 continue
         out.append("$}")
 

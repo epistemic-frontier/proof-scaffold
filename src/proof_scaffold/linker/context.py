@@ -6,6 +6,34 @@ from ..ir import LIRStmt, Origin, ProofUnitIR
 
 
 @dataclass(frozen=True)
+class FrameStmt:
+    """A statement inside a planned scope frame.
+
+    We keep stmt itself as LIRStmt (tokens remain int ids), and add a
+    synthetic_tag for debug/traceability (e.g. "ScopeEnter", "ScopeExit").
+    """
+
+    stmt: LIRStmt
+    origin: Origin | None
+    synthetic_tag: str | None = None
+
+
+@dataclass(frozen=True)
+class ScopeFramePlan:
+    frame_id: int
+    unit_id: str
+    origin_ref: Origin | None
+    context_hash: int
+    stmts: tuple[FrameStmt, ...]
+
+
+@dataclass(frozen=True)
+class LinearPlan:
+    prologue_stmts: tuple[FrameStmt, ...] = ()
+    frames: tuple[ScopeFramePlan, ...] = ()
+
+
+@dataclass(frozen=True)
 class UseEdgeProvenance:
     """Provenance for an edge induced by a proof token.
 
@@ -57,6 +85,12 @@ class LinkContext:
 
     # Stage4 outputs
     ordered_infos: list[UnitInfo] = field(default_factory=list)
+
+    # Stage5 outputs
+    linear_plan: LinearPlan | None = None
+
+    # Stage5 notes (non-fatal diagnostics)
+    lint_notes: list[dict[str, object]] = field(default_factory=list)
 
     # Stage6 outputs
     relabel: dict[tuple[str, str], str] = field(default_factory=dict)

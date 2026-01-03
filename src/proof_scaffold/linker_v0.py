@@ -13,6 +13,7 @@ from proof_scaffold.linker.passes import origin_seal as pass_origin_seal
 from proof_scaffold.linker.passes import stage1_collect as pass_stage1_collect
 from proof_scaffold.linker.passes import stage1_lint as pass_stage1_lint
 from proof_scaffold.linker.passes import stage4_deps as pass_stage4_deps
+from proof_scaffold.linker.passes import stage5_scope as pass_stage5_scope
 from proof_scaffold.linker.passes import stage6_reloc as pass_stage6_reloc
 from proof_scaffold.linker.passes import stage7_emit as pass_stage7_emit
 
@@ -50,6 +51,8 @@ class LinkerV0:
         pass_stage1_lint.run(ctx)
         # Stage 4: deps order
         pass_stage4_deps.run(ctx)
+        # Stage 5: scope planning (per-unit frames)
+        pass_stage5_scope.run(ctx)
         # Stage 6: relocation
         pass_stage6_reloc.run(ctx)
         # Stage 7: emission
@@ -94,6 +97,7 @@ def link_v0(units, *, return_context: bool = False, compat: bool = False):
     pass_stage1_collect.run(ctx)
     pass_stage1_lint.run(ctx)
     pass_stage4_deps.run(ctx)
+    pass_stage5_scope.run(ctx)
     pass_stage6_reloc.run(ctx)
     mm = pass_stage7_emit.run(ctx)
 

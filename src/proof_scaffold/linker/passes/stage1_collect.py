@@ -11,8 +11,9 @@ from ...ir import (
     Theorem,
     VarDecl,
 )
-from ..context import LinkContext, UnitInfo
+from ..context import LinkContext, UnitInfo, UseEdgeProvenance
 from ..diag_helpers import raise_link_error
+from ..policy import stable_sorted
 
 
 def _is_token_allowed(tok: object) -> bool:
@@ -39,6 +40,7 @@ def run(ctx: LinkContext) -> None:
         from ...ir import Origin as _Origin
         label_origin: dict[str, _Origin | None] = {}
         uses_assertions: set[str] = set()
+        uses_prov: dict[str, UseEdgeProvenance] = {}
         f_label_of_var: dict[str, str] = {}
         f_order: list[str] = []
         assertion_stmt: dict[str, list[str]] = {}
@@ -184,17 +186,28 @@ def run(ctx: LinkContext) -> None:
                             chain=("Stage1", f"unit={u.unit_id}", f"stmt={lab}"),
                         )
                     step = _tok_name(u, tk)
-                    if any(label_kind_by_unit.get((own, step)) in ("$a", "$p") for own in label_owners.get(step, set())):
+                    owners = label_owners.get(step, set())
+                    if any(label_kind_by_unit.get((own, step)) in ("$a", "$p") for own in owners):
                         uses_assertions.add(step)
+                        # record first provenance (stable enough for MVP)
+                        if step not in uses_prov:
+                            uses_prov[step] = UseEdgeProvenance(
+                                used_label=step,
+                                ref_origin=st.origin,
+                                ref_stmt_label=lab,
+                                proof_step_idx=None,
+                            )
             elif isinstance(st, (ScopeEnter, ScopeExit, DisjointDecl)):
                 pass
             else:  # pragma: no cover
                 from ..errors import LinkerError
                 raise LinkerError(f"unknown LIR stmt: {type(st)}")
 
+        # NOTE: If exports is not provided, default policy is "$a/$p are exported".
+        # Some unit tests expect an omitted exports list to behave as "export all".
         exports_set: set[str] | None
         if u.exports is None:
-            exports_set = None
+            exports_set = set(stable_sorted([lab for (uid, lab), k in label_kind_by_unit.items() if uid == u.unit_id and k in ("$a", "$p")]))
         else:
             exports_set = set(u.exports)
 
@@ -204,12 +217,13 @@ def run(ctx: LinkContext) -> None:
             symtab=u.symtab,
             labels=labels,
             label_origin=label_origin,
-            uses_assertions=uses_assertions,
+            uses_assertions=tuple(stable_sorted(uses_assertions)),
             f_label_of_var=f_label_of_var,
             f_order=f_order,
             assertion_stmt=assertion_stmt,
             exports=exports_set,
             unit_origin=u.origin,
+            uses_provenance=uses_prov,
         ))
 
     ctx.infos = infos

@@ -121,6 +121,14 @@ class ProofUnitIR:
     # When provided (list), ONLY those listed are considered exported.
     exports: list[str] | None = None
 
+    # -----------------
+    # COMPAT (M1.3 Stage 4.5 bootstrap)
+    # -----------------
+    # In explicit COMPAT builds, when proof closure cannot be computed,
+    # the generator may provide a coarse unit-level dependency hint.
+    # This must never become default-on behavior.
+    dependencies_hint_unit_ids: list[str] | None = None
+
     # Optional debug metadata for SPEC-0001 (Debug Slice MVP)
     # For a theorem label L, theorem_proof_span[L] provides the (start,end)
     # span of its proof tokens within the *linearized proof token stream*.

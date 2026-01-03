@@ -5,6 +5,20 @@ from dataclasses import dataclass, field
 from ..ir import LIRStmt, Origin, ProofUnitIR
 
 
+@dataclass(frozen=True)
+class UseEdgeProvenance:
+    """Provenance for an edge induced by a proof token.
+
+    This is intentionally minimal for M1.3: enough to make missing-dep/cycle
+    diagnostics actionable.
+    """
+
+    used_label: str
+    ref_origin: Origin | None
+    ref_stmt_label: str | None = None
+    proof_step_idx: int | None = None
+
+
 @dataclass
 class UnitInfo:
     unit_id: str
@@ -12,18 +26,26 @@ class UnitInfo:
     symtab: tuple[str, ...]
     labels: dict[str, str]  # name -> kind ("$f","$e","$a","$p")
     label_origin: dict[str, Origin | None]  # name -> origin
-    uses_assertions: set[str]
+    # Extracted from resolved proof tokens ($a/$p only). Stored as a stable,
+    # sorted list to guarantee determinism.
+    uses_assertions: tuple[str, ...]
     f_label_of_var: dict[str, str]
     f_order: list[str]
     assertion_stmt: dict[str, list[str]]
     exports: set[str] | None  # None means all exported
     unit_origin: Origin | None
+    # For each used label, retain at least one provenance record.
+    # Must come after non-default fields to satisfy dataclass init ordering.
+    uses_provenance: dict[str, UseEdgeProvenance] = field(default_factory=dict)
 
 
 @dataclass
 class LinkContext:
     # Inputs
     units: list[ProofUnitIR]
+
+    # Policy flags
+    compat: bool = False
 
     # Stage1_collect outputs
     infos: list[UnitInfo] = field(default_factory=list)

@@ -36,12 +36,12 @@ class LinkerV0:
     # --------
     # Public API
     # --------
-    def link(self, units: Iterable[ProofUnitIR]) -> str:
+    def link(self, units: Iterable[ProofUnitIR], *, compat: bool = False) -> str:
         unit_list = [u for u in units]  # materialize
         if not unit_list:
             raise LinkerError("no units provided to linker")
 
-        ctx = LinkContext(units=unit_list)
+        ctx = LinkContext(units=unit_list, compat=compat)
 
         # Stage 0.5: Origin sealing
         pass_origin_seal.run(ctx)
@@ -79,7 +79,7 @@ class LinkerV0:
         return [(o, n, k, idx) for idx, (o, n, k) in enumerate(rows)]
 
 
-def link_v0(units, *, return_context: bool = False):
+def link_v0(units, *, return_context: bool = False, compat: bool = False):
     """Convenience wrapper used by tests and debug tooling.
 
     When return_context=True, returns (LinkContext, mm_text).
@@ -89,7 +89,7 @@ def link_v0(units, *, return_context: bool = False):
         raise LinkerError("no units provided to linker")
 
     # Keep link_v0 permissive for tests/tooling; cast to the canonical type.
-    ctx = LinkContext(units=cast(list[ProofUnitIR], unit_list))
+    ctx = LinkContext(units=cast(list[ProofUnitIR], unit_list), compat=compat)
     pass_origin_seal.run(ctx)
     pass_stage1_collect.run(ctx)
     pass_stage1_lint.run(ctx)

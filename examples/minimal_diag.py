@@ -10,12 +10,12 @@ from __future__ import annotations
 
 from typing import Final
 
-from proof_scaffold.linker_v1.api import LinkerV1
-from proof_scaffold.linker_v1.diag import LinkerDiagError
-from proof_scaffold.linker_v1.ir_lir import ConstDecl
-from proof_scaffold.linker_v1.origin import OriginRecord, OriginTable
-from proof_scaffold.linker_v1.symbols import SymbolInterner
-from proof_scaffold.linker_v1.unit import ProofUnitIR
+from proof_scaffold.linker.api import LinkerV1
+from proof_scaffold.linker.diag import LinkerDiagError
+from proof_scaffold.linker.lir import ConstDecl
+from proof_scaffold.linker.origin import OriginRecord, OriginTable
+from proof_scaffold.linker.symbols import SymbolInterner
+from proof_scaffold.linker.unit import ProofUnitIR
 
 MODULE_ID: Final[str] = "examples.minimal_diag"
 UNIT_ID: Final[str] = f"{MODULE_ID}:unit0"

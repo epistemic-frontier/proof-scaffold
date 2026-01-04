@@ -26,6 +26,9 @@ dev = [
   "types-setuptools",
 ]
 
+[project.scripts]
+skfd = "proof_scaffold.cli:main"
+
 [tool.setuptools.packages.find]
 where = ["src"]
 

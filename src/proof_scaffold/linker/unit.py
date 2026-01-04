@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 
-from .ir_lir import LIRStmt
+from .lir import LIRStmt
 from .origin import OriginRef
 from .symbols import SymbolId
 

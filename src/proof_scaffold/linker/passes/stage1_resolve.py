@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import replace
 
 from ..diag import Diagnostic, LinkerDiagError
-from ..ir_lir import ConstDecl, Theorem, VarDecl
+from ..lir import ConstDecl, Theorem, VarDecl
 from ..symbols import SymbolId
 from ..unit import ProofUnitIR
 

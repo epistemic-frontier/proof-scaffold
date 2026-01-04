@@ -1,9 +1,10 @@
 from __future__ import annotations
 
-from ..ir_lir import ConstDecl, FloatingHyp, Theorem, VarDecl
-from ..origin import OriginRecord, OriginTable
-from ..symbols import SymbolInterner
-from ..unit import ProofUnitIR
+from ..linker.api import LinkerV1
+from ..linker.lir import (ConstDecl, FloatingHyp, Theorem, VarDecl)
+from ..linker.origin import OriginRecord, OriginTable
+from ..linker.symbols import SymbolInterner
+from ..linker.unit import ProofUnitIR
 
 
 def build_sanity_ir() -> tuple[OriginTable, SymbolInterner, list[ProofUnitIR]]:

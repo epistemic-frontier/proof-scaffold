@@ -4,8 +4,8 @@ import tempfile
 from pathlib import Path
 
 from proof_scaffold.verifier import verify
-from ..api import LinkerV1
-from .build_sanity_ir import build_sanity_ir
+from ..linker.api import LinkerV1
+from .sanity_ir import build_sanity_ir
 
 
 def run_sanity() -> None:

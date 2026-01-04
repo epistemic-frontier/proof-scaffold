@@ -1,11 +1,16 @@
+"""
+skfd: The ProofScaffold CLI
+"""
 from __future__ import annotations
 
 import argparse
 import sys
+import platform
+import subprocess
 from pathlib import Path
 
-from .linker_v1.diag import LinkerDiagError
-from .linker_v1.sanity.check_sanity import run_sanity
+from .linker.diag import LinkerDiagError
+from .doctor.check import run_sanity
 from proof_scaffold.verifier import verify
 
 
@@ -44,8 +49,39 @@ def _run_example_minimal_diag(*, write_mm: bool = False) -> None:
         raise AssertionError("minimal_diag should not emit")
 
 
-def _cmd_sanity(_args: argparse.Namespace) -> int:
+def _cmd_doctor(_args: argparse.Namespace) -> int:
+    """Check environment and verification chain."""
+    print(f"skfd doctor: checking environment...")
+    print(f"  Python: {platform.python_version()} ({sys.executable})")
+    print(f"  Platform: {platform.platform()}")
+    
+    print("  Checking internal sanity (memory-only)... ", end="", flush=True)
+    try:
+        run_sanity()
+        print("OK")
+    except Exception as e:
+        print("FAIL")
+        print(e)
+        return 1
+
+    print("  Checking verifier... ", end="", flush=True)
+    verifier_path = Path("verifier/mmverify.py")
+    if verifier_path.exists():
+        print(f"Found ({verifier_path})")
+    else:
+        print("MISSING")
+        print(f"  Warning: {verifier_path} not found. 'verify' command might fail.")
+    
+    print("Doctor check passed.")
+    return 0
+
+
+def _cmd_smoke(args: argparse.Namespace) -> int:
+    """Legacy smoke test: runs sanity + minimal_ok."""
+    print("Running sanity check...")
     run_sanity()
+    print("Running minimal_ok example...")
+    _run_example_minimal_ok(write_mm=not args.no_write)
     print("accepted")
     return 0
 
@@ -66,57 +102,38 @@ def _cmd_example(args: argparse.Namespace) -> int:
     return 2
 
 
-def _cmd_smoke(args: argparse.Namespace) -> int:
-    run_sanity()
-    _run_example_minimal_ok(write_mm=not args.no_write)
-    print("accepted")
-    return 0
-
-
-def _cmd_diag_to_json(_args: argparse.Namespace) -> int:
-    # Utility subcommand for debugging: run minimal_diag and dump diag JSON.
-    try:
-        _run_example_minimal_diag()
-    except LinkerDiagError as e:
-        print(e.diag.to_json(indent=2))
-        return 1
-    return 2
-
-
 def main(argv: list[str] | None = None) -> int:
-    p = argparse.ArgumentParser(prog="python -m proof_scaffold")
+    p = argparse.ArgumentParser(prog="skfd", description="ProofScaffold CLI")
     sub = p.add_subparsers(dest="cmd", required=True)
 
-    p_smoke = sub.add_parser("smoke", help="run sanity + minimal_ok")
+    # --- doctor ---
+    p_doctor = sub.add_parser("doctor", help="Check environment and toolchain health")
+    p_doctor.set_defaults(func=_cmd_doctor)
+
+    # --- smoke (legacy) ---
+    p_smoke = sub.add_parser("smoke", help="[Legacy] run sanity + minimal_ok")
     p_smoke.add_argument("--no-write", action="store_true", help="do not write build/* artifacts")
     p_smoke.set_defaults(func=_cmd_smoke)
 
-    p_sanity = sub.add_parser("sanity", help="run M0.1 sanity only")
-    p_sanity.set_defaults(func=_cmd_sanity)
-
+    # --- example ---
     p_example = sub.add_parser("example", help="run a named example")
     p_example.add_argument("name", choices=["minimal_ok", "minimal_diag"])
     p_example.add_argument("--no-write", action="store_true", help="do not write build/* artifacts")
     p_example.set_defaults(func=_cmd_example)
 
-    p_diag = sub.add_parser("diag-json", help="run minimal_diag and print diagnostic JSON")
-    p_diag.set_defaults(func=_cmd_diag_to_json)
-
     args = p.parse_args(argv)
 
     try:
-        return int(args.func(args))
+        if hasattr(args, "func"):
+            return int(args.func(args))
+        return 0
     except LinkerDiagError as e:
         # Stable, deterministic rendering.
         print(str(e), file=sys.stderr)
-        # Also write JSON sidecar if possible.
-        try:
-            _write_text(_build_dir("diag.json"), e.diag.to_json(indent=2) + "\n")
-        except Exception:
-            # Do not allow sidecar errors to mask primary error.
-            pass
         return 1
-
+    except Exception as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return 1
 
 if __name__ == "__main__":
     raise SystemExit(main())

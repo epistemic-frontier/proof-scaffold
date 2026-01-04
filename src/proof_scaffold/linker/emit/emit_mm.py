@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from ..ir_lir import Comment, ConstDecl, FloatingHyp, Theorem, VarDecl
+from ..lir import Comment, ConstDecl, FloatingHyp, Theorem, VarDecl
 from ..symbols import SymbolDef, SymbolId
 from ..unit import ProofUnitIR
 

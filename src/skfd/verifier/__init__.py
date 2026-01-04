@@ -1,4 +1,4 @@
-# src/proof_scaffold/verify.py
+# src/skfd/verify.py
 from __future__ import annotations
 
 import subprocess

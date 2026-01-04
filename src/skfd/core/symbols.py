@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Literal
 
-from .diag import Diagnostic, LinkerDiagError
+from skfd.core.diag import Diagnostic, LinkerDiagError
 from .origin import OriginRef
 
 SymbolId = int

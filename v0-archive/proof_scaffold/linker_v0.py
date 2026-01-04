@@ -5,7 +5,7 @@ from collections.abc import Iterable
 from typing import cast
 
 from proof_scaffold.ir import ProofUnitIR
-from proof_scaffold.linker.context import LinkContext
+from proof_scaffold.core.context import LinkContext
 from proof_scaffold.linker.errors import (  # re-export for tests
     LinkerError,
 )

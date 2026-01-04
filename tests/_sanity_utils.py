@@ -6,10 +6,10 @@ import subprocess
 import sys
 from pathlib import Path
 
-ENV_VERBOSE = "PROOF_SCAFFOLD_VERIFIERS_VERBOSE"
-ENV_SEM = "PROOF_SCAFFOLD_SEMANTIC_VERIFIERS"
-ENV_LINT = "PROOF_SCAFFOLD_LINT_VERIFIERS"
-ENV_ALL = "PROOF_SCAFFOLD_VERIFIERS"
+ENV_VERBOSE = "skfd_VERIFIERS_VERBOSE"
+ENV_SEM = "skfd_SEMANTIC_VERIFIERS"
+ENV_LINT = "skfd_LINT_VERIFIERS"
+ENV_ALL = "skfd_VERIFIERS"
 
 
 def _vprint(msg: str) -> None:
@@ -39,12 +39,12 @@ def semantic_verifiers() -> list[Path]:
 
 def lint_verifiers() -> list[Path]:
     # parser/lint tools (may not validate proofs)
-    # CI default: none (opt-in via PROOF_SCAFFOLD_LINT_VERIFIERS)
+    # CI default: none (opt-in via skfd_LINT_VERIFIERS)
     return _parse_list(ENV_LINT, "")
 
 
 def all_verifiers() -> list[Path]:
-    # Optional override: when PROOF_SCAFFOLD_VERIFIERS is set, use it verbatim.
+    # Optional override: when skfd_VERIFIERS is set, use it verbatim.
     override = os.environ.get(ENV_ALL, "").strip()
     if override:
         # Parse from ENV_ALL; default_csv unused since env is set.
@@ -119,7 +119,7 @@ def verify_expect_fail(mm_file: Path) -> None:
 
 def run_sanity_script_for_all_verifiers(script: Path) -> None:
     # For M0.1 scripts: by default run only on semantic verifiers (they define correctness).
-    # If PROOF_SCAFFOLD_VERIFIERS is set, it overrides the list (allowing inclusion of lint tools).
+    # If skfd_VERIFIERS is set, it overrides the list (allowing inclusion of lint tools).
     if not script.exists():
         raise FileNotFoundError(f"sanity script not found: {script}")
 

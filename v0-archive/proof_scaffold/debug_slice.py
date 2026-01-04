@@ -21,7 +21,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from proof_scaffold.linker.context import LinkContext
+from proof_scaffold.core.context import LinkContext
 
 
 @dataclass(frozen=True)

@@ -4,7 +4,7 @@ import re
 
 import pytest
 from proof_scaffold.dsl import MMBuilder
-from proof_scaffold.linker.context import LinkContext
+from proof_scaffold.core.context import LinkContext
 from proof_scaffold.linker.passes import (
     stage1_collect,
     stage4_deps,

@@ -7,7 +7,7 @@ from .symbols import SymbolDef, SymbolId, SymbolInterner
 
 
 @dataclass
-class LinkerContext:
+class Context:
     origin_table: OriginTable
     interner: SymbolInterner
     symtab: dict[SymbolId, SymbolDef]

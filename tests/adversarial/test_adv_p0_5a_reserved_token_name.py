@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 import pytest
-from proof_scaffold.linker.diag import LinkerDiagError
-from proof_scaffold.linker.origin import OriginRecord, OriginTable
-from proof_scaffold.linker.symbols import SymbolInterner
+from skfd.core.diag import LinkerDiagError
+from skfd.core.origin import OriginRecord, OriginTable
+from skfd.core.symbols import SymbolInterner
 
 
 @pytest.mark.adversarial

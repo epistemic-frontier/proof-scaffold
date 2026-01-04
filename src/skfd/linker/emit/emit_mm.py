@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from ..lir import Comment, ConstDecl, FloatingHyp, Theorem, VarDecl
-from ..symbols import SymbolDef, SymbolId
-from ..unit import ProofUnitIR
+from skfd.core.lir import Comment, ConstDecl, FloatingHyp, Theorem, VarDecl
+from skfd.core.symbols import SymbolDef, SymbolId
+from skfd.core.unit import ProofUnitIR
 
 
 def emit_mm(*, symtab: dict[SymbolId, SymbolDef], units: list[ProofUnitIR]) -> str:

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from proof_scaffold.doctor.sanity_ir import build_sanity_ir
-from proof_scaffold.linker.api import LinkerV1
+from skfd.doctor.sanity_ir import build_sanity_ir
+from skfd.linker.api import LinkerV1
 
 
 def test_m0p1_determinism_bytes_identical() -> None:

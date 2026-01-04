@@ -41,10 +41,10 @@ class SkfdConfig:
                 if name == "mmverify":
                     import sys
 
-                    import proof_scaffold.verifier
+                    import skfd.verifier
 
                     mmverify_path = (
-                        Path(proof_scaffold.verifier.__file__).parent / "mmverify.py"
+                        Path(skfd.verifier.__file__).parent / "mmverify.py"
                     )
                     res.append((name, [sys.executable, str(mmverify_path)]))
                 continue
@@ -98,9 +98,9 @@ def load_config(root: Path | None = None) -> SkfdConfig:
         import sys
 
         # Resolve absolute path to mmverify.py inside the package
-        import proof_scaffold.verifier
+        import skfd.verifier
 
-        mmverify_path = Path(proof_scaffold.verifier.__file__).parent / "mmverify.py"
+        mmverify_path = Path(skfd.verifier.__file__).parent / "mmverify.py"
 
         verifiers["mmverify"] = VerifierConfig(
             command=sys.executable, args=[str(mmverify_path)]

@@ -10,11 +10,11 @@ import platform
 import sys
 from pathlib import Path
 
-from proof_scaffold.verifier import verify
+from skfd.verifier import verify
 
 from .config import VerifierConfig, load_config, save_config
 from .doctor.check import run_sanity
-from .linker.diag import LinkerDiagError
+from skfd.core.diag import LinkerDiagError
 
 # Hack: ensure CWD is in path so we can import examples/user code
 cwd = str(Path.cwd())

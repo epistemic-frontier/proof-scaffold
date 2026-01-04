@@ -11,7 +11,7 @@ TokenSeq = list[int]
 
 
 LIRStmt: TypeAlias = (
-    "ConstDecl | VarDecl | FloatingHyp | Theorem | Comment | ScopeEnter | ScopeExit"
+    "ConstDecl | VarDecl | FloatingHyp | EssentialHyp | Axiom | Theorem | Comment | ScopeEnter | ScopeExit"
 )
 
 
@@ -36,6 +36,22 @@ class FloatingHyp:
     label: SymbolId
     typecode: SymbolId
     var: SymbolId
+
+
+@dataclass(frozen=True)
+class EssentialHyp:
+    stmt_id: StmtId
+    origin_ref: OriginRef
+    label: SymbolId
+    expr: TokenSeq
+
+
+@dataclass(frozen=True)
+class Axiom:
+    stmt_id: StmtId
+    origin_ref: OriginRef
+    label: SymbolId
+    expr: TokenSeq
 
 
 @dataclass(frozen=True)

@@ -57,7 +57,7 @@ skfd doctor
 Use `argparse` with sub-parsers.
 
 ```python
-# src/proof_scaffold/cli.py
+# src/skfd/cli.py
 
 def main():
     parser = argparse.ArgumentParser(prog="skfd")

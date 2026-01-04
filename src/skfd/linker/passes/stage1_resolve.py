@@ -2,10 +2,10 @@ from __future__ import annotations
 
 from dataclasses import replace
 
-from ..diag import Diagnostic, LinkerDiagError
-from ..lir import ConstDecl, Theorem, VarDecl
-from ..symbols import SymbolId
-from ..unit import ProofUnitIR
+from skfd.core.diag import Diagnostic, LinkerDiagError
+from skfd.core.lir import ConstDecl, Theorem, VarDecl
+from skfd.core.symbols import SymbolId
+from skfd.core.unit import ProofUnitIR
 
 
 def _raise(

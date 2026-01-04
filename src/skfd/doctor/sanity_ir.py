@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from ..linker.lir import ConstDecl, FloatingHyp, Theorem, VarDecl
-from ..linker.origin import OriginRecord, OriginTable
-from ..linker.symbols import SymbolInterner
-from ..linker.unit import ProofUnitIR
+from skfd.core.lir import ConstDecl, FloatingHyp, Theorem, VarDecl
+from skfd.core.origin import OriginRecord, OriginTable
+from skfd.core.symbols import SymbolInterner
+from skfd.core.unit import ProofUnitIR
 
 
 def build_sanity_ir() -> tuple[OriginTable, SymbolInterner, list[ProofUnitIR]]:

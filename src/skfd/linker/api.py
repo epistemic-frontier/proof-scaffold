@@ -2,19 +2,19 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from .context import LinkerContext
-from .diag import Diagnostic, LinkerDiagError
+from skfd.core.context import Context
+from skfd.core.diag import Diagnostic, LinkerDiagError
 from .emit.emit_mm import emit_mm
-from .origin import OriginTable
+from skfd.core.origin import OriginTable
 from .passes.stage1_resolve import run as stage1_run
-from .symbols import SymbolInterner
-from .unit import ProofUnitIR
+from skfd.core.symbols import SymbolInterner
+from skfd.core.unit import ProofUnitIR
 
 
 @dataclass(frozen=True)
 class LinkResult:
     mm_text: str
-    ctx: LinkerContext
+    ctx: Context
 
 
 class LinkerV1:
@@ -23,7 +23,7 @@ class LinkerV1:
         *, units: list[ProofUnitIR], origin_table: OriginTable, interner: SymbolInterner
     ) -> LinkResult:
         # Stage1: lint/resolution baseline (bootstrap assumes Stage0 already interned)
-        ctx = LinkerContext(
+        ctx = Context(
             origin_table=origin_table, interner=interner, symtab=interner.symbol_table()
         )
         try:

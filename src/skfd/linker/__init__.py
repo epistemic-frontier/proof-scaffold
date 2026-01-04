@@ -1,3 +1,4 @@
+# skfd/linker/__init__.py
 """linker: Link Model v4 aligned linker implementation (bootstrap level).
 
 M0.1 goal: minimal pipeline sanity

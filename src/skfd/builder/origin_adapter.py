@@ -1,4 +1,4 @@
-# src/skfd/builder/origin_adapter.py
+# skfd/builder/origin_adapter.py
 from __future__ import annotations
 
 import inspect

@@ -1,3 +1,4 @@
+# skfd/verifier/__init__.py
 # src/skfd/verify.py
 from __future__ import annotations
 

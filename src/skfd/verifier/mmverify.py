@@ -1,3 +1,4 @@
+# skfd/verifier/mmverify.py
 #!/usr/bin/env python3
 # mmverify.py -- Proof verifier for the Metamath language
 # Copyright (C) 2002 Raph Levien raph (at) acm (dot) org

@@ -1,3 +1,4 @@
+# skfd/core/errors.py
 # src/skfd/builder/errors.py
 from __future__ import annotations
 

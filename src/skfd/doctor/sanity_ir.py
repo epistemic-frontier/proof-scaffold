@@ -1,3 +1,4 @@
+# skfd/doctor/sanity_ir.py
 from __future__ import annotations
 
 from skfd.core.lir import ConstDecl, FloatingHyp, Theorem, VarDecl

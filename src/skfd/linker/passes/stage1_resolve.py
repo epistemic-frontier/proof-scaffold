@@ -1,3 +1,4 @@
+# skfd/linker/passes/stage1_resolve.py
 from __future__ import annotations
 
 from dataclasses import replace

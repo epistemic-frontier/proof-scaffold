@@ -1,4 +1,4 @@
-# src/skfd/builder/builder.py
+# skfd/builder/builder.py
 from __future__ import annotations
 
 from collections.abc import Sequence
@@ -10,10 +10,11 @@ from skfd.core.origin import OriginTable
 from skfd.core.symbols import SymbolId, SymbolInterner
 from skfd.core.unit import ProofUnitIR
 
-from .emitter_lir import LIREmitter
-from .emitter_text import TextEmitter
 from .origin_adapter import InspectOriginAdapter, OriginProvider
 from .scope import ScopeStack
+from .visitor import BuilderVisitor
+from .visitor_lir import LIRVisitor
+from .visitor_text import TextVisitor
 
 
 class MMBuilder:
@@ -46,10 +47,11 @@ class MMBuilder:
         # Exports
         self._exports: set[SymbolId] = set()
 
-        # Emitters
+        # Visitors
         self._scope = ScopeStack()
-        self._text = TextEmitter(ascii_comments=ascii_comments)
-        self._lir = LIREmitter()
+        self._text = TextVisitor(ascii_comments=ascii_comments)
+        self._lir = LIRVisitor()
+        self._visitors: list[BuilderVisitor] = [self._text, self._lir]
 
     # -----------------
     # Interning Helpers
@@ -114,8 +116,8 @@ class MMBuilder:
 
     def _push_scope(self) -> None:
         o = self._origin.here_ref()
-        self._text.open_scope()
-        self._lir.open_scope(o)
+        for v in self._visitors:
+            v.open_scope(o)
         self._scope.push()
 
     def _pop_scope(self) -> None:
@@ -123,9 +125,9 @@ class MMBuilder:
             raise MMDSLError("unbalanced scope pop")
         self._scope.pop()
         o = self._origin.here_ref()
-        self._text.close_scope()
-        self._lir.close_scope(o)
-    
+        for v in self._visitors:
+            v.close_scope(o)
+
     # -----------------
     # Exports
     # -----------------
@@ -144,8 +146,9 @@ class MMBuilder:
     # DSL methods
     # -----------------
     def comment(self, text: str) -> MMBuilder:
-        self._text.comment(text)
-        self._lir.comment(text, self._origin.here_ref())
+        o = self._origin.here_ref()
+        for v in self._visitors:
+            v.comment(text, o)
         return self
 
     def c(self, *symbols: str) -> MMBuilder:
@@ -167,8 +170,8 @@ class MMBuilder:
             )
             ids.append(sid)
         
-        self._text.const_decl(symbols)
-        self._lir.const_decl(ids, o)
+        for v in self._visitors:
+            v.const_decl(symbols, ids, o)
         return self
 
     def v(self, *symbols: str) -> MMBuilder:
@@ -188,8 +191,8 @@ class MMBuilder:
             )
             ids.append(sid)
 
-        self._text.var_decl(symbols)
-        self._lir.var_decl(ids, o)
+        for v in self._visitors:
+            v.var_decl(symbols, ids, o)
         return self
 
     def f(self, label: str, typecode: str, var: str) -> MMBuilder:
@@ -212,8 +215,8 @@ class MMBuilder:
         tid = self._intern_const(typecode)
         vid = self._intern_var(var)
 
-        self._text.floating_hyp(label, typecode, var)
-        self._lir.floating_hyp(lid, tid, vid, o)
+        for v in self._visitors:
+            v.floating_hyp(label, typecode, var, lid, tid, vid, o)
         return self
 
     def e(self, label: str, typecode: str, eexpr: Sequence[str] | str) -> MMBuilder:
@@ -234,14 +237,9 @@ class MMBuilder:
             kind="Label",
             origin_ref=o
         )
-        # We don't really store typecode in EssentialHyp in LIR? 
-        # Wait, Link Model v4 says "EssentialHyp(label, expr)". 
-        # It does NOT store typecode in LIR payload?
-        # Checking my previous patch: "EssentialHyp(.. label, expr)". YES.
-        # But TextEmitter needs it.
         
-        self._text.essential_hyp(label, typecode, tokens)
-        self._lir.essential_hyp(lid, token_ids, o)
+        for v in self._visitors:
+            v.essential_hyp(label, typecode, tokens, lid, token_ids, o)
         return self
 
     def a(self, label: str, typecode: str, aexpr: Sequence[str] | str) -> MMBuilder:
@@ -262,8 +260,8 @@ class MMBuilder:
             origin_ref=o
         )
         
-        self._text.axiom(label, typecode, tokens)
-        self._lir.axiom(lid, token_ids, o)
+        for v in self._visitors:
+            v.axiom(label, typecode, tokens, lid, token_ids, o)
         return self
 
     def p(
@@ -326,8 +324,8 @@ class MMBuilder:
             origin_ref=o
         )
 
-        self._text.theorem(label, typecode, tokens, proof_strs)
-        self._lir.theorem(lid, token_ids, proof_ids, o)
+        for v in self._visitors:
+            v.theorem(label, typecode, tokens, proof_strs, lid, token_ids, proof_ids, o)
         return self
 
     # -----------------
@@ -339,18 +337,6 @@ class MMBuilder:
     def to_proof_unit(self, unit_id: str) -> ProofUnitIR:
         # Create final ProofUnitIR
         o = self._origin.here_ref()
-        # Default policy: if no explicit exports, export everything?
-        # V0 logic was "if exports is None, export all $a/$p".
-        # V4 spec says "exports: list[SymbolId]".
-        # If we default to empty, it implies NOTHING exported.
-        # But we added `self.export()`.
-        # If user never calls export(), we can either:
-        # 1. Be strict (nothing exported).
-        # 2. Be permissive (export all labels).
-        # Given "builder" is often for small units, let's default to permissive IF explicit list is empty?
-        # No, explicit is better. I'll stick to explicit exports.
-        # BUT, `minimal_ok.py` originally exported `th1`.
-        # So I will use `list(self._exports)`.
         
         return ProofUnitIR(
             unit_id=unit_id,

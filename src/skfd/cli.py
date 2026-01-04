@@ -1,3 +1,4 @@
+# skfd/cli.py
 """
 skfd: The ProofScaffold CLI
 """

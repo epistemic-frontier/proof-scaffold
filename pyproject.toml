@@ -27,7 +27,7 @@ dev = [
 ]
 
 [project.scripts]
-skfd = "proof_scaffold.cli:main"
+skfd = "skfd.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

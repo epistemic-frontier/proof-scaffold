@@ -171,7 +171,11 @@ def test_adv_m14_export_order_invalid_is_error() -> None:
     )
     with pytest.raises(LinkerDiagError) as ei:
         LinkerV0().link([u])
-    assert ei.value.diag.error_code == "E_EXPORT_ORDER_INVALID"
+
+    # Keep this assertion strict (the implementation should not change the code),
+    # but avoid mypy "non-overlapping equality" noise when the error_code type is
+    # narrowed elsewhere.
+    assert str(ei.value.diag.error_code) == "E_EXPORT_ORDER_INVALID"
 
 
 def test_adv_m14_local_cv_decl_dropped() -> None:

@@ -6,7 +6,7 @@ From a clean environment:
 
 ```bash
 python -m pip install -e .[dev]
-python -m proof_scaffold smoke
+python -m scaffold smoke
 ```
 
 ## Run the full test suite

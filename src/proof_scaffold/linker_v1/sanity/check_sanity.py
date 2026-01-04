@@ -3,7 +3,7 @@ from __future__ import annotations
 import tempfile
 from pathlib import Path
 
-from ...verify import verify
+from proof_scaffold.verifier import verify
 from ..api import LinkerV1
 from .build_sanity_ir import build_sanity_ir
 

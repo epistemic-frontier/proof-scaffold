@@ -11,4 +11,3 @@ class LinkerContext:
     origin_table: OriginTable
     interner: SymbolInterner
     symtab: dict[SymbolId, SymbolDef]
-

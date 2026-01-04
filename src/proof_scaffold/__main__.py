@@ -6,7 +6,7 @@ from pathlib import Path
 
 from .linker_v1.diag import LinkerDiagError
 from .linker_v1.sanity.check_sanity import run_sanity
-from .verify import verify
+from proof_scaffold.verifier import verify
 
 
 def _build_dir(*parts: str) -> Path:

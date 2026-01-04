@@ -1,6 +1,6 @@
 """M0.2 minimal example (happy path).
 
-Construct a tiny verifiable Metamath program in linker_v1 IR:
+Construct a tiny verifiable Metamath program in linker IR:
 - create an OriginTable and SymbolInterner
 - build one ProofUnitIR with LIR statements
 - link (stage1 lint + emit)

@@ -393,24 +393,24 @@ Key points:
 *Interface-build style: declare a theorem API without emitting a fake `$p`.*
 
 ```python
-from proof_scaffold.dsl import MMBuilder, expr
+from v0.proof_scaffold.dsl import MMBuilder, expr
 from proof_scaffold.imports import import_theorem
-from proof_scaffold.export import export
+from v0.proof_scaffold.export import export
 
 mm = MMBuilder(profile="PROFILE_V3_LIR")
 
 with mm.unit("sqrt2") as u:
     u.comment("Toy sqrt2 module (interface only)")
-    u.c("|-","sqrt2","irrational")
+    u.c("|-", "sqrt2", "irrational")
     u.v("ph")
-    u.f("wph","|-","ph")
+    u.f("wph", "|-", "ph")
 
     sqrt2irr = u.declare_theorem(
         label="sqrt2irr",
         typecode="|-",
         expr=expr("sqrt2", "irrational"),
         interface_only=True,
-     )
+    )
 
 export(
     module_id="number_theory.sqrt2",

@@ -21,7 +21,7 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
   "pytest>=8.0",
-  "ruff>=0.3",
+  "ruff==0.5.7",
   "mypy>=1.8",
   "types-setuptools",
 ]
@@ -60,7 +60,7 @@ markers = [
 [tool.ruff]
 line-length = 88
 target-version = "py310"
-exclude = ["verifier/", "v0-archive/", "build/", ".venv/"]
+extend-exclude = ["verifier/", "v0-archive/"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP"]

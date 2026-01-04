@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
+
 def _clean_comment_ascii(text: str) -> str:
     """
     Keep comments safe for strict tools:

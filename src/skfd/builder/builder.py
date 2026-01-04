@@ -5,13 +5,13 @@ from collections.abc import Sequence
 from types import TracebackType
 from typing import Literal
 
+from skfd.core.errors import MMDSLError
 from skfd.core.origin import OriginTable
 from skfd.core.symbols import SymbolId, SymbolInterner
 from skfd.core.unit import ProofUnitIR
 
 from .emitter_lir import LIREmitter
 from .emitter_text import TextEmitter
-from skfd.core.errors import MMDSLError
 from .origin_adapter import InspectOriginAdapter, OriginProvider
 from .scope import ScopeStack
 

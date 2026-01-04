@@ -11,10 +11,10 @@ from __future__ import annotations
 from typing import Final
 
 from skfd.builder import MMBuilder
-from skfd.linker.api import LinkerV1
 from skfd.core.diag import LinkerDiagError
 from skfd.core.origin import OriginTable
 from skfd.core.symbols import SymbolInterner
+from skfd.linker.api import LinkerV1
 
 MODULE_ID: Final[str] = "examples.minimal_diag"
 UNIT_ID: Final[str] = f"{MODULE_ID}:unit0"

@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from typing import Literal
 
 from skfd.core.diag import Diagnostic, LinkerDiagError
+
 from .origin import OriginRef
 
 SymbolId = int

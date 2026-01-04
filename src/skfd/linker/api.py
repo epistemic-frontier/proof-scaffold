@@ -4,11 +4,12 @@ from dataclasses import dataclass
 
 from skfd.core.context import Context
 from skfd.core.diag import Diagnostic, LinkerDiagError
-from .emit.emit_mm import emit_mm
 from skfd.core.origin import OriginTable
-from .passes.stage1_resolve import run as stage1_run
 from skfd.core.symbols import SymbolInterner
 from skfd.core.unit import ProofUnitIR
+
+from .emit.emit_mm import emit_mm
+from .passes.stage1_resolve import run as stage1_run
 
 
 @dataclass(frozen=True)

@@ -3,7 +3,8 @@ from skfd.builder import MMBuilder
 from skfd.core.origin import OriginTable
 from skfd.core.symbols import SymbolInterner
 
-def test_builder_minimal():
+
+def test_builder_minimal() -> None:
     interner = SymbolInterner()
     origins = OriginTable()
     

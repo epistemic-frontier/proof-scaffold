@@ -4,16 +4,16 @@ from __future__ import annotations
 from collections.abc import Sequence
 
 from skfd.core.lir import (
-    LIRStmt,
-    ConstDecl,
-    VarDecl,
-    FloatingHyp,
-    EssentialHyp,
     Axiom,
-    Theorem,
     Comment,
+    ConstDecl,
+    EssentialHyp,
+    FloatingHyp,
+    LIRStmt,
     ScopeEnter,
     ScopeExit,
+    Theorem,
+    VarDecl,
 )
 from skfd.core.origin import OriginRef
 from skfd.core.symbols import SymbolId

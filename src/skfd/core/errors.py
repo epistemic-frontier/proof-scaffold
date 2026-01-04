@@ -1,6 +1,7 @@
 # src/skfd/builder/errors.py
 from __future__ import annotations
 
+
 class MMError(Exception):
     """Base exception for Metamath DSL errors."""
 

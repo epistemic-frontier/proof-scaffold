@@ -9,8 +9,9 @@ import argparse
 import json
 from pathlib import Path
 
-from .debug_slice import slice_from_link_context
 from proof_scaffold.linker import LinkContext
+
+from .debug_slice import slice_from_link_context
 
 
 def _build_arg_parser() -> argparse.ArgumentParser:
@@ -18,13 +19,20 @@ def _build_arg_parser() -> argparse.ArgumentParser:
     sub = p.add_subparsers(dest="cmd", required=True)
 
     s = sub.add_parser("slice", help="Print a debug slice around a verifier error step")
-    s.add_argument("--mm-error-step", type=int, required=True, help="verifier reported step index (1-based)")
+    s.add_argument(
+        "--mm-error-step",
+        type=int,
+        required=True,
+        help="verifier reported step index (1-based)",
+    )
     s.add_argument("--unit", dest="unit_id", type=str, required=True)
     s.add_argument("--theorem", dest="theorem_label", type=str, default=None)
     s.add_argument("--format", choices=("text", "json"), default="text")
     s.add_argument("--window", type=int, default=8)
     # For now: a python module that yields a list[ProofUnitIR] via get_units()
-    s.add_argument("--units-py", type=Path, required=True, help="python file exporting get_units()")
+    s.add_argument(
+        "--units-py", type=Path, required=True, help="python file exporting get_units()"
+    )
     return p
 
 

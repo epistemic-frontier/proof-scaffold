@@ -5,6 +5,7 @@ from pathlib import Path
 
 from proof_scaffold.dsl import MMBuilder
 from proof_scaffold.linker_v0 import LinkerV0
+
 from tests._sanity_utils import verify_expect_ok
 
 
@@ -36,6 +37,7 @@ def _contains_token(mm_src: str, token: str) -> bool:
 
 # D1. Header hoist only: $c/$v only in header, never in any ${ ... $}
 
+
 def test_struct_m11_header_hoist_only(tmp_path: Path) -> None:
     mm = MMBuilder()
     mm.c("wff", "(", ")", "->", "|-")
@@ -65,6 +67,7 @@ def test_struct_m11_header_hoist_only(tmp_path: Path) -> None:
 
 # D2. One unit -> one scope frame
 
+
 def test_struct_m11_one_unit_one_scopeframe() -> None:
     uids = ["d.uA", "d.uB", "d.uC"]
     units = []
@@ -93,6 +96,7 @@ def test_struct_m11_one_unit_one_scopeframe() -> None:
 
 # D3. Token-level relocation total: no bare local label names remain in output
 
+
 def test_struct_m11_token_level_relocation_total() -> None:
     # Two units deliberately sharing the same local label names
     a = MMBuilder()
@@ -112,6 +116,7 @@ def test_struct_m11_token_level_relocation_total() -> None:
         b.e("L_e", "wff", ("ph",))
         # Proof references L_a from A; ensure proof tokens relocation
         from proof_scaffold.theorem import Theorem as Th
+
         ax_handle = Th(fqname="d.A.ax", module_id="d.A", name="ax", label="L_a")
         b.p("L_p", "wff", ("ps",), proof=["L_f", "L_e", ax_handle])
     ub = b.to_proof_unit("d.B")
@@ -120,7 +125,9 @@ def test_struct_m11_token_level_relocation_total() -> None:
 
     # None of the bare local label names should appear as standalone tokens
     for tok in ["L_f", "L_e", "L_a", "L_p"]:
-        assert not _contains_token(src, tok), f"found unrelocated token {tok} in output\n{src}"
+        assert not _contains_token(
+            src, tok
+        ), f"found unrelocated token {tok} in output\n{src}"
 
     # But their relocated forms must exist
     assert _contains_token(src, "L_f__d_A")

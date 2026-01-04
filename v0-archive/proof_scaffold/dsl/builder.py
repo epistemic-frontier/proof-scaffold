@@ -8,6 +8,7 @@ from typing import Literal
 
 from proof_scaffold.ir import ProofUnitIR
 from proof_scaffold.theorem import Theorem
+
 from .emitter import CompositeEmitter, LIREmitter, TextEmitter
 from .errors import MMDSLError
 from .origin import InspectOriginProvider, OriginProvider
@@ -96,7 +97,6 @@ class MMBuilder:
             symtab=self._emit.symtab(),
         )
 
-
     # -----------------
     # Core validations (kept local for now; will migrate to validate.py)
     # -----------------
@@ -155,12 +155,16 @@ class MMBuilder:
         self._emit.floating_hyp(label, typecode, var, self._origin.here())
         return self
 
-    def e(self, label: str, typecode: TypeCode, eexpr: Sequence[str] | str) -> MMBuilder:
+    def e(
+        self, label: str, typecode: TypeCode, eexpr: Sequence[str] | str
+    ) -> MMBuilder:
         if self._strict and self._scope.is_top_level:
-            raise MMDSLError("$e at top level is forbidden in strict mode; wrap it in ${ ... $}")
+            raise MMDSLError(
+                "$e at top level is forbidden in strict mode; wrap it in ${ ... $}"
+            )
         if typecode not in self._constants:
             raise MMDSLError(f"$e typecode '{typecode}' not declared via $c")
-        tokens = (eexpr.split() if isinstance(eexpr, str) else list(eexpr))
+        tokens = eexpr.split() if isinstance(eexpr, str) else list(eexpr)
         if not tokens:
             raise MMDSLError("$e expression must be non-empty")
         self._check_expr_tokens_declared(tokens)
@@ -169,10 +173,12 @@ class MMBuilder:
         self._emit.essential_hyp(label, typecode, tokens, self._origin.here())
         return self
 
-    def a(self, label: str, typecode: TypeCode, aexpr: Sequence[str] | str) -> MMBuilder:
+    def a(
+        self, label: str, typecode: TypeCode, aexpr: Sequence[str] | str
+    ) -> MMBuilder:
         if typecode not in self._constants:
             raise MMDSLError(f"$a typecode '{typecode}' not declared via $c")
-        tokens = (aexpr.split() if isinstance(aexpr, str) else list(aexpr))
+        tokens = aexpr.split() if isinstance(aexpr, str) else list(aexpr)
         if not tokens:
             raise MMDSLError("$a expression must be non-empty")
         self._check_expr_tokens_declared(tokens)
@@ -191,7 +197,7 @@ class MMBuilder:
     ) -> MMBuilder:
         if typecode not in self._constants:
             raise MMDSLError(f"$p typecode '{typecode}' not declared via $c")
-        expr_tokens = (pexpr.split() if isinstance(pexpr, str) else list(pexpr))
+        expr_tokens = pexpr.split() if isinstance(pexpr, str) else list(pexpr)
         if not expr_tokens:
             raise MMDSLError("$p expression must be non-empty")
         self._check_expr_tokens_declared(expr_tokens)
@@ -216,7 +222,9 @@ class MMBuilder:
                 rendered_steps.append(step.label)
             else:
                 if step not in visible:
-                    raise MMDSLError(f"proof step '{step}' is not a visible label at this point")
+                    raise MMDSLError(
+                        f"proof step '{step}' is not a visible label at this point"
+                    )
                 rendered_steps.append(step)
             rendered_step_ids.append(sid)
 

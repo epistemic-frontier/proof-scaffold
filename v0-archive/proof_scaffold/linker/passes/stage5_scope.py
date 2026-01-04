@@ -9,6 +9,7 @@ from proof_scaffold.ir import (
     ScopeExit,
     VarDecl,
 )
+
 from ..context import FrameStmt, LinearPlan, LinkContext, ScopeFramePlan
 from ..diag_helpers import raise_link_error
 

@@ -9,9 +9,27 @@ from proof_scaffold.linker.context import LinkContext
 from proof_scaffold.linker.errors import (  # re-export for tests
     LinkerError,
 )
-from proof_scaffold.linker.passes import stage5_scope as pass_stage5_scope, stage7_emit as pass_stage7_emit, \
-    stage1_collect as pass_stage1_collect, stage4_deps as pass_stage4_deps, stage6_reloc as pass_stage6_reloc, \
-    origin_seal as pass_origin_seal, stage1_lint as pass_stage1_lint
+from proof_scaffold.linker.passes import (
+    origin_seal as pass_origin_seal,
+)
+from proof_scaffold.linker.passes import (
+    stage1_collect as pass_stage1_collect,
+)
+from proof_scaffold.linker.passes import (
+    stage1_lint as pass_stage1_lint,
+)
+from proof_scaffold.linker.passes import (
+    stage4_deps as pass_stage4_deps,
+)
+from proof_scaffold.linker.passes import (
+    stage5_scope as pass_stage5_scope,
+)
+from proof_scaffold.linker.passes import (
+    stage6_reloc as pass_stage6_reloc,
+)
+from proof_scaffold.linker.passes import (
+    stage7_emit as pass_stage7_emit,
+)
 
 
 class LinkerV0:
@@ -54,7 +72,9 @@ class LinkerV0:
         # Stage 7: emission
         return pass_stage7_emit.run(ctx)
 
-    def build_symbol_table(self, units: Iterable[ProofUnitIR]) -> list[tuple[str, str, str, int]]:
+    def build_symbol_table(
+        self, units: Iterable[ProofUnitIR]
+    ) -> list[tuple[str, str, str, int]]:
         """
         Deterministic global symbol table snapshot for tests.
         Returns list of (origin_id, local_name, kind, ordinal_id).

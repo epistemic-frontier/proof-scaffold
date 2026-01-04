@@ -33,7 +33,10 @@ def run() -> None:
     )
 
     bad = interner.intern(
-        origin_ref=stmt_origin, origin_module_id=MODULE_ID, local_name="$bad", kind="Const"
+        origin_ref=stmt_origin,
+        origin_module_id=MODULE_ID,
+        local_name="$bad",
+        kind="Const",
     )
 
     unit = ProofUnitIR(

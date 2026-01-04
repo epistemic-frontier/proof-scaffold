@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import pytest
-
 from proof_scaffold.dsl import MMBuilder
 from proof_scaffold.ir import FloatingHyp, Origin, ProofUnitIR
 from proof_scaffold.ir import (
@@ -36,7 +35,9 @@ def test_adv_m12_forbid_raw_string_tokens_default_off() -> None:
     u = ProofUnitIR(
         unit_id="adv.raw.token",
         lir=[
-            FloatingHyp(label="wph", typecode=0, var=1, origin=Origin(file="adv.py", line=1)),
+            FloatingHyp(
+                label="wph", typecode=0, var=1, origin=Origin(file="adv.py", line=1)
+            ),
             LIRTheorem(
                 label="t",
                 typecode=0,
@@ -68,7 +69,9 @@ def test_adv_m12_forbid_cross_unit_hyp_leakage() -> None:
     ub = ProofUnitIR(
         unit_id="unit.B",
         lir=[
-            FloatingHyp(label="wphB", typecode=0, var=1, origin=Origin(file="B.py", line=1)),
+            FloatingHyp(
+                label="wphB", typecode=0, var=1, origin=Origin(file="B.py", line=1)
+            ),
             LIRTheorem(
                 label="tb",
                 typecode=0,
@@ -103,7 +106,9 @@ def test_adv_m12_forbid_non_export_label_reference() -> None:
     ub = ProofUnitIR(
         unit_id="unit.B",
         lir=[
-            FloatingHyp(label="wphB", typecode=0, var=1, origin=Origin(file="B.py", line=1)),
+            FloatingHyp(
+                label="wphB", typecode=0, var=1, origin=Origin(file="B.py", line=1)
+            ),
             LIRTheorem(
                 label="tb",
                 typecode=0,

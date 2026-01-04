@@ -9,6 +9,7 @@ from proof_scaffold.ir import (
     Theorem,
     VarDecl,
 )
+
 from ..context import LinkContext, UnitInfo
 from ..policy import stable_sorted
 
@@ -38,7 +39,9 @@ def run(ctx: LinkContext) -> str:
     if plan is None:
         raise ValueError("Stage7 requires ctx.linear_plan (Stage5) to be present")
 
-    info_by_unit: dict[str, UnitInfo] = {i.unit_id: i for i in (ctx.ordered_infos or ctx.infos)}
+    info_by_unit: dict[str, UnitInfo] = {
+        i.unit_id: i for i in (ctx.ordered_infos or ctx.infos)
+    }
 
     # Body: per-frame emission
     for frame in plan.frames:

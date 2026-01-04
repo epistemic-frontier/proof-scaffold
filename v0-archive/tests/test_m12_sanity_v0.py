@@ -3,7 +3,6 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-
 from proof_scaffold.dsl import MMBuilder
 from proof_scaffold.ir import (
     Axiom,
@@ -19,6 +18,7 @@ from proof_scaffold.ir import (
     Theorem as LIRTheorem,
 )
 from proof_scaffold.linker_v0 import LinkerV0
+
 from tests._sanity_utils import verify_expect_ok
 
 

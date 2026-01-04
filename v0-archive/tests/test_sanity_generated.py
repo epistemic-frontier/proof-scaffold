@@ -3,9 +3,9 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-
 from proof_scaffold.dsl import MMBuilder, MMDSLError
 from proof_scaffold.verify import verify
+
 from tests._sanity_utils import semantic_verifiers
 
 
@@ -209,8 +209,9 @@ def test_gen_07_cycle_is_generator_error() -> None:
     # forward reference to an invisible label must raise at generation time
     with mm.block():
         with pytest.raises(MMDSLError):
-            mm.p("a_thm", "wff", ("ps",), proof=["b_thm"])  # b_thm not defined/visible here
-
+            mm.p(
+                "a_thm", "wff", ("ps",), proof=["b_thm"]
+            )  # b_thm not defined/visible here
 
 
 @pytest.mark.generated

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import pytest
-
 from proof_scaffold.dsl import MMBuilder
 from proof_scaffold.ir import (
     Axiom,
@@ -21,6 +20,7 @@ from proof_scaffold.linker.errors import LinkerDiagError
 from proof_scaffold.linker_v0 import LinkerV0
 
 # D1. After Stage 1, there must be no string tokens anywhere; all tokens are int ids
+
 
 def _assert_no_string_tokens_in_lir(u: ProofUnitIR) -> None:
     for st in u.lir:
@@ -70,6 +70,7 @@ def test_struct_m12_no_string_tokens_after_stage1() -> None:
 
 # D2. Any Stage 1 error must include pass name and unit_id in origin_chain
 
+
 @pytest.mark.structural
 def test_struct_m12_origin_chain_contains_pass_and_unit() -> None:
     # Construct a unit that triggers a Stage 1 error (raw string in proof tokens)
@@ -77,7 +78,9 @@ def test_struct_m12_origin_chain_contains_pass_and_unit() -> None:
         unit_id="struct.m12.chain",
         lir=[
             # Provide a minimal symtab so we can reference int tokens.
-            FloatingHyp(label="wph", typecode=0, var=1, origin=Origin(file="chain.py", line=1)),
+            FloatingHyp(
+                label="wph", typecode=0, var=1, origin=Origin(file="chain.py", line=1)
+            ),
             LIRTheorem(
                 label="bad",
                 typecode=0,

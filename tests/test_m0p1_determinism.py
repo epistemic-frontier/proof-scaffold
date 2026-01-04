@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from proof_scaffold.linker.api import LinkerV1
 from proof_scaffold.doctor.sanity_ir import build_sanity_ir
+from proof_scaffold.linker.api import LinkerV1
 
 
 def test_m0p1_determinism_bytes_identical() -> None:
@@ -12,4 +12,3 @@ def test_m0p1_determinism_bytes_identical() -> None:
     out2 = LinkerV1.link(units=units2, origin_table=ot2, interner=interner2).mm_text
 
     assert out1 == out2
-

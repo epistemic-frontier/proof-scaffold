@@ -42,7 +42,10 @@ def build_units() -> tuple[OriginTable, SymbolInterner, list[ProofUnitIR]]:
 
     # Constants
     c_turnstile = interner.intern(
-        origin_ref=stmt_origin, origin_module_id=MODULE_ID, local_name="|-", kind="Const"
+        origin_ref=stmt_origin,
+        origin_module_id=MODULE_ID,
+        local_name="|-",
+        kind="Const",
     )
 
     # Variables
@@ -52,10 +55,16 @@ def build_units() -> tuple[OriginTable, SymbolInterner, list[ProofUnitIR]]:
 
     # Labels
     l_wph = interner.intern(
-        origin_ref=stmt_origin, origin_module_id=MODULE_ID, local_name="wph", kind="Label"
+        origin_ref=stmt_origin,
+        origin_module_id=MODULE_ID,
+        local_name="wph",
+        kind="Label",
     )
     l_th1 = interner.intern(
-        origin_ref=stmt_origin, origin_module_id=MODULE_ID, local_name="th1", kind="Label"
+        origin_ref=stmt_origin,
+        origin_module_id=MODULE_ID,
+        local_name="th1",
+        kind="Label",
     )
 
     # Minimal: declare $c/$v, declare $f, prove theorem by referencing $f label.

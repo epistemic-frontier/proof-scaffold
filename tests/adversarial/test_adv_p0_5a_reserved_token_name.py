@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import pytest
-
 from proof_scaffold.linker.diag import LinkerDiagError
 from proof_scaffold.linker.origin import OriginRecord, OriginTable
 from proof_scaffold.linker.symbols import SymbolInterner

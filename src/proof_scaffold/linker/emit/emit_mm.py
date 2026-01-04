@@ -25,7 +25,7 @@ def emit_mm(*, symtab: dict[SymbolId, SymbolDef], units: list[ProofUnitIR]) -> s
 
     for u in units:
         for st in u.lir_stmts:
-            if isinstance(st, (ConstDecl, VarDecl)):
+            if isinstance(st, ConstDecl | VarDecl):
                 continue
             if isinstance(st, Comment):
                 out.append(f"$( {st.text} $)")
@@ -41,4 +41,3 @@ def emit_mm(*, symtab: dict[SymbolId, SymbolDef], units: list[ProofUnitIR]) -> s
                 out.append(f"{lab} $p {expr} $= {proof} $.")
 
     return "\n".join(out) + "\n"
-

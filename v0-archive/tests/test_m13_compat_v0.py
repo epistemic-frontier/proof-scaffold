@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import pytest
-
 from proof_scaffold.ir import Axiom, Origin, ProofUnitIR
 from proof_scaffold.linker.errors import LinkerDiagError
 from proof_scaffold.linker_v0 import LinkerV0
@@ -39,4 +38,3 @@ def test_adv_m13_compat_hint_incorrect_rejected() -> None:
     with pytest.raises(LinkerDiagError) as ei:
         LinkerV0().link([ua], compat=True)
     assert ei.value.diag.error_code == "E_DEP_HINT_INVALID"
-

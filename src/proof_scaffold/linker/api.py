@@ -19,9 +19,13 @@ class LinkResult:
 
 class LinkerV1:
     @staticmethod
-    def link(*, units: list[ProofUnitIR], origin_table: OriginTable, interner: SymbolInterner) -> LinkResult:
+    def link(
+        *, units: list[ProofUnitIR], origin_table: OriginTable, interner: SymbolInterner
+    ) -> LinkResult:
         # Stage1: lint/resolution baseline (bootstrap assumes Stage0 already interned)
-        ctx = LinkerContext(origin_table=origin_table, interner=interner, symtab=interner.symbol_table())
+        ctx = LinkerContext(
+            origin_table=origin_table, interner=interner, symtab=interner.symbol_table()
+        )
         try:
             units1 = stage1_run(ctx=ctx, units=units)
         except LinkerDiagError:
@@ -38,4 +42,3 @@ class LinkerV1:
 
         mm_text = emit_mm(symtab=ctx.symtab, units=units1)
         return LinkResult(mm_text=mm_text, ctx=ctx)
-

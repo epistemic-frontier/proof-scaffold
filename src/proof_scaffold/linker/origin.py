@@ -30,4 +30,3 @@ class OriginTable:
 
     def get(self, ref: OriginRef) -> OriginRecord:
         return self._records[ref]
-

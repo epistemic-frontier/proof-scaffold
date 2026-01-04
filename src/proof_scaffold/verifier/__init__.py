@@ -2,14 +2,13 @@
 from __future__ import annotations
 
 import subprocess
-import sys
 from pathlib import Path
 
 
 def verify(command: list[str], mm_file: Path, timeout_sec: int = 60) -> None:
     """
     Run a verifier command against a .mm file.
-    
+
     Args:
         command: The command line to execute (e.g. ["python3", "verifier/mmverify.py"]).
                  The `.mm` file path will be appended to this command.

@@ -80,7 +80,9 @@ class LinkContext:
     global_consts: set[str] = field(default_factory=set)
     global_vars: set[str] = field(default_factory=set)
     label_owners: dict[str, set[str]] = field(default_factory=dict)  # label -> owners
-    label_kind_by_unit: dict[tuple[str, str], str] = field(default_factory=dict)  # (unit,label)->kind
+    label_kind_by_unit: dict[tuple[str, str], str] = field(
+        default_factory=dict
+    )  # (unit,label)->kind
     exports_by_unit: dict[str, set[str] | None] = field(default_factory=dict)
 
     # Stage4 outputs
@@ -100,7 +102,9 @@ class LinkContext:
     # for the linked artifact.
     proof_tokens: list[str] = field(default_factory=list)
     # Map (unit_id, theorem_label) -> (start,end) span into proof_tokens
-    theorem_to_span: dict[tuple[str, str], tuple[int, int]] = field(default_factory=dict)
+    theorem_to_span: dict[tuple[str, str], tuple[int, int]] = field(
+        default_factory=dict
+    )
 
     # Path A sidecar mapping: emitted proof token index (1-based) -> step_id.
     # Indexing is aligned with verifier's "Step N failed" when the verifier

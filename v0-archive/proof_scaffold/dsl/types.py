@@ -5,6 +5,7 @@ from collections.abc import Sequence
 from typing import Literal
 
 from proof_scaffold.theorem import Theorem
+
 from .errors import MMDSLError
 
 TypeCode = str

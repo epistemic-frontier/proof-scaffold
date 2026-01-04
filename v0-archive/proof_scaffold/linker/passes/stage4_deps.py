@@ -86,7 +86,14 @@ def run(ctx: LinkContext) -> None:
         # COMPAT fallback: if a unit has no computed closure (common in
         # interface-only builds), allow a unit-level dependency hint.
         if ctx.compat and not i.uses_assertions:
-            hint = next((u.dependencies_hint_unit_ids for u in ctx.units if u.unit_id == i.unit_id), None)
+            hint = next(
+                (
+                    u.dependencies_hint_unit_ids
+                    for u in ctx.units
+                    if u.unit_id == i.unit_id
+                ),
+                None,
+            )
             if hint is None:
                 raise_link_error(
                     "E_DEP_HINT_REQUIRED",
@@ -110,7 +117,14 @@ def run(ctx: LinkContext) -> None:
         # Optional: if both computed deps and hint exist, require exact match
         # in COMPAT mode to avoid ghost dependencies.
         if ctx.compat and i.uses_assertions:
-            hint = next((u.dependencies_hint_unit_ids for u in ctx.units if u.unit_id == i.unit_id), None)
+            hint = next(
+                (
+                    u.dependencies_hint_unit_ids
+                    for u in ctx.units
+                    if u.unit_id == i.unit_id
+                ),
+                None,
+            )
             if hint is not None:
                 computed = set(deps[i.unit_id])
                 hinted = set(hint)

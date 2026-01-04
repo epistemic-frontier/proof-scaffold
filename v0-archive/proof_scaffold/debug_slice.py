@@ -67,7 +67,9 @@ def slice_from_link_context(
                 idx = ti - 1
                 break
         if idx is None:
-            raise ValueError("internal error: step_id present but cannot locate token index")
+            raise ValueError(
+                "internal error: step_id present but cannot locate token index"
+            )
     else:
         # Fallback (Path B): treat as token index.
         idx = mm_error_step - 1
@@ -95,9 +97,7 @@ def slice_from_link_context(
         chosen_label = theorem_label
     else:
         # If not specified, try to infer by locating the global token index.
-        match = [
-            (th, sp) for (th, sp) in candidates if sp[0] <= idx < sp[1]
-        ]
+        match = [(th, sp) for (th, sp) in candidates if sp[0] <= idx < sp[1]]
         if len(match) == 1:
             chosen_label, span = match[0]
         elif len(match) == 0:

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import pytest
-
 from proof_scaffold.debug_slice import slice_from_link_context
 from proof_scaffold.dsl import MMBuilder
 from proof_scaffold.linker_v0 import link_v0
@@ -29,7 +28,9 @@ def test_debug_slice_span_and_window() -> None:
     # Path A sidecar map should exist and map verifier step 1 -> step_id 1.
     assert ctx.emitted_step_to_step_id[1] == 1
 
-    res = slice_from_link_context(ctx, mm_error_step=1, unit_id="U", theorem_label="th1", window=8)
+    res = slice_from_link_context(
+        ctx, mm_error_step=1, unit_id="U", theorem_label="th1", window=8
+    )
     assert res.span == (0, 1)
     assert res.window_tokens == tuple(ctx.proof_tokens)
 

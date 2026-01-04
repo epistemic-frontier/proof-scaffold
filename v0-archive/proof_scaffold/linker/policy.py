@@ -15,16 +15,23 @@ _T_ord = TypeVar("_T_ord", bound=_SupportsRichComparison)
 
 
 @overload
-def stable_sorted(iterable: Iterable[_T_ord], *, reverse: bool = False) -> list[_T_ord]:
-    ...
+def stable_sorted(
+    iterable: Iterable[_T_ord], *, reverse: bool = False
+) -> list[_T_ord]: ...
 
 
 @overload
-def stable_sorted(iterable: Iterable[T], *, key: Callable[[T], Any], reverse: bool = False) -> list[T]:
-    ...
+def stable_sorted(
+    iterable: Iterable[T], *, key: Callable[[T], Any], reverse: bool = False
+) -> list[T]: ...
 
 
-def stable_sorted(iterable: Iterable[Any], *, key: Callable[[Any], Any] | None = None, reverse: bool = False) -> list[Any]:
+def stable_sorted(
+    iterable: Iterable[Any],
+    *,
+    key: Callable[[Any], Any] | None = None,
+    reverse: bool = False,
+) -> list[Any]:
     """Deterministic sort wrapper to centralize ordering policy."""
     return sorted(iterable, key=key, reverse=reverse)
 

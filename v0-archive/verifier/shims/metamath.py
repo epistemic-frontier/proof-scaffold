@@ -17,10 +17,8 @@ SUCCESS_RE = re.compile(r"all proofs .* were verified", re.IGNORECASE)
 ERROR_RE_LIST = [
     # Canonical Metamath error prefix
     re.compile(r"^\s*\?error\b", re.IGNORECASE | re.MULTILINE),
-
     # Summary line for errors (requires a number, avoids "No errors were found.")
     re.compile(r"^\s*\d+\s+errors\s+were\s+found\.", re.IGNORECASE | re.MULTILINE),
-
     # Read failure
     re.compile(r"^\s*\?no source file has been read in", re.IGNORECASE | re.MULTILINE),
 ]
@@ -39,7 +37,9 @@ def main() -> int:
         return 2
 
     metamath_bin = os.environ.get("METAMATH_BIN", "").strip() or "metamath"
-    metamath_path = shutil.which(metamath_bin) if metamath_bin == "metamath" else metamath_bin
+    metamath_path = (
+        shutil.which(metamath_bin) if metamath_bin == "metamath" else metamath_bin
+    )
     if not metamath_path or not Path(metamath_path).exists():
         print(f"metamath binary not found: {metamath_bin}", file=sys.stderr)
         return 2
@@ -54,7 +54,7 @@ def main() -> int:
     # Quote the path to be robust across special chars
     script = "\n".join(
         [
-            f"READ \"{mm_arg}\"",
+            f'READ "{mm_arg}"',
             "VERIFY PROOF *",
             "EXIT",
             "EXIT",
@@ -87,16 +87,25 @@ def main() -> int:
     # 1) If metamath printed any error markers, fail.
     for rx in ERROR_RE_LIST:
         if rx.search(out):
-            print(f"[{SHIM_VERSION}] detected error via pattern: {rx.pattern}", file=sys.stderr)
+            print(
+                f"[{SHIM_VERSION}] detected error via pattern: {rx.pattern}",
+                file=sys.stderr,
+            )
             return 1
 
     # 2) If success marker present, succeed (ignore metamath exit code).
     if SUCCESS_RE.search(out):
-        print(f"[{SHIM_VERSION}] success marker matched: {SUCCESS_RE.pattern}", file=sys.stderr)
+        print(
+            f"[{SHIM_VERSION}] success marker matched: {SUCCESS_RE.pattern}",
+            file=sys.stderr,
+        )
         return 0
 
     # 3) Otherwise, fail with explanation.
-    print(f"[{SHIM_VERSION}] no success marker matched; failing defensively", file=sys.stderr)
+    print(
+        f"[{SHIM_VERSION}] no success marker matched; failing defensively",
+        file=sys.stderr,
+    )
     # Helpful hint: show last 5 lines of output to debug formatting issues.
     tail = "\n".join(out.splitlines()[-5:])
     print(f"[{SHIM_VERSION}] output tail:\n{tail}", file=sys.stderr)

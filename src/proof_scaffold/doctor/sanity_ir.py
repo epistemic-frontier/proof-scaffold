@@ -1,7 +1,6 @@
 from __future__ import annotations
 
-from ..linker.api import LinkerV1
-from ..linker.lir import (ConstDecl, FloatingHyp, Theorem, VarDecl)
+from ..linker.lir import ConstDecl, FloatingHyp, Theorem, VarDecl
 from ..linker.origin import OriginRecord, OriginTable
 from ..linker.symbols import SymbolInterner
 from ..linker.unit import ProofUnitIR

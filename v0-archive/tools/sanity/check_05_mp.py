@@ -57,7 +57,7 @@ def main() -> int:
     for case in CASES:
         mm_path = FIXTURES_DIR / case.filename
         proc = run_verifier(mm_path)
-        ok = (proc.returncode == 0)
+        ok = proc.returncode == 0
 
         verdict = "PASS" if ok else "FAIL"
         expected = "PASS" if case.should_pass else "FAIL"

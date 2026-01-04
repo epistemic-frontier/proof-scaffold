@@ -21,9 +21,11 @@ from proof_scaffold.ir import (
 )
 from proof_scaffold.linker_v0 import LinkerV0
 from proof_scaffold.theorem import Theorem
+
 from tests._sanity_utils import verify_expect_ok
 
 # Helpers for golden snapshot checks
+
 
 def _scan_emitted_names(mm_src: str) -> set[str]:
     names: set[str] = set()
@@ -108,7 +110,10 @@ def test_sanity_m11_two_units_cross_module_links(tmp_path: Path) -> None:
     b.f("wps", "wff", "ps")
     # Cross-unit reference via Theorem handle (label = "ax-mp")
     ax_mp_handle = Theorem(
-        fqname="m.modus.ax_mp_export", module_id="m.modus", name="ax_mp_export", label="ax-mp"
+        fqname="m.modus.ax_mp_export",
+        module_id="m.modus",
+        name="ax_mp_export",
+        label="ax-mp",
     )
     with b.block():
         b.e("h1", "wff", ("ph",))
@@ -134,6 +139,7 @@ def test_sanity_m11_two_units_cross_module_links(tmp_path: Path) -> None:
 # B. Golden Tests
 # -----------------
 
+
 def test_golden_m11_deterministic_emission() -> None:
     # Build two units with cross dependency
     a = MMBuilder()
@@ -153,7 +159,10 @@ def test_golden_m11_deterministic_emission() -> None:
     b.f("wph", "wff", "ph")
     b.f("wps", "wff", "ps")
     ax_mp_handle = Theorem(
-        fqname="m.modus.ax_mp_export", module_id="m.modus", name="ax_mp_export", label="ax-mp"
+        fqname="m.modus.ax_mp_export",
+        module_id="m.modus",
+        name="ax_mp_export",
+        label="ax-mp",
     )
     with b.block():
         b.e("h1", "wff", ("ph",))
@@ -188,7 +197,10 @@ def test_golden_m11_relocation_snapshot() -> None:
     b.f("wph", "wff", "ph")
     b.f("wps", "wff", "ps")
     ax_mp_handle = Theorem(
-        fqname="m.modus.ax_mp_export", module_id="m.modus", name="ax_mp_export", label="ax-mp"
+        fqname="m.modus.ax_mp_export",
+        module_id="m.modus",
+        name="ax_mp_export",
+        label="ax-mp",
     )
     with b.block():
         b.e("h1", "wff", ("ph",))
@@ -222,7 +234,8 @@ def test_golden_m11_relocation_snapshot() -> None:
     # Expect a single proof line with all steps relocated deterministically
     proof_lines = _proof_body_lines(mm_src)
     assert any(
-        ln == "wph__m_user wps__m_user h1__m_user h2__m_user ax-mp__m_modus" for ln in proof_lines
+        ln == "wph__m_user wps__m_user h1__m_user h2__m_user ax-mp__m_modus"
+        for ln in proof_lines
     )
 
 
@@ -230,13 +243,24 @@ def test_golden_m11_relocation_snapshot() -> None:
 # C. Adversarial Tests
 # -----------------
 
+
 def test_adv_m11_forbid_raw_string_tokens_default_off() -> None:
     # Construct LIR with a raw string in proof_tokens to simulate COMPAT-off violation
     lir = [
         ConstDecl((0, 1, 2, 3, 4), origin=Origin(module="mod", file="x.py", line=1)),
         VarDecl((5,), origin=Origin(module="mod", file="x.py", line=2)),
-        FloatingHyp(label="wph", typecode=0, var=5, origin=Origin(module="mod", file="x.py", line=3)),
-        Axiom(label="ax-id", typecode=1, expr=(2, 5, 4, 5, 3), origin=Origin(module="mod", file="x.py", line=4)),
+        FloatingHyp(
+            label="wph",
+            typecode=0,
+            var=5,
+            origin=Origin(module="mod", file="x.py", line=3),
+        ),
+        Axiom(
+            label="ax-id",
+            typecode=1,
+            expr=(2, 5, 4, 5, 3),
+            origin=Origin(module="mod", file="x.py", line=4),
+        ),
         # Raw string token "ax-id" below should be rejected at Stage 1
         LIRTheorem(
             label="t",
@@ -269,12 +293,25 @@ def test_adv_m11_forbid_cross_unit_hyp_leakage() -> None:
         lir=[
             ConstDecl((0, 1, 2, 3), origin=Origin(file="a.py", line=1)),
             VarDecl((4, 5), origin=Origin(file="a.py", line=2)),
-            FloatingHyp(label="wph", typecode=0, var=4, origin=Origin(file="a.py", line=3)),
-            FloatingHyp(label="wps", typecode=0, var=5, origin=Origin(file="a.py", line=4)),
+            FloatingHyp(
+                label="wph", typecode=0, var=4, origin=Origin(file="a.py", line=3)
+            ),
+            FloatingHyp(
+                label="wps", typecode=0, var=5, origin=Origin(file="a.py", line=4)
+            ),
             ScopeEnter(origin=Origin(file="a.py", line=5)),
-            EssentialHyp(label="h1r", typecode=0, expr=(4,), origin=Origin(file="a.py", line=6)),
-            EssentialHyp(label="h2r", typecode=0, expr=(1, 4, 3, 5, 2), origin=Origin(file="a.py", line=7)),
-            Axiom(label="ax-mp", typecode=0, expr=(5,), origin=Origin(file="a.py", line=8)),
+            EssentialHyp(
+                label="h1r", typecode=0, expr=(4,), origin=Origin(file="a.py", line=6)
+            ),
+            EssentialHyp(
+                label="h2r",
+                typecode=0,
+                expr=(1, 4, 3, 5, 2),
+                origin=Origin(file="a.py", line=7),
+            ),
+            Axiom(
+                label="ax-mp", typecode=0, expr=(5,), origin=Origin(file="a.py", line=8)
+            ),
             ScopeExit(origin=Origin(file="a.py", line=9)),
         ],
         origin=Origin(file="a.py", line=0),
@@ -286,17 +323,32 @@ def test_adv_m11_forbid_cross_unit_hyp_leakage() -> None:
         lir=[
             ConstDecl((0, 1, 2, 3), origin=Origin(file="b.py", line=1)),
             VarDecl((4, 5), origin=Origin(file="b.py", line=2)),
-            FloatingHyp(label="wph", typecode=0, var=4, origin=Origin(file="b.py", line=3)),
-            FloatingHyp(label="wps", typecode=0, var=5, origin=Origin(file="b.py", line=4)),
+            FloatingHyp(
+                label="wph", typecode=0, var=4, origin=Origin(file="b.py", line=3)
+            ),
+            FloatingHyp(
+                label="wps", typecode=0, var=5, origin=Origin(file="b.py", line=4)
+            ),
             ScopeEnter(origin=Origin(file="b.py", line=5)),
-            EssentialHyp(label="h1", typecode=0, expr=(4,), origin=Origin(file="b.py", line=6)),
-            EssentialHyp(label="h2", typecode=0, expr=(1, 4, 3, 5, 2), origin=Origin(file="b.py", line=7)),
+            EssentialHyp(
+                label="h1", typecode=0, expr=(4,), origin=Origin(file="b.py", line=6)
+            ),
+            EssentialHyp(
+                label="h2",
+                typecode=0,
+                expr=(1, 4, 3, 5, 2),
+                origin=Origin(file="b.py", line=7),
+            ),
             LIRTheorem(
                 label="th",
                 typecode=0,
                 expr=(5,),
                 proof_tokens=(
-                    6, 7, 8, 9, 10,
+                    6,
+                    7,
+                    8,
+                    9,
+                    10,
                 ),
                 origin=Origin(file="b.py", line=8),
             ),
@@ -370,7 +422,12 @@ def test_adv_m11_dependency_cycle_detected() -> None:
             ConstDecl((0,), origin=Origin(file="A.py", line=1)),
             VarDecl((1,), origin=Origin(file="A.py", line=2)),
             ScopeEnter(origin=Origin(file="A.py", line=3)),
-            Axiom(label="a_in_A", typecode=0, expr=(1,), origin=Origin(file="A.py", line=4)),
+            Axiom(
+                label="a_in_A",
+                typecode=0,
+                expr=(1,),
+                origin=Origin(file="A.py", line=4),
+            ),
             LIRTheorem(
                 label="tA",
                 typecode=0,
@@ -389,7 +446,12 @@ def test_adv_m11_dependency_cycle_detected() -> None:
             ConstDecl((0,), origin=Origin(file="B.py", line=1)),
             VarDecl((1,), origin=Origin(file="B.py", line=2)),
             ScopeEnter(origin=Origin(file="B.py", line=3)),
-            Axiom(label="a_in_B", typecode=0, expr=(1,), origin=Origin(file="B.py", line=4)),
+            Axiom(
+                label="a_in_B",
+                typecode=0,
+                expr=(1,),
+                origin=Origin(file="B.py", line=4),
+            ),
             LIRTheorem(
                 label="tB",
                 typecode=0,
@@ -417,7 +479,9 @@ def test_adv_m11_scope_unbalanced_rejected() -> None:
             ConstDecl((0,), origin=Origin(file="bad.py", line=1)),
             VarDecl((1,), origin=Origin(file="bad.py", line=2)),
             ScopeEnter(origin=Origin(file="bad.py", line=3)),
-            FloatingHyp(label="wph", typecode=0, var=1, origin=Origin(file="bad.py", line=4)),
+            FloatingHyp(
+                label="wph", typecode=0, var=1, origin=Origin(file="bad.py", line=4)
+            ),
             # Missing ScopeExit here -> imbalance
         ],
         origin=Origin(file="bad.py", line=0),

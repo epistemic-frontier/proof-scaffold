@@ -60,7 +60,7 @@ markers = [
 [tool.ruff]
 line-length = 88
 target-version = "py310"
-exclude = ["verifier/"]
+exclude = ["verifier/", "v0-archive/", "build/", ".venv/"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP"]
@@ -74,7 +74,7 @@ known-first-party = ["tools"]
 # --------------------------------------------------
 
 [tool.mypy]
-python_version = "3.10"
+python_version = "3.11"
 strict = true
 
 # Gradual typing strategy:
@@ -94,4 +94,5 @@ files = ["tools", "src", "tests"]
 # Avoid noise from external code
 exclude = [
   "verifier/",
+  "v0-archive/",
 ]

@@ -8,9 +8,11 @@ from pathlib import Path
 
 @dataclass
 class MMMinDB:
-    f_label_of_var: dict[str, str]      # var -> $f label (e.g., ph -> wph)
-    f_order: list[str]                  # vars in $f declaration order
-    assertion_stmt: dict[str, list[str]]  # label -> statement tokens (including '|-' etc.)
+    f_label_of_var: dict[str, str]  # var -> $f label (e.g., ph -> wph)
+    f_order: list[str]  # vars in $f declaration order
+    assertion_stmt: dict[
+        str, list[str]
+    ]  # label -> statement tokens (including '|-' etc.)
 
 
 def _strip_comments(text: str) -> str:

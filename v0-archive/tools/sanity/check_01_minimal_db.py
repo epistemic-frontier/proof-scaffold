@@ -10,7 +10,9 @@ from proof_scaffold.verify import verify
 
 
 def main() -> None:
-    ap = argparse.ArgumentParser(description="Step 01: minimal Metamath database sanity check.")
+    ap = argparse.ArgumentParser(
+        description="Step 01: minimal Metamath database sanity check."
+    )
     ap.add_argument("--mmverify", required=True, help="Path to mmverify.py")
     ap.add_argument(
         "--fixture",

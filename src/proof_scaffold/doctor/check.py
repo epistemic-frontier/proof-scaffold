@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-import tempfile
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
 from proof_scaffold.verifier import verify
+
 from ..linker.api import LinkerV1
 from .sanity_ir import build_sanity_ir
 
@@ -20,6 +20,7 @@ def run_sanity(verifier_cmd: list[str] | None = None) -> None:
     if verifier_cmd is None:
         # Fallback for tests invoking this directly without config
         import sys
+
         verifier_cmd = [sys.executable, "verifier/mmverify.py"]
 
     with TemporaryDirectory() as td:
@@ -34,4 +35,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

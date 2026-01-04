@@ -12,6 +12,7 @@ class Theorem:
     - fqname: fully-qualified name, e.g. "number_theory.sqrt2.sqrt2_irrational"
     - label: the Metamath label used in proof steps, e.g. "sqrt2irr"
     """
+
     fqname: str
     module_id: str
     name: str
@@ -26,6 +27,7 @@ class TheoremDef:
     """
     Resolved theorem definition loaded from mmdb manifests.
     """
+
     fqname: str
     module_id: str
     name: str

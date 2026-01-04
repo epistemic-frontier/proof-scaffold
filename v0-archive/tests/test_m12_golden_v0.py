@@ -3,7 +3,6 @@ from __future__ import annotations
 import json
 
 import pytest
-
 from proof_scaffold.ir import (
     Axiom,
     ConstDecl,
@@ -38,7 +37,9 @@ def test_golden_m12_diagnostic_stable_snapshot() -> None:
             ConstDecl((0,), origin=Origin(file="gold.py", line=1)),
             VarDecl((1,), origin=Origin(file="gold.py", line=2)),
             ScopeEnter(origin=Origin(file="gold.py", line=3)),
-            FloatingHyp(label="wph", typecode=0, var=1, origin=Origin(file="gold.py", line=4)),
+            FloatingHyp(
+                label="wph", typecode=0, var=1, origin=Origin(file="gold.py", line=4)
+            ),
             LIRTheorem(
                 label="bad",
                 typecode=0,
@@ -79,9 +80,15 @@ def test_golden_m12_symbol_table_ordering() -> None:
             ConstDecl((0, 1), origin=Origin(file="A.py", line=1)),
             VarDecl((2, 3), origin=Origin(file="A.py", line=2)),
             ScopeEnter(origin=Origin(file="A.py", line=3)),
-            FloatingHyp(label="wph", typecode=0, var=2, origin=Origin(file="A.py", line=4)),
-            EssentialHyp(label="h", typecode=0, expr=(2,), origin=Origin(file="A.py", line=5)),
-            Axiom(label="ax", typecode=0, expr=(3,), origin=Origin(file="A.py", line=6)),
+            FloatingHyp(
+                label="wph", typecode=0, var=2, origin=Origin(file="A.py", line=4)
+            ),
+            EssentialHyp(
+                label="h", typecode=0, expr=(2,), origin=Origin(file="A.py", line=5)
+            ),
+            Axiom(
+                label="ax", typecode=0, expr=(3,), origin=Origin(file="A.py", line=6)
+            ),
             ScopeExit(origin=Origin(file="A.py", line=7)),
         ],
         origin=Origin(file="A.py", line=0),
@@ -94,7 +101,9 @@ def test_golden_m12_symbol_table_ordering() -> None:
             ConstDecl((0, 1), origin=Origin(file="B.py", line=1)),
             VarDecl((2,), origin=Origin(file="B.py", line=2)),
             ScopeEnter(origin=Origin(file="B.py", line=3)),
-            Axiom(label="bax", typecode=3, expr=(2,), origin=Origin(file="B.py", line=4)),
+            Axiom(
+                label="bax", typecode=3, expr=(2,), origin=Origin(file="B.py", line=4)
+            ),
             ScopeExit(origin=Origin(file="B.py", line=5)),
         ],
         origin=Origin(file="B.py", line=0),
@@ -105,7 +114,9 @@ def test_golden_m12_symbol_table_ordering() -> None:
 
     linker = LinkerV0()
     rows1 = linker.build_symbol_table([ua, ub])
-    rows2 = linker.build_symbol_table([ub, ua])  # different input order must not change result
+    rows2 = linker.build_symbol_table(
+        [ub, ua]
+    )  # different input order must not change result
     assert rows1 == rows2
 
     # Basic ordering assertions

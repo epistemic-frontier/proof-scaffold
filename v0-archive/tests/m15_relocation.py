@@ -3,10 +3,15 @@ from __future__ import annotations
 import re
 
 import pytest
-
 from proof_scaffold.dsl import MMBuilder
 from proof_scaffold.linker.context import LinkContext
-from proof_scaffold.linker.passes import stage5_scope, stage7_emit, stage1_collect, stage4_deps, stage6_reloc
+from proof_scaffold.linker.passes import (
+    stage1_collect,
+    stage4_deps,
+    stage5_scope,
+    stage6_reloc,
+    stage7_emit,
+)
 
 
 def _link_mm(*units) -> tuple[LinkContext, str]:
@@ -39,7 +44,23 @@ def test_sanity_m15_emitted_stream_is_deterministic() -> None:
 
 @pytest.mark.parametrize(
     "bad",
-    ["$c", "$v", "$d", "$f", "$e", "$a", "$p", "$=", "$.", "$(", "$)", "$[", "$]", "${", "$}"],
+    [
+        "$c",
+        "$v",
+        "$d",
+        "$f",
+        "$e",
+        "$a",
+        "$p",
+        "$=",
+        "$.",
+        "$(",
+        "$)",
+        "$[",
+        "$]",
+        "${",
+        "$}",
+    ],
 )
 def test_adv_m15_reloc_rejects_reserved_or_invalid_tokens(bad: str) -> None:
     # Put a reserved token into symtab as a symbol name; relocation must reject.

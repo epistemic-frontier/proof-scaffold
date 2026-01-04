@@ -18,6 +18,7 @@ SymbolId = NewType("SymbolId", int)
 # The old SymbolRef(name: str) compatibility shim is removed as part of the
 # refactor towards layout-agnostic, contiguous, id-based token payloads.
 
+
 @runtime_checkable
 class TokenSeq(Protocol):
     def __len__(self) -> int: ...
@@ -39,6 +40,7 @@ class SymbolDef:
 
 
 # LIR statements --------------------------------------------------------------
+
 
 @dataclass(frozen=True)
 class ConstDecl:
@@ -72,7 +74,7 @@ class ScopeExit:
 class FloatingHyp:
     label: str
     typecode: int  # CONST id
-    var: int       # VAR id
+    var: int  # VAR id
     origin: Origin | None = None
 
 
@@ -105,7 +107,17 @@ class Theorem:
     origin: Origin | None = None
 
 
-LIRStmt = ConstDecl | VarDecl | DisjointDecl | ScopeEnter | ScopeExit | FloatingHyp | EssentialHyp | Axiom | Theorem
+LIRStmt = (
+    ConstDecl
+    | VarDecl
+    | DisjointDecl
+    | ScopeEnter
+    | ScopeExit
+    | FloatingHyp
+    | EssentialHyp
+    | Axiom
+    | Theorem
+)
 
 
 @dataclass

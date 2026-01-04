@@ -60,7 +60,9 @@ def fixture(relpath: str) -> Path:
     return p
 
 
-def _run(verifier: Path, mm_file: Path, timeout_sec: int = 60) -> tuple[int, str, list[str]]:
+def _run(
+    verifier: Path, mm_file: Path, timeout_sec: int = 60
+) -> tuple[int, str, list[str]]:
     if verifier.suffix == ".jar":
         cmd = ["java", "-jar", str(verifier), str(mm_file)]
     elif verifier.suffix == ".py":

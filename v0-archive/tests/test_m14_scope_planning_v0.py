@@ -4,11 +4,11 @@ import json
 from pathlib import Path
 
 import pytest
-
 from proof_scaffold.dsl import MMBuilder
 from proof_scaffold.ir import ConstDecl, Origin, ProofUnitIR, VarDecl
 from proof_scaffold.linker.errors import LinkerDiagError
 from proof_scaffold.linker_v0 import LinkerV0, link_v0
+
 from tests._sanity_utils import verify_expect_ok
 
 
@@ -44,7 +44,10 @@ def test_sanity_m14_two_unit_scoped_emission_verifies(tmp_path: Path) -> None:
     b.f("wph", "wff", "ph")
     b.f("wps", "wff", "ps")
     from proof_scaffold.theorem import Theorem
-    ax_mp = Theorem(fqname="m14.modus.ax_mp", module_id="m14.modus", name="ax_mp", label="ax-mp")
+
+    ax_mp = Theorem(
+        fqname="m14.modus.ax_mp", module_id="m14.modus", name="ax_mp", label="ax-mp"
+    )
     with b.block():
         b.e("h1", "wff", ("ph",))
         b.e("h2", "wff", ("(", "ph", "->", "ps", ")"))
@@ -75,9 +78,17 @@ def test_sanity_m14_frame_boundaries_present() -> None:
 
     ctx, _mm = link_v0([u1, u2], return_context=True)
     assert ctx.linear_plan is not None
-    assert [f.unit_id for f in ctx.linear_plan.frames] == [i.unit_id for i in ctx.ordered_infos]
-    assert all(any(fs.synthetic_tag == "linker:stage5:ScopeEnter" for fs in f.stmts) for f in ctx.linear_plan.frames)
-    assert all(any(fs.synthetic_tag == "linker:stage5:ScopeExit" for fs in f.stmts) for f in ctx.linear_plan.frames)
+    assert [f.unit_id for f in ctx.linear_plan.frames] == [
+        i.unit_id for i in ctx.ordered_infos
+    ]
+    assert all(
+        any(fs.synthetic_tag == "linker:stage5:ScopeEnter" for fs in f.stmts)
+        for f in ctx.linear_plan.frames
+    )
+    assert all(
+        any(fs.synthetic_tag == "linker:stage5:ScopeExit" for fs in f.stmts)
+        for f in ctx.linear_plan.frames
+    )
 
 
 @pytest.mark.golden
@@ -125,7 +136,10 @@ def test_golden_m14_context_hash_stable() -> None:
     ctx1, _ = link_v0([u], return_context=True)
     ctx2, _ = link_v0([u], return_context=True)
     assert ctx1.linear_plan is not None and ctx2.linear_plan is not None
-    assert ctx1.linear_plan.frames[0].context_hash == ctx2.linear_plan.frames[0].context_hash
+    assert (
+        ctx1.linear_plan.frames[0].context_hash
+        == ctx2.linear_plan.frames[0].context_hash
+    )
 
 
 def test_adv_m14_unit_internal_scope_imbalance_rejected() -> None:
@@ -164,8 +178,18 @@ def test_adv_m14_export_order_invalid_is_error() -> None:
             ConstDecl((0,), origin=Origin(file="m14_bad_order.py", line=1)),
             VarDecl((1,), origin=Origin(file="m14_bad_order.py", line=2)),
             ScopeEnter(origin=Origin(file="m14_bad_order.py", line=3)),
-            Axiom(label="ax", typecode=0, expr=(1,), origin=Origin(file="m14_bad_order.py", line=4)),
-            FloatingHyp(label="wph", typecode=0, var=1, origin=Origin(file="m14_bad_order.py", line=5)),
+            Axiom(
+                label="ax",
+                typecode=0,
+                expr=(1,),
+                origin=Origin(file="m14_bad_order.py", line=4),
+            ),
+            FloatingHyp(
+                label="wph",
+                typecode=0,
+                var=1,
+                origin=Origin(file="m14_bad_order.py", line=5),
+            ),
             ScopeExit(origin=Origin(file="m14_bad_order.py", line=6)),
         ]
     )
@@ -236,11 +260,25 @@ def test_struct_m14_preserves_valid_internal_nesting() -> None:
 
     # 2. Internal nested scope
     u.lir.append(ScopeEnter(origin=Origin(file="m14_nested.py", line=2)))
-    u.lir.append(Axiom(label="helper", typecode=0, expr=(1,), origin=Origin(file="m14_nested.py", line=3)))
+    u.lir.append(
+        Axiom(
+            label="helper",
+            typecode=0,
+            expr=(1,),
+            origin=Origin(file="m14_nested.py", line=3),
+        )
+    )
     u.lir.append(ScopeExit(origin=Origin(file="m14_nested.py", line=4)))
 
     # 3. Export
-    u.lir.append(Axiom(label="main", typecode=0, expr=(1,), origin=Origin(file="m14_nested.py", line=5)))
+    u.lir.append(
+        Axiom(
+            label="main",
+            typecode=0,
+            expr=(1,),
+            origin=Origin(file="m14_nested.py", line=5),
+        )
+    )
 
     ctx, _mm = link_v0([u], return_context=True)
     assert ctx.linear_plan is not None
@@ -250,6 +288,6 @@ def test_struct_m14_preserves_valid_internal_nesting() -> None:
     assert isinstance(stmts[0], ScopeEnter)  # outer synthetic
     assert isinstance(stmts[1], ScopeEnter)  # inner original
     assert isinstance(stmts[2], Axiom) and stmts[2].label == "helper"
-    assert isinstance(stmts[3], ScopeExit)   # inner original
+    assert isinstance(stmts[3], ScopeExit)  # inner original
     assert isinstance(stmts[4], Axiom) and stmts[4].label == "main"
-    assert isinstance(stmts[5], ScopeExit)   # outer synthetic
+    assert isinstance(stmts[5], ScopeExit)  # outer synthetic

@@ -11,6 +11,7 @@ from proof_scaffold.ir import (
     Theorem,
     VarDecl,
 )
+
 from ..context import LinkContext, UnitInfo, UseEdgeProvenance
 from ..diag_helpers import raise_link_error
 from ..policy import stable_sorted
@@ -38,6 +39,7 @@ def run(ctx: LinkContext) -> None:
     for u in ctx.units:
         labels: dict[str, str] = {}
         from ...ir import Origin as _Origin
+
         label_origin: dict[str, _Origin | None] = {}
         uses_assertions: set[str] = set()
         uses_prov: dict[str, UseEdgeProvenance] = {}
@@ -154,7 +156,9 @@ def run(ctx: LinkContext) -> None:
                 label_kind_by_unit[(u.unit_id, lab)] = "$a"
                 labels[lab] = "$a"
                 label_origin[lab] = st.origin
-                assertion_stmt[lab] = [_tok_name(u, st.typecode)] + [_tok_name(u, t) for t in st.expr]
+                assertion_stmt[lab] = [_tok_name(u, st.typecode)] + [
+                    _tok_name(u, t) for t in st.expr
+                ]
             elif isinstance(st, Theorem):
                 if not _is_token_allowed(st.typecode):
                     raise_link_error(
@@ -176,7 +180,9 @@ def run(ctx: LinkContext) -> None:
                 label_kind_by_unit[(u.unit_id, lab)] = "$p"
                 labels[lab] = "$p"
                 label_origin[lab] = st.origin
-                assertion_stmt[lab] = [_tok_name(u, st.typecode)] + [_tok_name(u, t) for t in st.expr]
+                assertion_stmt[lab] = [_tok_name(u, st.typecode)] + [
+                    _tok_name(u, t) for t in st.expr
+                ]
                 for tk in st.proof_tokens:
                     if not _is_token_allowed(tk):
                         raise_link_error(
@@ -187,7 +193,10 @@ def run(ctx: LinkContext) -> None:
                         )
                     step = _tok_name(u, tk)
                     owners = label_owners.get(step, set())
-                    if any(label_kind_by_unit.get((own, step)) in ("$a", "$p") for own in owners):
+                    if any(
+                        label_kind_by_unit.get((own, step)) in ("$a", "$p")
+                        for own in owners
+                    ):
                         uses_assertions.add(step)
                         # record first provenance (stable enough for MVP)
                         if step not in uses_prov:
@@ -201,30 +210,41 @@ def run(ctx: LinkContext) -> None:
                 pass
             else:  # pragma: no cover
                 from ..errors import LinkerError
+
                 raise LinkerError(f"unknown LIR stmt: {type(st)}")
 
         # NOTE: If exports is not provided, default policy is "$a/$p are exported".
         # Some unit tests expect an omitted exports list to behave as "export all".
         exports_set: set[str] | None
         if u.exports is None:
-            exports_set = set(stable_sorted([lab for (uid, lab), k in label_kind_by_unit.items() if uid == u.unit_id and k in ("$a", "$p")]))
+            exports_set = set(
+                stable_sorted(
+                    [
+                        lab
+                        for (uid, lab), k in label_kind_by_unit.items()
+                        if uid == u.unit_id and k in ("$a", "$p")
+                    ]
+                )
+            )
         else:
             exports_set = set(u.exports)
 
-        infos.append(UnitInfo(
-            unit_id=u.unit_id,
-            stmts=list(u.lir),
-            symtab=u.symtab,
-            labels=labels,
-            label_origin=label_origin,
-            uses_assertions=tuple(stable_sorted(uses_assertions)),
-            f_label_of_var=f_label_of_var,
-            f_order=f_order,
-            assertion_stmt=assertion_stmt,
-            exports=exports_set,
-            unit_origin=u.origin,
-            uses_provenance=uses_prov,
-        ))
+        infos.append(
+            UnitInfo(
+                unit_id=u.unit_id,
+                stmts=list(u.lir),
+                symtab=u.symtab,
+                labels=labels,
+                label_origin=label_origin,
+                uses_assertions=tuple(stable_sorted(uses_assertions)),
+                f_label_of_var=f_label_of_var,
+                f_order=f_order,
+                assertion_stmt=assertion_stmt,
+                exports=exports_set,
+                unit_origin=u.origin,
+                uses_provenance=uses_prov,
+            )
+        )
 
     ctx.infos = infos
     ctx.global_consts = global_consts

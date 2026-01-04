@@ -8,16 +8,16 @@ from ..symbols import SymbolId
 from ..unit import ProofUnitIR
 
 
-def _raise(unit: ProofUnitIR, stmt_origin_ref: int, code: str, msg: str, **details: object) -> None:
+def _raise(
+    unit: ProofUnitIR, stmt_origin_ref: int, code: str, msg: str, **details: object
+) -> None:
     raise LinkerDiagError(
         Diagnostic(
             error_code=code,
             message=msg,
             primary_origin_ref=stmt_origin_ref,
             related_origin_refs=(unit.origin_ref,),
-            origin_chain=(
-                {"stage": 1, "unit_id": unit.unit_id},
-            ),
+            origin_chain=({"stage": 1, "unit_id": unit.unit_id},),
             details=dict(details),
         )
     )
@@ -56,7 +56,7 @@ def run(*, ctx, units: list[ProofUnitIR]) -> list[ProofUnitIR]:
                             tok_id=t,
                             tok_kind=k,
                         )
-            elif isinstance(st, (ConstDecl, VarDecl)):
+            elif isinstance(st, ConstDecl | VarDecl):
                 # tokens already SymbolIds; just ensure exist and kind matches.
                 expected = "Const" if isinstance(st, ConstDecl) else "Var"
                 for t in st.tokens:
@@ -73,4 +73,3 @@ def run(*, ctx, units: list[ProofUnitIR]) -> list[ProofUnitIR]:
                         )
 
     return [replace(u) for u in units]
-

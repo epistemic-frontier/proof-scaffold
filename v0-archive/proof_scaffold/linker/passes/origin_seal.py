@@ -4,7 +4,9 @@ from ..context import LinkContext
 from ..diag_helpers import raise_link_error
 
 
-def _check_origin(obj_name: str, origin, *, unit_id: str | None, chain_prefix: tuple[str, ...]) -> None:
+def _check_origin(
+    obj_name: str, origin, *, unit_id: str | None, chain_prefix: tuple[str, ...]
+) -> None:
     if origin is None:
         # In Stage 0.5 we fail fast on missing origin
         raise_link_error(
@@ -23,9 +25,19 @@ def run(ctx: LinkContext) -> None:
     Any violation fails fast with a deterministic diagnostic.
     """
     for u in ctx.units:
-        _check_origin("ProofUnitIR", getattr(u, "origin", None), unit_id=getattr(u, "unit_id", None), chain_prefix=("Stage0.5",))
+        _check_origin(
+            "ProofUnitIR",
+            getattr(u, "origin", None),
+            unit_id=getattr(u, "unit_id", None),
+            chain_prefix=("Stage0.5",),
+        )
         for st in getattr(u, "lir", []) or []:
             # Use class name in message for clarity
             obj_name = type(st).__name__
-            _check_origin(obj_name, getattr(st, "origin", None), unit_id=getattr(u, "unit_id", None), chain_prefix=("Stage0.5",))
+            _check_origin(
+                obj_name,
+                getattr(st, "origin", None),
+                unit_id=getattr(u, "unit_id", None),
+                chain_prefix=("Stage0.5",),
+            )
     return

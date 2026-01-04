@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import subprocess
-import sys
 
 
 def test_cli_smoke_one_command() -> None:
@@ -14,4 +13,3 @@ def test_cli_smoke_one_command() -> None:
         check=False,
     )
     assert res.returncode == 0, (res.stdout, res.stderr)
-

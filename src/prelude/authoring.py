@@ -1,10 +1,18 @@
 # prelude/authoring.py
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Any, Callable, Dict, Iterable, Literal, Mapping, Sequence, Tuple, TypeAlias
+from collections.abc import Callable, Mapping, Sequence
+from dataclasses import dataclass, field
+from typing import (
+    Any,
+    Literal,
+    TypeAlias,
+)
 
-from .formula import Builtins, Wff, wff_atom, imp as mk_imp, wn as mk_wn, wa as mk_wa
+from .formula import Builtins, Wff, wff_atom
+from .formula import imp as mk_imp
+from .formula import wa as mk_wa
+from .formula import wn as mk_wn
 from .symbols import SymbolInterner
 from .typing import PreludeTypingError, RuleSig, Sort
 
@@ -29,7 +37,7 @@ ExprSortAny = Literal["wff"]  # placeholder for future extension
 @dataclass(frozen=True)
 class Expr:
     """Base class for authoring expressions."""
-    sort: ExprSortAny
+    sort: ExprSortAny = field(default="wff", init=False)
 
 
 @dataclass(frozen=True)
@@ -40,15 +48,15 @@ class Var(Expr):
     Compilation will map it to a SymbolId via SymbolInterner.
     """
     name: str
-    sort: ExprSort = "wff"
 
 
 @dataclass(frozen=True)
 class App(Expr):
     """Application of a Constructor to argument Exprs."""
-    ctor: Constructor
-    args: Tuple[Expr, ...]
-    sort: ExprSortAny = "wff"
+    ctor: Constructor = field(compare=False, default_factory=lambda: Constructor("<unset>", 0))
+    args: tuple[Expr, ...] = field(compare=False, default_factory=tuple)
+
+    # keep Expr.sort default
 
 
 # -----------------------------------------------------------------------------
@@ -75,7 +83,7 @@ class Constructor:
             raise PreludeTypingError(
                 f"constructor {self.name!r}: expects {self.arity} args, got {len(args)}"
             )
-        return App(ctor=self, args=tuple(args), sort="wff")
+        return App(ctor=self, args=tuple(args))
 
 
 # -----------------------------------------------------------------------------
@@ -99,8 +107,8 @@ class RequireRegistry:
     """Registry for language requirements (constructor -> signature)."""
 
     def __init__(self) -> None:
-        self._by_ctor: Dict[Constructor, RequireSpec] = {}
-        self._by_name: Dict[str, RequireSpec] = {}
+        self._by_ctor: dict[Constructor, RequireSpec] = {}
+        self._by_name: dict[str, RequireSpec] = {}
 
     def require(self, ctor: Constructor, sig: RuleSig, *, notes: str = "") -> None:
         if ctor.arity != sig.arity:
@@ -145,7 +153,7 @@ DEFAULT_REQUIRE = RequireRegistry()
 def require(
     ctor: Constructor,
     *,
-    in_sorts: Tuple[Sort, ...],
+    in_sorts: tuple[Sort, ...],
     out_sort: Sort,
     notes: str = "",
     registry: RequireRegistry = DEFAULT_REQUIRE,
@@ -166,7 +174,7 @@ def require(
 BuilderFn: TypeAlias = Callable[[Builtins, Sequence[Wff]], Wff]
 
 
-def _builtin_builder_map() -> Dict[str, BuilderFn]:
+def _builtin_builder_map() -> dict[str, BuilderFn]:
     # By name only, to decouple from Constructor object identity.
     return {
         "→": lambda b, xs: mk_imp(b, xs[0], xs[1]),
@@ -182,12 +190,11 @@ class CompileEnv:
     builtins: Builtins
     origin_module_id: str = "authoring"
     origin_ref: Any = None
-    ctor_builders: Mapping[str, BuilderFn] = None  # type: ignore[assignment]
+    ctor_builders: Mapping[str, BuilderFn] = field(default_factory=_builtin_builder_map)
 
     def __post_init__(self) -> None:
-        # dataclass(frozen=True) prevents mutation; validate via object.__setattr__
-        if self.ctor_builders is None:
-            object.__setattr__(self, "ctor_builders", _builtin_builder_map())
+        # ctor_builders is provided by default_factory; nothing to do.
+        return
 
 
 def compile_wff(

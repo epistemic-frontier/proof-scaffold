@@ -1,18 +1,18 @@
 # logic/propositional/hilbert/__init__.py
 from __future__ import annotations
 
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
-from typing import Any, Callable, Mapping, Sequence, TypeAlias
+from typing import Any, TypeAlias
 
-from prelude.axioms import AxiomSchema
 from prelude.authoring import CompileEnv, Expr, RequireRegistry, compile_wff
 from prelude.formula import Builtins, Wff
 from prelude.symbols import SymbolInterner
-from prelude.typing import Hypothesis, PreludeTypingError, RuleApp, Sort
+from prelude.typing import HypothesisAny, PreludeTypingError, RuleApp
 
 from ._syntactic import RuleBundle, make_rules
 
-RuleFn: TypeAlias = Callable[..., object]
+RuleFn: TypeAlias = Callable[..., Wff]
 
 
 @dataclass(frozen=True)
@@ -27,7 +27,7 @@ class HilbertSystem:
     builtins: Builtins
     rule_app: RuleApp
     rules: Mapping[str, RuleFn]
-    axioms: Mapping[str, AxiomSchema[Wff]]  # existing token-level schema view (optional)
+    axioms: Mapping[str, Expr]
 
     @classmethod
     def make(cls, *, interner: SymbolInterner, origin_ref: Any = None) -> HilbertSystem:
@@ -38,14 +38,14 @@ class HilbertSystem:
 
         # You may keep the token-level schema view if you still want it.
         # If you are fully switching to authoring Expr axioms, you can drop this field.
-        from .axioms import make_axioms  # token-level schema factory (optional)
+        from .axioms import make_axioms  # authoring Expr axioms
 
         return cls(
             interner=interner,
             builtins=b,
             rule_app=rule_app,
             rules=bundle.rules,
-            axioms=make_axioms(b),
+            axioms=make_axioms(),
         )
 
     # -------------------------------------------------------------------------
@@ -93,12 +93,12 @@ class HilbertSystem:
     # Typed rule application (optional convenience)
     # -------------------------------------------------------------------------
 
-    def apply(self, label: str, hyps: Sequence[Hypothesis[Sort]], *, ctx: str) -> object:
+    def apply(self, label: str, hyps: Sequence[HypothesisAny], *, ctx: str) -> Wff:
         self.rule_app.check(label, hyps, ctx=ctx)
         fn = self.rules.get(label)
         if fn is None:
             raise PreludeTypingError(f"{ctx}: missing rule implementation for {label!r}")
-        return fn(*hyps)  # type: ignore[misc]
+        return fn(*hyps)
 
 
 def make(*, interner: SymbolInterner, origin_ref: Any = None) -> HilbertSystem:

@@ -1,13 +1,14 @@
 # prelude/axioms.py
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Callable, Generic, TypeVar
+from typing import Generic, TypeVar
 
-from .formula import Formula
+from .formula import Formula, Sort
 from .typing import PreludeTypingError
 
-F = TypeVar("F", bound=Formula)
+F = TypeVar("F", bound=Formula[Sort])
 
 
 @dataclass(frozen=True)

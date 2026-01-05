@@ -1,13 +1,13 @@
 # logic/propositional/hilbert/definitions.py
 from __future__ import annotations
 
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
-from typing import Mapping
 
 from prelude.authoring import Expr
 from prelude.typing import PreludeTypingError
 
-from .structures import Imp, Not, phi, psi
+from ._structures import Imp, Not
 
 # -----------------------------------------------------------------------------
 # Definition schema (author-facing)
@@ -28,7 +28,7 @@ class Definition:
     """
     name: str
     arity: int
-    body: callable
+    body: Callable[..., Expr]
 
     def apply(self, *args: Expr) -> Expr:
         if len(args) != self.arity:

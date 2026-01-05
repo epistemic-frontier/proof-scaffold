@@ -1,8 +1,15 @@
 # prelude/formula.py
 from __future__ import annotations
 
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
-from typing import Any, Generic, Iterable, Literal, Mapping, Sequence, Tuple, TypeAlias, TypeVar
+from typing import (
+    Any,
+    Generic,
+    Literal,
+    TypeAlias,
+    TypeVar,
+)
 
 from .symbols import SymbolId, SymbolInterner
 
@@ -21,7 +28,7 @@ S = TypeVar("S", bound=Sort)
 # Token-level Formula
 # -----------------------------------------------------------------------------
 
-TokenSeq: TypeAlias = Tuple[SymbolId, ...]
+TokenSeq: TypeAlias = tuple[SymbolId, ...]
 
 
 @dataclass(frozen=True)

@@ -1,11 +1,11 @@
 # prelude/_syntactic.py
 from __future__ import annotations
 
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
-from typing import Callable, Dict, Iterable, Mapping, Protocol, TypeVar, List, Tuple
+from typing import Protocol, TypeVar
 
 from prelude.typing import RuleSig
-
 
 # -----------------------------------------------------------------------------
 # Errors (local to this module)
@@ -19,27 +19,27 @@ class PreludeRulesError(ValueError):
 # Rule/Axiom interfaces (lightweight, reusable)
 # -----------------------------------------------------------------------------
 
-R = TypeVar("R")  # result type (e.g. Wff)
+R_co = TypeVar("R_co", covariant=True)  # result type (e.g. Wff)
 
 
-class Axiom1(Protocol[R]):
+class Axiom1(Protocol[R_co]):
     """Axiom-like constructor taking 1 hypothesis and returning R."""
     label: str
     arity: int
-    def __call__(self, h1: object) -> R: ...
+    def __call__(self, h1: object) -> R_co: ...
 
 
-class Axiom2(Protocol[R]):
+class Axiom2(Protocol[R_co]):
     """Axiom-like constructor taking 2 hypotheses and returning R."""
     label: str
     arity: int
-    def __call__(self, h1: object, h2: object) -> R: ...
+    def __call__(self, h1: object, h2: object) -> R_co: ...
 
 
-class Rule2to1(Protocol[R]):
+class Rule2to1(Protocol[R_co]):
     """Rule-like inference taking 2 hypotheses and returning R."""
     label: str
-    def __call__(self, h1: object, h2: object) -> R: ...
+    def __call__(self, h1: object, h2: object) -> R_co: ...
 
 
 # -----------------------------------------------------------------------------
@@ -64,9 +64,9 @@ class RuleBundle:
     sigs: Mapping[str, RuleSig]
 
 
-def build_catalog(entries: Iterable[RuleEntry]) -> Dict[str, RuleEntry]:
+def build_catalog(entries: Iterable[RuleEntry]) -> dict[str, RuleEntry]:
     """Build a label->entry dict with duplicate-label checks."""
-    cat: Dict[str, RuleEntry] = {}
+    cat: dict[str, RuleEntry] = {}
     for e in entries:
         if e.label in cat:
             raise PreludeRulesError(f"duplicate rule label: {e.label!r}")
@@ -87,7 +87,7 @@ def get_rule(cat: Mapping[str, RuleEntry], label: str) -> Callable[..., object]:
         raise PreludeRulesError(f"unknown rule label: {label!r}") from e
 
 
-def debug_list(cat: Mapping[str, RuleEntry]) -> List[Tuple[str, str]]:
+def debug_list(cat: Mapping[str, RuleEntry]) -> list[tuple[str, str]]:
     """Return a stable (label, kind) list for debug/introspection."""
     return sorted([(e.label, e.kind) for e in cat.values()], key=lambda x: x[0])
 

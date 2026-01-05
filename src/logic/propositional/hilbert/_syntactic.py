@@ -1,21 +1,22 @@
 # logic/propositional/hilbert/_syntactic.py
 from __future__ import annotations
 
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
-from typing import Callable, Dict, Mapping, TypeAlias
+from typing import TypeAlias
 
-from prelude.formula import Builtins, Wff, imp, try_parse_imp, wn, wa
+from prelude.formula import Builtins, Wff, imp, try_parse_imp, wa, wn
 from prelude.rules import RuleEntry, build_catalog, rules_view
 from prelude.typing import (
+    WFF,
     HypWff,
     PreludeShapeError,
     PreludeTypingError,
     RuleSig,
-    WFF,
-    require_hyp_sort,
+    require_hyp_sort_typed,
 )
 
-RuleFn: TypeAlias = Callable[..., object]
+RuleFn: TypeAlias = Callable[..., Wff]
 
 
 # -----------------------------------------------------------------------------
@@ -39,8 +40,8 @@ class Wi:
             raise PreludeTypingError("wi: requires Builtins (Wi(b=...))")
 
         # Defensive sort checks (builder may already have checked via RuleApp).
-        require_hyp_sort(hphi, "wff", ctx=self.label)
-        require_hyp_sort(hpsi, "wff", ctx=self.label)
+        require_hyp_sort_typed(hphi, "wff", ctx=self.label)
+        require_hyp_sort_typed(hpsi, "wff", ctx=self.label)
 
         return imp(self.b, hphi.body, hpsi.body)
 
@@ -56,8 +57,8 @@ class Mp:
         if self.b is None:
             raise PreludeTypingError("mp: requires Builtins (Mp(b=...))")
 
-        require_hyp_sort(hyp_phi, "wff", ctx=self.label)
-        require_hyp_sort(hyp_imp, "wff", ctx=self.label)
+        require_hyp_sort_typed(hyp_phi, "wff", ctx=self.label)
+        require_hyp_sort_typed(hyp_imp, "wff", ctx=self.label)
 
         shp = try_parse_imp(self.b, hyp_imp.body.tokens)
         if shp is None:
@@ -79,7 +80,7 @@ class Wn:
     def __call__(self, hphi: HypWff) -> Wff:
         if self.b is None:
             raise PreludeTypingError("wn: requires Builtins (Wn(b=...))")
-        require_hyp_sort(hphi, "wff", ctx=self.label)
+        require_hyp_sort_typed(hphi, "wff", ctx=self.label)
         return wn(self.b, hphi.body)
 
 
@@ -93,8 +94,8 @@ class Wa:
     def __call__(self, hphi: HypWff, hpsi: HypWff) -> Wff:
         if self.b is None:
             raise PreludeTypingError("wa: requires Builtins (Wa(b=...))")
-        require_hyp_sort(hphi, "wff", ctx=self.label)
-        require_hyp_sort(hpsi, "wff", ctx=self.label)
+        require_hyp_sort_typed(hphi, "wff", ctx=self.label)
+        require_hyp_sort_typed(hpsi, "wff", ctx=self.label)
         return wa(self.b, hphi.body, hpsi.body)
 
 
@@ -122,13 +123,13 @@ def make_rules(b: Builtins) -> RuleBundle:
     wn_ = Wn(b=b)
     wa_ = Wa(b=b)
 
-    rules: Dict[str, RuleFn] = {
+    rules: dict[str, RuleFn] = {
         wi.label: wi,
         mp.label: mp,
         wn_.label: wn_,
         wa_.label: wa_,
     }
-    sigs: Dict[str, RuleSig] = {
+    sigs: dict[str, RuleSig] = {
         wi.label: wi.sig,
         mp.label: mp.sig,
         wn_.label: wn_.sig,
@@ -143,7 +144,7 @@ def make_rules(b: Builtins) -> RuleBundle:
 # Kept for introspection/testing. Normal users should use HilbertSystem only.
 # -----------------------------------------------------------------------------
 
-DEBUG_CATALOG: Dict[str, RuleEntry] = build_catalog(
+DEBUG_CATALOG: dict[str, RuleEntry] = build_catalog(
     [
         RuleEntry(label="wi", kind="axiom", fn=Wi()),
         RuleEntry(label="mp", kind="rule", fn=Mp()),
@@ -152,7 +153,7 @@ DEBUG_CATALOG: Dict[str, RuleEntry] = build_catalog(
     ]
 )
 
-DEBUG_RULES: Mapping[str, RuleFn] = rules_view(DEBUG_CATALOG)
+DEBUG_RULES: Mapping[str, RuleFn] = rules_view(DEBUG_CATALOG)  # type: ignore[assignment]
 
 
 __all__ = [

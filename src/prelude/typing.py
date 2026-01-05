@@ -1,8 +1,9 @@
 # prelude/typing.py
 from __future__ import annotations
 
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from typing import Generic, Literal, Mapping, Sequence, Tuple, TypeVar, Final, Protocol
+from typing import Final, Generic, Literal, Protocol, TypeVar
 
 from .formula import Formula, Sort
 
@@ -40,6 +41,11 @@ HypClass = Hypothesis[Literal["class"]]
 HypSetVar = Hypothesis[Literal["setvar"]]
 
 
+# A widened hypothesis type used at the prelude boundary.
+# This makes `Hypothesis["wff"]` usable where `Hypothesis[Sort]` is expected.
+HypothesisAny = Hypothesis[Sort]
+
+
 @dataclass(frozen=True)
 class Context:
     """A minimal typing context Γ containing visible hypotheses.
@@ -47,7 +53,7 @@ class Context:
     Prelude only: no scope frames, no exports; linker handles that later.
     This is used by DSL builder to carry the currently available hyps.
     """
-    hyps: Tuple[Hypothesis[Sort], ...] = ()
+    hyps: tuple[Hypothesis[Sort], ...] = ()
 
     def extend(self, *new_hyps: Hypothesis[Sort]) -> Context:
         return Context(hyps=self.hyps + tuple(new_hyps))
@@ -74,8 +80,43 @@ def require_sort(formula: Formula[Sort], expected: Sort, *, ctx: str) -> None:
         )
 
 
-def require_hyp_sort(h: Hypothesis[Sort], expected: Sort, *, ctx: str) -> None:
+def require_hyp_sort(
+    h: Hypothesis[Sort],
+    expected: Sort,
+    *,
+    ctx: str,
+) -> None:
     require_sort(h.body, expected, ctx=f"{ctx} (hyp={h.label!r})")
+
+
+def require_hyp_sort_typed(
+    h: Hypothesis[S],
+    expected: S,
+    *,
+    ctx: str,
+) -> None:
+    """Type-preserving variant of require_hyp_sort.
+
+    Useful when the caller already has a Hypothesis of a narrower sort (e.g.
+    Hypothesis[Literal["wff"]]) and wants a sort check without widening.
+    """
+    # Inline check to keep S generic (calling require_sort would widen to Sort).
+    if h.body.sort != expected:
+        raise PreludeTypingError(
+            f"{ctx} (hyp={h.label!r}): expected sort={expected!r}, got sort={h.body.sort!r}"
+            f" (tokens_len={len(h.body.tokens)})"
+        )
+
+
+def require_hyp_sort_narrow(
+    h: Hypothesis[Sort],
+    expected: Sort,
+    *,
+    ctx: str,
+) -> Hypothesis[Sort]:
+    """Runtime check + return value to help mypy narrow types."""
+    require_hyp_sort(h, expected, ctx=ctx)
+    return h
 
 
 # -----------------------------------------------------------------------------
@@ -90,7 +131,7 @@ class RuleSig:
       wi: (wff, wff) -> wff
       mp: (wff, wff) -> wff    (shape constraint handled by _syntactic.py)
     """
-    in_sorts: Tuple[Sort, ...]
+    in_sorts: tuple[Sort, ...]
     out_sort: Sort
 
     @property
@@ -141,6 +182,7 @@ __all__ = [
     "HypWff",
     "HypClass",
     "HypSetVar",
+    "HypothesisAny",
     "Context",
     # Errors
     "PreludeTypingError",
@@ -148,7 +190,11 @@ __all__ = [
     # Sort checks
     "require_sort",
     "require_hyp_sort",
+    "require_hyp_sort_typed",
+    "require_hyp_sort_narrow",
     # Signatures
     "RuleSig",
     "RuleApp",
+    # Sort type
+    "Sort",
 ]

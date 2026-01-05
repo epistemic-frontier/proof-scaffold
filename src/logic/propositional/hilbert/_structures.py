@@ -16,9 +16,9 @@ from prelude.typing import WFF
 # -----------------------------------------------------------------------------
 
 # Formal variables
-phi = Var("φ")
-psi = Var("ψ")
-chi = Var("χ")
+phi = Var(name="φ")
+psi = Var(name="ψ")
+chi = Var(name="χ")
 
 # Core constructors (author-visible symbols)
 Imp = Constructor("→", 2)

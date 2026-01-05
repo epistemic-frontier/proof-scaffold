@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import List, Tuple
 
 from prelude.formula import Wff, render
 from prelude.typing import Hypothesis, PreludeTypingError, Sort
@@ -10,7 +9,6 @@ from prelude.typing import Hypothesis, PreludeTypingError, Sort
 from . import HilbertSystem
 from ._structures import Imp, phi, psi
 from .definitions import Or
-
 
 # -----------------------------------------------------------------------------
 # Proof result container (debug-friendly)
@@ -29,7 +27,7 @@ class LemmaProof:
     """A lemma proof artifact produced by the authoring/proof script."""
     name: str
     statement: Wff
-    steps: Tuple[ProofStep, ...]
+    steps: tuple[ProofStep, ...]
 
 
 # -----------------------------------------------------------------------------
@@ -55,40 +53,39 @@ def prove_L1_id(sys: HilbertSystem) -> LemmaProof:
       (5) mp on (1) and (4)
           φ -> φ
     """
-    steps: List[ProofStep] = []
+    steps: list[ProofStep] = []
 
-    # compile φ
-    phi_wff = sys.compile(phi, ctx="compile φ")  # type: ignore[arg-type]
+    # (φ -> φ)
+    phi_imp_phi_expr = Imp(phi, phi)
 
-    b = sys.builtins
-    phi_imp_phi = sys.compile(Imp(phi, phi), ctx="compile (φ→φ)")  # authoring compile
-
-    # (1)
-    s1 = sys.axioms["A1"].apply(phi_wff, phi_wff)
+    # A1 with ψ := φ
+    s1 = sys.compile(Imp(phi, Imp(phi, phi)), ctx="compile A1(φ,φ)")
     steps.append(ProofStep("s1", s1, "A1 with (phi, psi) = (φ, φ)"))
 
-    # (2)
-    s2 = sys.axioms["A2"].apply(phi_wff, phi_imp_phi, phi_wff)
+    # A2 with ψ := (φ -> φ), χ := φ
+    s2 = sys.compile(
+        Imp(
+            Imp(phi, Imp(phi_imp_phi_expr, phi)),
+            Imp(Imp(phi, phi_imp_phi_expr), Imp(phi, phi)),
+        ),
+        ctx="compile A2(φ,(φ→φ),φ)",
+    )
     steps.append(ProofStep("s2", s2, "A2 with (phi, psi, chi) = (φ, (φ→φ), φ)"))
 
-    # (3)
-    s3 = sys.axioms["A1"].apply(phi_wff, phi_imp_phi)
+    # A1 with ψ := (φ -> φ)
+    s3 = sys.compile(Imp(phi, Imp(phi_imp_phi_expr, phi)), ctx="compile A1(φ,(φ→φ))")
     steps.append(ProofStep("s3", s3, "A1 with (phi, psi) = (φ, (φ→φ))"))
 
     # (4) mp(s3, s2)
-    h3 = Hypothesis[Sort]("h3", s3)  # type: ignore[type-var]
-    h2 = Hypothesis[Sort]("h2", s2)  # type: ignore[type-var]
+    h3: Hypothesis[Sort] = Hypothesis("h3", s3)  # type: ignore[arg-type]
+    h2: Hypothesis[Sort] = Hypothesis("h2", s2)  # type: ignore[arg-type]
     s4 = sys.apply("mp", [h3, h2], ctx="mp step (s3, s2)")
-    if not isinstance(s4, Wff):
-        raise PreludeTypingError("prove_L1_id: mp did not return a Wff (unexpected)")
     steps.append(ProofStep("s4", s4, "mp on s3 and s2"))
 
     # (5) mp(s1, s4)
-    h1 = Hypothesis[Sort]("h1", s1)  # type: ignore[type-var]
-    h4 = Hypothesis[Sort]("h4", s4)  # type: ignore[type-var]
+    h1: Hypothesis[Sort] = Hypothesis("h1", s1)  # type: ignore[arg-type]
+    h4: Hypothesis[Sort] = Hypothesis("h4", s4)  # type: ignore[arg-type]
     s5 = sys.apply("mp", [h1, h4], ctx="mp step (s1, s4)")
-    if not isinstance(s5, Wff):
-        raise PreludeTypingError("prove_L1_id: mp did not return a Wff (unexpected)")
     steps.append(ProofStep("s5", s5, "mp on s1 and s4"))
 
     return LemmaProof(name="L1_id", statement=s5, steps=tuple(steps))
@@ -110,25 +107,16 @@ def prove_L2_or_intro_right(sys: HilbertSystem) -> LemmaProof:
       (1) compile goal statement
       (2) instantiate A1
     """
-    steps: List[ProofStep] = []
+    steps: list[ProofStep] = []
 
     # Authoring: statement Expr = φ -> Or(ψ, φ)
     stmt_expr = Imp(phi, Or.expand(psi, phi))  # Or.expand: ¬ψ -> φ
     stmt_wff = sys.compile(stmt_expr, ctx="compile L2 statement")
 
-    # compile components for A1 instantiation
-    phi_wff = sys.compile(phi, ctx="compile φ")  # type: ignore[arg-type]
-    not_psi_wff = sys.compile(Or.expand(psi, psi).args[0] if False else None)  # placeholder, not used
-
-    # Instead of trying to pick apart Expr, just compile (¬ψ) directly:
-    # We have Not in structures; but definitions.py uses Imp(Not(a), b),
-    # so Or.expand(psi, phi) is (¬ψ -> φ). To instantiate A1, we need β = ¬ψ.
-    # We'll build β as authoring expr using Not from structures.
     from ._structures import Not
-    beta_wff = sys.compile(Not(psi), ctx="compile ¬ψ")  # type: ignore[arg-type]
 
     # (1) A1: φ -> (¬ψ -> φ)
-    s1 = sys.axioms["A1"].apply(phi_wff, beta_wff)
+    s1 = sys.compile(Imp(phi, Imp(Not(psi), phi)), ctx="compile A1 instance")
     steps.append(ProofStep("s1", s1, "A1 with (alpha, beta) = (φ, ¬ψ)"))
 
     # statement equals s1

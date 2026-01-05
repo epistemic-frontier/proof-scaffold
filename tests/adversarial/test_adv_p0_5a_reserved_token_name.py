@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import pytest
+
 from skfd.core.diag import LinkerDiagError
 from skfd.core.origin import OriginRecord, OriginTable
 from skfd.core.symbols import SymbolInterner

@@ -1,0 +1,206 @@
+# An Authoring-First Architecture for Logical Systems
+
+## 1. Motivation
+
+When developing a logical system, the most difficult phase is not verification or automation, but **condensation**:
+the stage where exploratory ideas are crystallized into a stable language, a small set of axioms, and a disciplined notion of consequence.
+
+Most proof assistants (e.g. Lean, Coq) are optimized for *large-scale formalization* of already-mature theories.
+They intentionally hide structure behind powerful type systems, automation, and inference.
+This is highly effective once the system boundary is fixed, but imposes significant cognitive overhead during the condensation phase.
+
+The goal of this design is different:
+
+> **To support the author while a logical system is being shaped, clarified, and stabilized.**
+
+This note documents an architecture that prioritizes *authoring clarity*, *explicit structure*, and *controlled growth*, while remaining compatible with later verification and compilation.
+
+---
+
+## 2. Core Design Principle
+
+The central principle is:
+
+> **Authoring precedes verification.**
+
+In particular:
+
+* The author should work with **formal variables** (φ, ψ, χ),
+* **explicit constructors** with known arity,
+* **axiom schemas** as written mathematics,
+* and **step-by-step derivations** of consequences.
+
+Low-level concerns (tokens, symbol tables, relocation, verification) are strictly downstream.
+
+---
+
+## 3. Layered Model: Language → Axioms → Consequences
+
+The architecture mirrors how mathematicians actually build theories.
+
+### 3.1 Language (Structures)
+
+The first layer declares the **language skeleton**:
+
+* Formal variables
+* Primitive constructors (connectives, relations, operations)
+* Arity and sort constraints
+
+This layer makes **no logical commitments**.
+
+Example (author-facing):
+
+```python
+phi = Var("φ")
+psi = Var("ψ")
+
+Imp = Constructor("→", 2)
+Not = Constructor("¬", 1)
+
+require(Imp, in_sorts=(wff, wff), out_sort=wff)
+require(Not, in_sorts=(wff,), out_sort=wff)
+```
+
+This is recorded as structure, not semantics.
+
+### 3.2 Axioms
+
+Axioms are **constraints on the language**, expressed as schemas.
+
+Crucially:
+
+* Axioms are **templates**, not inference rules.
+* They are written using the authoring language.
+* They are instantiated explicitly.
+
+Example:
+
+```python
+A1 = Imp(phi, Imp(psi, phi))
+```
+
+This mirrors textbook mathematics and avoids hidden inference.
+
+### 3.3 Consequences (Definitions, Lemmas, Theorems)
+
+Logical consequences are layered:
+
+* **Definitions**: conservative extensions (macros), expandable
+* **Lemmas**: internal derivations
+* **Theorems**: externally committed results
+
+This separation allows gradual stabilization without prematurely freezing the theory.
+
+---
+
+## 4. Authoring Contract vs. Implementation Contract
+
+A strict boundary is enforced.
+
+### 4.1 Authoring Contract
+
+The authoring layer:
+
+* never sees tokens
+* never sees symbol interners
+* never performs verification
+* never uses automation
+
+It only builds **Expr trees**.
+
+### 4.2 Compilation Bridge
+
+A controlled bridge lowers authoring expressions into token-level formulas:
+
+```python
+wff = system.compile(expr)
+```
+
+At this point, and only here:
+
+* symbols are interned
+* builtins are bound
+* token sequences are produced
+
+This keeps the authoring experience clean while preserving formal rigor.
+
+---
+
+## 5. Syntactic Layer and Inference Skeleton
+
+The logical system exposes a **syntactic layer**:
+
+* token-level constructors (wi, wn, wa)
+* a minimal inference skeleton (mp)
+* explicit arity/sort signatures
+
+This layer is intentionally minimal and stable.
+It does not grow with the theory.
+
+All higher reasoning happens in lemmas and theorems.
+
+---
+
+## 6. Comparison with Lean-style Authoring
+
+Lean and similar systems optimize for *automation and compression*:
+
+* complexity is paid by the system
+* inference is implicit
+* errors arise from failed unification or type inference
+
+This architecture optimizes for *clarity and control*:
+
+* complexity is paid by the author
+* inference steps are explicit
+* errors occur at precise, local points
+
+These approaches are complementary, not competing.
+
+This system is designed as a **front-end for theory condensation**, not as a replacement for proof assistants.
+
+---
+
+## 7. Resulting Directory Structure (Hilbert Example)
+
+```
+hilbert/
+  _structures.py     # language skeleton
+  _syntactic.py      # token-level syntax + mp
+  axioms.py          # axiom schemas
+  definitions.py     # conservative extensions
+  lemmas.py          # derived consequences
+  theorems.py        # committed results
+```
+
+Each file has a single, non-overlapping responsibility.
+
+---
+
+## 8. Benefits
+
+* Authoring feels like writing mathematics, not driving a framework
+* System boundaries are explicit and enforceable
+* Language growth is controlled and reversible
+* Verification and compilation remain downstream concerns
+* The architecture scales naturally to new logics
+
+---
+
+## 9. Conclusion
+
+This design treats logical systems not as monolithic artifacts, but as **objects that evolve through authoring**.
+
+By respecting the condensation phase, we gain:
+
+* clearer theories
+* more stable foundations
+* and a path from human reasoning to machine verification that remains intelligible.
+
+---
+
+If you want, the next natural follow-up note would be:
+
+**“Authoring-First Logic vs. Proof-Assistant-First Logic: Where Complexity Lives.”**
+
+That would make an excellent companion document.

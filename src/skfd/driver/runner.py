@@ -44,9 +44,41 @@ class DriverRunner:
                 logger.error(f"Failed to load manifest for {name}: {e}")
                 raise
 
+    def _resolve_dependency(self, name: str) -> None:
+        """Recursively resolve missing dependencies from installed packages."""
+        if name in self.modules:
+            return
+
+        # Attempt to load external module
+        from .discover import load_external_build_module
+        mod = load_external_build_module(name)
+        if not mod:
+            raise ValueError(f"Dependency '{name}' not found locally or as installed package")
+
+        logger.info(f"Resolved external dependency: {name}")
+        self.modules[name] = mod
+        
+        try:
+            manifest = mod.manifest()
+            self.deps_graph[name] = manifest["deps"]
+        except Exception as e:
+            logger.error(f"Failed to load manifest for external {name}: {e}")
+            raise
+            
+        # Recurse
+        for dep in manifest["deps"]:
+            self._resolve_dependency(dep)
+
     def execute_all(self) -> None:
         """Build all packages in order."""
         self.discover()
+        
+        # Ensure full closure is resolved (scan known deps)
+        # We must copy keys because we modify self.modules during iteration
+        for pkg in list(self.modules.keys()):
+             for dep in self.deps_graph.get(pkg, []):
+                 self._resolve_dependency(dep)
+
         order = sort_packages(self.deps_graph)
         logger.info(f"Build plan: {order}")
         

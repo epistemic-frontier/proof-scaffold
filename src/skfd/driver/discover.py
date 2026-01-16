@@ -24,6 +24,16 @@ def load_build_module(path: Path) -> PackageModule:
     return cast(PackageModule, module)
 
 
+def load_external_build_module(package_name: str) -> PackageModule | None:
+    """Attempt to load a build module from an installed package."""
+    try:
+        # Try importing {package_name}.build
+        module = importlib.import_module(f"{package_name}.build")
+        return cast(PackageModule, module)
+    except ImportError:
+        return None
+
+
 def find_packages(root: Path) -> Iterator[tuple[str, Path, PackageModule]]:
     """
     Scan root directory for subdirectories containing build.py.

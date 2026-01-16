@@ -1,7 +1,9 @@
 # tests/driver/test_runner.py
-import pytest
 from pathlib import Path
+
+import pytest
 from skfd.driver.runner import DriverRunner
+
 
 @pytest.fixture
 def workspace(tmp_path):

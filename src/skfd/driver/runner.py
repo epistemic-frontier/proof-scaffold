@@ -4,12 +4,11 @@ from __future__ import annotations
 import logging
 import shutil
 from pathlib import Path
-from typing import Any
 
 from skfd.builder import MMBuilder
-from skfd.core.unit import ProofUnitIR
 from skfd.core.origin import OriginTable
 from skfd.core.symbols import SymbolInterner
+from skfd.core.unit import ProofUnitIR
 from skfd.linker.emit.emit_mm import emit_mm
 
 from .discover import find_packages
@@ -73,7 +72,7 @@ class DriverRunner:
         result = mod.build(mm, **injected_deps)
         
         # Store result (default to empty dict if None)
-        self.interfaces[name] = result if result is not None else {}  # type: ignore
+        self.interfaces[name] = result if result is not None else {}
         
         # Collect LIR using correct method name
         self.lirs[name] = mm.to_proof_unit(unit_id=name)
@@ -124,7 +123,8 @@ class DriverRunner:
         result = []
         
         def visit(n: str):
-            if n in visited: return
+            if n in visited:
+                return
             visited.add(n)
             for dep in self.deps_graph.get(n, []):
                 visit(dep)

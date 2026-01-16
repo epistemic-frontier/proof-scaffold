@@ -5,10 +5,10 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from typing import TypeAlias
 
-# Wff is generic framework; imp/wa/wn/Builtins are specific content
-from skfd.authoring.formula import Wff
 from prelude.formula import Builtins, imp, try_parse_imp, wa, wn
 
+# Wff is generic framework; imp/wa/wn/Builtins are specific content
+from skfd.authoring.formula import Wff
 from skfd.authoring.rules import RuleEntry, build_catalog, rules_view
 from skfd.authoring.typing import (
     WFF,

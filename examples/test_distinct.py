@@ -1,11 +1,12 @@
 import sys
-from skfd.builder.builder import MMBuilder
-from skfd.core.symbols import SymbolInterner
-from skfd.core.origin import OriginTable
-from skfd.linker.api import LinkerV1
-from skfd.core.unit import ProofUnitIR
 
-def main():
+from skfd.builder.builder import MMBuilder
+from skfd.core.origin import OriginTable
+from skfd.core.symbols import SymbolInterner
+from skfd.linker.api import LinkerV1
+
+
+def main() -> None:
     print("Verifying Distinct Variable ($d) Support...")
     
     interner = SymbolInterner()

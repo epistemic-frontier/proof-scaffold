@@ -1,6 +1,8 @@
 # src/prelude/build.py
 from typing import Any
+
 from skfd.builder import MMBuilder
+
 
 def manifest() -> dict[str, Any]:
     return {"deps": []}

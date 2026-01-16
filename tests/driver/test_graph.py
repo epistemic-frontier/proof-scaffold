@@ -1,7 +1,9 @@
 # tests/driver/test_graph.py
+from graphlib import CycleError
+
 import pytest
 from skfd.driver.graph import sort_packages
-from graphlib import CycleError
+
 
 def test_sort_simple_chain():
     # A -> B -> C

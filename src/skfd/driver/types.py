@@ -1,7 +1,7 @@
 # skfd/driver/types.py
 from __future__ import annotations
 
-from typing import Any, Protocol, TypedDict
+from typing import Protocol, TypedDict
 
 from skfd.builder import MMBuilder
 

@@ -10,11 +10,10 @@ from skfd.core.lir import (
     FloatingHyp,
     ScopeEnter,
     ScopeExit,
-    SymbolId,
     Theorem,
     VarDecl,
 )
-from skfd.core.symbols import SymbolDef
+from skfd.core.symbols import SymbolDef, SymbolId
 from skfd.core.unit import ProofUnitIR
 
 

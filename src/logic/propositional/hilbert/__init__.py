@@ -5,15 +5,14 @@ from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any, TypeAlias
 
-from skfd.authoring.dsl import BuilderFn, CompileEnv, Expr, RequireRegistry, compile_wff
-from skfd.authoring.formula import Wff
-from skfd.authoring.typing import HypothesisAny, PreludeTypingError, RuleApp
-from skfd.core.symbols import SymbolInterner
-
 from prelude.formula import Builtins
 from prelude.formula import imp as mk_imp
 from prelude.formula import wa as mk_wa
 from prelude.formula import wn as mk_wn
+from skfd.authoring.dsl import BuilderFn, CompileEnv, Expr, RequireRegistry, compile_wff
+from skfd.authoring.formula import Wff
+from skfd.authoring.typing import HypothesisAny, PreludeTypingError, RuleApp
+from skfd.core.symbols import SymbolInterner
 
 from ._syntactic import RuleBundle, make_rules
 

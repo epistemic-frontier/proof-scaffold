@@ -5,7 +5,6 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import (
     Any,
-    TypeAlias,
 )
 
 from skfd.authoring.formula import TokenSeq, Wff

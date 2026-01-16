@@ -61,7 +61,7 @@ def build() -> tuple[OriginTable, SymbolInterner, list[ProofUnitIR]]:
     
     return ot, interner, [unit_a, unit_b]
 
-def run():
+def run() -> None:
     ot, interner, units = build()
     # Linker check
     print("Linking...")

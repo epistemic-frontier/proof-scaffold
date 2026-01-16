@@ -10,6 +10,7 @@ from typing import (
 )
 
 from skfd.core.symbols import SymbolInterner
+
 from .formula import Wff, wff_atom
 from .typing import PreludeTypingError, RuleSig, Sort
 

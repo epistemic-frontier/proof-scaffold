@@ -6,6 +6,37 @@ import subprocess
 from pathlib import Path
 
 
+def _explain_output(output: str) -> str:
+    text = output.lower()
+    messages: list[str] = []
+    if "stack underflow" in text:
+        messages.append(
+            "检测到 stack underflow：当前语句需要的强制假设多于 proof 实际提供的栈条目。"
+            "请检查 proof token 的数量和顺序，以及是否遗漏了某些必需的 `$f`/`$e`。"
+        )
+    if "stack entry" in text and "doesn't match hypothesis" in text:
+        messages.append(
+            "检测到栈条目与假设不匹配：某一步的栈顶公式与对应的 mandatory/essential hypothesis 不同。"
+            "通常意味着 proof 中标签顺序错误，或使用了错误的中间结论。"
+        )
+    if "cannot be unified" in text and "hypothesis" in text:
+        messages.append(
+            "检测到假设无法统一：verifier 无法将 proof 中给出的公式与公理/定理的假设模式对齐。"
+            "这通常是 proof 步骤顺序或子公式结构不正确导致的。"
+        )
+    if "$e" in text and "top level" in text:
+        messages.append(
+            "检测到 $e 作用域错误：$e 只能出现在 `${ ... $}` 作用域块内，不能在顶层声明。"
+            "建议将相关规则 skeleton 包裹在作用域块中。"
+        )
+    if not messages:
+        return ""
+    lines = ["", "Explanation:"]
+    for m in messages:
+        lines.append(f"- {m}")
+    return "\n".join(lines)
+
+
 def verify(command: list[str], mm_file: Path, timeout_sec: int = 60) -> None:
     """
     Run a verifier command against a .mm file.
@@ -37,12 +68,14 @@ def verify(command: list[str], mm_file: Path, timeout_sec: int = 60) -> None:
         print(proc.stdout)
 
     if proc.returncode != 0:
-        error_msg = (
-            "Metamath verification failed\n"
-            f"cmd:      {full_cmd}\n"
-            f"return:   {proc.returncode}\n"
-            f"output:\n{proc.stdout}"
-        )
+        explanation = _explain_output(proc.stdout or "")
+        error_msg = "Metamath verification failed\n"
+        error_msg += f"cmd:      {full_cmd}\n"
+        error_msg += f"return:   {proc.returncode}\n"
+        error_msg += "output:\n"
+        error_msg += proc.stdout or ""
+        if explanation:
+            error_msg += f"\n{explanation}"
 
         map_file = mm_file.with_suffix(".mm.map")
         if map_file.exists():

@@ -276,6 +276,115 @@ def _cmd_verify(args: argparse.Namespace) -> int:
         return 1
 
 
+def _cmd_debug(args: argparse.Namespace) -> int:
+    """Build a package and print mm + source context for a specific label."""
+    root = (args.root or Path.cwd()) / "src"
+    target = (args.root or Path.cwd()) / "target"
+
+    if not root.exists():
+        print(f"Error: Source directory not found: {root}", file=sys.stderr)
+        return 1
+
+    print(f"Initializing build driver (src={root}, target={target})...")
+    runner = DriverRunner(root, target)
+
+    try:
+        print("Building all packages...")
+        runner.execute_all()
+
+        pkg = args.package
+        if pkg not in runner.lirs and "." in pkg:
+            root_pkg = pkg.split(".", 1)[0]
+            if root_pkg in runner.lirs:
+                print(
+                    f"Package '{pkg}' not found as a build unit; "
+                    f"falling back to top-level package '{root_pkg}'."
+                )
+                pkg = root_pkg
+
+        level = getattr(args, "level", 0)
+        print(f"Verifying package '{pkg}' (Level {level}) to emit monolith...")
+        runner.verify_package(pkg, conformance_level=level)
+
+        mm_file = target / f"{pkg}_full.mm"
+        map_file = target / f"{pkg}_full.mm.map"
+
+        if not mm_file.exists():
+            print(f"Error: Verification artifact not found: {mm_file}", file=sys.stderr)
+            return 1
+
+        if not map_file.exists():
+            print(f"Error: Source map not found: {map_file}", file=sys.stderr)
+            return 1
+
+        label = args.label
+        context_radius = getattr(args, "context", 4)
+
+        try:
+            with open(mm_file, encoding="utf-8") as f_mm:
+                mm_lines = f_mm.read().splitlines()
+        except Exception as e:
+            print(f"Error: Failed to read {mm_file}: {e}", file=sys.stderr)
+            return 1
+
+        label_line_idx: int | None = None
+        for i, line in enumerate(mm_lines):
+            stripped = line.strip()
+            if not stripped or stripped.startswith("$("):
+                continue
+            first = stripped.split()[0]
+            if first == label:
+                label_line_idx = i
+                break
+
+        if label_line_idx is None:
+            print(
+                f"Error: Label '{label}' not found in {mm_file}", file=sys.stderr
+            )
+            return 1
+
+        try:
+            import json
+
+            with open(map_file, encoding="utf-8") as f_map:
+                map_data = json.load(f_map)
+        except Exception as e:
+            print(f"Error: Failed to read source map {map_file}: {e}", file=sys.stderr)
+            return 1
+
+        origin_ref = None
+        mm_line_no = label_line_idx + 1
+        for entry in map_data.get("mappings", []):
+            if entry.get("line") == mm_line_no:
+                origin_ref = entry.get("origin_ref")
+                break
+
+        origin_str = ""
+        if origin_ref is not None:
+            origins = map_data.get("origins", [])
+            if isinstance(origin_ref, int) and 0 <= origin_ref < len(origins):
+                orig = origins[origin_ref]
+                src_file = orig.get("file", "??")
+                src_line = orig.get("line", "??")
+                origin_str = f"{src_file}:{src_line}"
+
+        start = max(0, label_line_idx - context_radius)
+        end = min(len(mm_lines), label_line_idx + context_radius + 1)
+        print(f"Debugging label '{label}' in package '{pkg}':\n")
+        if origin_str:
+            print(f"--> Source Origin: {origin_str}")
+        print(f"--> MM context around line {mm_line_no} in {mm_file}:\n")
+        for i in range(start, end):
+            prefix = ">" if i == label_line_idx else " "
+            print(f"{prefix} {i+1:6d}: {mm_lines[i]}")
+
+        return 0
+
+    except Exception as e:
+        print(f"Debug failed: {e}", file=sys.stderr)
+        return 1
+
+
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(prog="skfd", description="ProofScaffold CLI")
     p.add_argument("--root", type=Path, help="Project root", default=None)
@@ -343,6 +452,29 @@ def main(argv: list[str] | None = None) -> int:
         help="Conformance level (0=Loose, 1=Strict Interface, 2=FOL)",
     )
     p_verify.set_defaults(func=_cmd_verify)
+
+    # --- debug (mm slice) ---
+    p_debug = sub.add_parser(
+        "debug", help="Build package and show mm + source context for a label"
+    )
+    p_debug.add_argument(
+        "package", help="Name of the package to debug (e.g. 'logic')"
+    )
+    p_debug.add_argument("label", help="Metamath label to inspect (e.g. 'L1_id')")
+    p_debug.add_argument(
+        "--level",
+        type=int,
+        default=0,
+        choices=[0, 1, 2],
+        help="Conformance level (0=Loose, 1=Strict Interface, 2=FOL)",
+    )
+    p_debug.add_argument(
+        "--context",
+        type=int,
+        default=4,
+        help="Number of lines of context to show before/after the label line",
+    )
+    p_debug.set_defaults(func=_cmd_debug)
 
     args = p.parse_args(argv)
 

@@ -6,8 +6,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from skfd.core.diag import LinkerDiagError
-
 
 @dataclass
 class SliceReport:

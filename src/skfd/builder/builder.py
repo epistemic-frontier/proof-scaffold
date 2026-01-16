@@ -41,7 +41,7 @@ class MMBuilder:
         self._variables: set[str] = set()
         self._labels: set[str] = set()
         self._imports: dict[str, SymbolId] = {}
-        
+
         # Origin provider
         self._origin: OriginProvider = InspectOriginAdapter(origin_table, module_id)
 
@@ -63,7 +63,7 @@ class MMBuilder:
             origin_module_id=self._module_id,
             local_name=name,
             kind="Const",
-            origin_ref=self._origin.here_ref(depth=3), # depth adjusted for caller
+            origin_ref=self._origin.here_ref(depth=3),  # depth adjusted for caller
         )
 
     def _intern_var(self, name: str) -> SymbolId:
@@ -145,9 +145,13 @@ class MMBuilder:
             # We assume the caller passes valid SymbolIds from another unit.
             if name in self._imports:
                 raise MMDSLError(f"symbol '{name}' already imported")
-            if name in self._constants or name in self._variables or name in self._labels:
+            if (
+                name in self._constants
+                or name in self._variables
+                or name in self._labels
+            ):
                 raise MMDSLError(f"symbol '{name}' conflicts with local declaration")
-            
+
             self._imports[name] = sid
         return self
 
@@ -175,10 +179,10 @@ class MMBuilder:
         """
         if len(vars) < 2:
             raise MMDSLError("$d must have at least 2 variables")
-        
+
         var_ids: list[SymbolId] = []
         o = self._origin.here_ref()
-        
+
         for vname in vars:
             # Must be a declared variable or imported
             if vname in self._imports:
@@ -217,7 +221,7 @@ class MMBuilder:
                 origin_ref=o,
             )
             ids.append(sid)
-        
+
         for v in self._visitors:
             v.const_decl(symbols, ids, o)
         return self
@@ -248,15 +252,15 @@ class MMBuilder:
 
     def f(self, label: str, typecode: str, var: str) -> MMBuilder:
         o = self._origin.here_ref()
-        
+
         # Check variable
         if var not in self._variables and var not in self._imports:
             raise MMDSLError(f"$f variable '{var}' not declared via $v or import")
-            
+
         # Check typecode
         if typecode not in self._constants and typecode not in self._imports:
             raise MMDSLError(f"$f typecode '{typecode}' not declared via $c or import")
-        
+
         self._labels.add(label)
         self._scope.register_local_label(label)
         self._scope.activate_f(var, label)
@@ -265,9 +269,9 @@ class MMBuilder:
             origin_module_id=self._module_id,
             local_name=label,
             kind="Label",
-            origin_ref=o
+            origin_ref=o,
         )
-        
+
         # Resolve vars/consts handling imports
         tid = self._resolve_token(typecode)
         vid = self._resolve_token(var)
@@ -279,13 +283,13 @@ class MMBuilder:
     def e(self, label: str, typecode: str, eexpr: Sequence[str] | str) -> MMBuilder:
         o = self._origin.here_ref()
         if typecode not in self._constants and typecode not in self._imports:
-             raise MMDSLError(f"$e typecode '{typecode}' not declared via $c or import")
-        
+            raise MMDSLError(f"$e typecode '{typecode}' not declared via $c or import")
+
         tokens = eexpr.split() if isinstance(eexpr, str) else list(eexpr)
         token_ids = [self._resolve_token(t) for t in tokens]
         # NEW: Resolve typecode
         typecode_id = self._resolve_token(typecode)
-        
+
         self._labels.add(label)
         self._scope.register_local_label(label)
         self._scope.activate_e(label)
@@ -294,9 +298,9 @@ class MMBuilder:
             origin_module_id=self._module_id,
             local_name=label,
             kind="Label",
-            origin_ref=o
+            origin_ref=o,
         )
-        
+
         for v in self._visitors:
             v.essential_hyp(label, typecode, tokens, lid, typecode_id, token_ids, o)
         return self
@@ -304,13 +308,13 @@ class MMBuilder:
     def a(self, label: str, typecode: str, aexpr: Sequence[str] | str) -> MMBuilder:
         o = self._origin.here_ref()
         if typecode not in self._constants and typecode not in self._imports:
-             raise MMDSLError(f"$a typecode '{typecode}' not declared via $c or import")
-        
+            raise MMDSLError(f"$a typecode '{typecode}' not declared via $c or import")
+
         tokens = aexpr.split() if isinstance(aexpr, str) else list(aexpr)
         token_ids = [self._resolve_token(t) for t in tokens]
         # NEW: Resolve typecode
         typecode_id = self._resolve_token(typecode)
-        
+
         self._labels.add(label)
         self._scope.register_local_label(label)
 
@@ -318,9 +322,9 @@ class MMBuilder:
             origin_module_id=self._module_id,
             local_name=label,
             kind="Label",
-            origin_ref=o
+            origin_ref=o,
         )
-        
+
         for v in self._visitors:
             v.axiom(label, typecode, tokens, lid, typecode_id, token_ids, o)
         return self
@@ -336,8 +340,8 @@ class MMBuilder:
     ) -> MMBuilder:
         o = self._origin.here_ref()
         if typecode not in self._constants and typecode not in self._imports:
-             raise MMDSLError(f"$p typecode '{typecode}' not declared via $c or import")
-        
+            raise MMDSLError(f"$p typecode '{typecode}' not declared via $c or import")
+
         tokens = pexpr.split() if isinstance(pexpr, str) else list(pexpr)
         token_ids = [self._resolve_token(t) for t in tokens]
         # NEW: Resolve typecode
@@ -349,12 +353,12 @@ class MMBuilder:
             raw_proof = proof.split()
         else:
             raw_proof = proof
-            
+
         proof_ids: list[SymbolId] = []
         proof_strs: list[str] = []
-        
+
         for step in raw_proof:
-            if isinstance(step, int): # SymbolId
+            if isinstance(step, int):  # SymbolId
                 # It's an imported/explicit symbol ID
                 proof_ids.append(step)
                 defn = self._interner.symbol_table().get(step)
@@ -365,7 +369,7 @@ class MMBuilder:
                     proof_strs.append(step)
                     proof_ids.append(self._imports[step])
                     continue
-                
+
                 if step not in self._scope.visible_labels():
                     raise MMDSLError(f"proof step '{step}' is not visible/known")
                 proof_strs.append(step)
@@ -381,11 +385,21 @@ class MMBuilder:
             origin_module_id=self._module_id,
             local_name=label,
             kind="Label",
-            origin_ref=o
+            origin_ref=o,
         )
 
         for v in self._visitors:
-            v.theorem(label, typecode, tokens, proof_strs, lid, typecode_id, token_ids, proof_ids, o)
+            v.theorem(
+                label,
+                typecode,
+                tokens,
+                proof_strs,
+                lid,
+                typecode_id,
+                token_ids,
+                proof_ids,
+                o,
+            )
         return self
 
     # -----------------
@@ -397,7 +411,7 @@ class MMBuilder:
     def to_proof_unit(self, unit_id: str) -> ProofUnitIR:
         # Create final ProofUnitIR
         o = self._origin.here_ref()
-        
+
         return ProofUnitIR(
             unit_id=unit_id,
             origin_ref=o,

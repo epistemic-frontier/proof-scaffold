@@ -40,6 +40,7 @@ class Formula(Generic[S]):
     - tokens are layout-agnostic (no whitespace)
     - Formula does not carry provenance; provenance lives elsewhere (Hypothesis/IR side-table)
     """
+
     sort: S
     tokens: TokenSeq
 
@@ -59,6 +60,7 @@ SetVar = Formula[SetVarSort]
 # Generic Constructors
 # -----------------------------------------------------------------------------
 
+
 def wff_atom(sym: SymbolId) -> Wff:
     """Construct an atomic wff from a single symbol token (usually a Var/Const)."""
     return Wff("wff", (sym,))
@@ -67,6 +69,7 @@ def wff_atom(sym: SymbolId) -> Wff:
 # -----------------------------------------------------------------------------
 # Debug rendering (optional)
 # -----------------------------------------------------------------------------
+
 
 def render(tokens: Sequence[SymbolId], *, symtab: Mapping[SymbolId, Any]) -> str:
     """Render tokens using a symbol table (SymbolId -> SymbolDef-like with .local_name).

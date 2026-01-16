@@ -17,6 +17,7 @@ SETVAR: Final[Sort] = "setvar"
 # Errors
 # -----------------------------------------------------------------------------
 
+
 class PreludeTypingError(TypeError):
     """Raised when typed scaffold constraints are violated."""
 
@@ -29,9 +30,11 @@ class PreludeShapeError(ValueError):
 # Core objects: Hypothesis / Judgment Context
 # -----------------------------------------------------------------------------
 
+
 @dataclass(frozen=True)
 class Hypothesis(Generic[S]):
     """A labeled hypothesis with a typed body."""
+
     label: str
     body: Formula[S]
 
@@ -53,6 +56,7 @@ class Context:
     Prelude only: no scope frames, no exports; linker handles that later.
     This is used by DSL builder to carry the currently available hyps.
     """
+
     hyps: tuple[Hypothesis[Sort], ...] = ()
 
     def extend(self, *new_hyps: Hypothesis[Sort]) -> Context:
@@ -72,6 +76,7 @@ class Context:
 # -----------------------------------------------------------------------------
 # Sort checks
 # -----------------------------------------------------------------------------
+
 
 def require_sort(formula: Formula[Sort], expected: Sort, *, ctx: str) -> None:
     if formula.sort != expected:
@@ -123,6 +128,7 @@ def require_hyp_sort_narrow(
 # Rule signatures (the "typing" part)
 # -----------------------------------------------------------------------------
 
+
 @dataclass(frozen=True)
 class RuleSig:
     """Rule signature: input sorts -> output sort.
@@ -131,6 +137,7 @@ class RuleSig:
       wi: (wff, wff) -> wff
       mp: (wff, wff) -> wff    (shape constraint handled by _syntactic.py)
     """
+
     in_sorts: tuple[Sort, ...]
     out_sort: Sort
 
@@ -146,9 +153,12 @@ class RuleApp:
     This object does not *execute* the rule; it only validates arity/sorts.
     Execution remains in prelude/_syntactic.py to keep responsibilities crisp.
     """
+
     sigs: Mapping[str, RuleSig]
 
-    def check(self, label: str, hyps: Sequence[Hypothesis[Sort]], *, ctx: str) -> RuleSig:
+    def check(
+        self, label: str, hyps: Sequence[Hypothesis[Sort]], *, ctx: str
+    ) -> RuleSig:
         sig = self.sigs.get(label)
         if sig is None:
             raise PreludeTypingError(f"{ctx}: unknown rule label {label!r}")

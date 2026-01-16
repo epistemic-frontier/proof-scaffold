@@ -195,36 +195,36 @@ def _cmd_verify(args: argparse.Namespace) -> int:
     """Run driver verification for a package."""
     root = (args.root or Path.cwd()) / "src"
     target = (args.root or Path.cwd()) / "target"
-    
+
     if not root.exists():
         print(f"Error: Source directory not found: {root}", file=sys.stderr)
         return 1
-        
+
     print(f"Initializing build driver (src={root}, target={target})...")
     runner = DriverRunner(root, target)
-    
+
     try:
         # Build phase
         print("Building all packages...")
         runner.execute_all()
-        
+
         # Verify phase
         pkg = args.package
         print(f"Verifying package '{pkg}'...")
         runner.verify_package(pkg)
-        
+
         # Now run configured verifiers
         outfile = target / f"{pkg}_full.mm"
         if not outfile.exists():
-             print(f"Error: Verification artifact not found: {outfile}", file=sys.stderr)
-             return 1
+            print(f"Error: Verification artifact not found: {outfile}", file=sys.stderr)
+            return 1
 
         cfg = load_config(args.root)
         active_cmds = cfg.get_active_commands()
-        
+
         if not active_cmds:
             print("Warning: No active verifiers configured.", file=sys.stderr)
-        
+
         all_passed = True
         for name, cmd in active_cmds:
             print(f"[{name}] Verifying {outfile.name}... ", end="", flush=True)
@@ -235,7 +235,7 @@ def _cmd_verify(args: argparse.Namespace) -> int:
                 print("FAIL")
                 print(f"    Error: {e}")
                 all_passed = False
-                
+
         if all_passed:
             print("Verification completed successfully.")
             return 0
@@ -291,7 +291,9 @@ def main(argv: list[str] | None = None) -> int:
 
     # --- verify (driver) ---
     p_verify = sub.add_parser("verify", help="Build and verify a package")
-    p_verify.add_argument("package", help="Name of the package to verify (e.g. 'logic')")
+    p_verify.add_argument(
+        "package", help="Name of the package to verify (e.g. 'logic')"
+    )
     p_verify.set_defaults(func=_cmd_verify)
 
     args = p.parse_args(argv)

@@ -75,7 +75,9 @@ class LIRVisitor(BuilderVisitor):
         expr_id: Sequence[SymbolId],
         origin_ref: OriginRef,
     ) -> None:
-        self._stmts.append(EssentialHyp(self._id(), origin_ref, label_id, typecode_id, list(expr_id)))
+        self._stmts.append(
+            EssentialHyp(self._id(), origin_ref, label_id, typecode_id, list(expr_id))
+        )
 
     def axiom(
         self,
@@ -87,7 +89,9 @@ class LIRVisitor(BuilderVisitor):
         expr_id: Sequence[SymbolId],
         origin_ref: OriginRef,
     ) -> None:
-        self._stmts.append(Axiom(self._id(), origin_ref, label_id, typecode_id, list(expr_id)))
+        self._stmts.append(
+            Axiom(self._id(), origin_ref, label_id, typecode_id, list(expr_id))
+        )
 
     def theorem(
         self,
@@ -103,7 +107,12 @@ class LIRVisitor(BuilderVisitor):
     ) -> None:
         self._stmts.append(
             Theorem(
-                self._id(), origin_ref, label_id, typecode_id, list(expr_id), list(proof_id)
+                self._id(),
+                origin_ref,
+                label_id,
+                typecode_id,
+                list(expr_id),
+                list(proof_id),
             )
         )
 

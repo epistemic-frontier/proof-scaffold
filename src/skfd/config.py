@@ -44,9 +44,7 @@ class SkfdConfig:
 
                     import skfd.verifier
 
-                    mmverify_path = (
-                        Path(skfd.verifier.__file__).parent / "mmverify.py"
-                    )
+                    mmverify_path = Path(skfd.verifier.__file__).parent / "mmverify.py"
                     res.append((name, [sys.executable, str(mmverify_path)]))
                 continue
 

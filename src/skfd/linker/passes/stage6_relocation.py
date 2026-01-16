@@ -20,14 +20,14 @@ def run(symtab: dict[SymbolId, SymbolDef]) -> dict[SymbolId, str]:
         defn = symtab[sid]
         base_name = defn.local_name
         candidate = base_name
-        
+
         # Collision resolution strategy: append numeric suffix
         # Deterministic because input order is deterministic.
         counter = 0
         while candidate in used_names:
             candidate = f"{base_name}{counter}"
             counter += 1
-        
+
         used_names.add(candidate)
         reloc_table[sid] = candidate
 

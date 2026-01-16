@@ -24,20 +24,16 @@ def run() -> None:
     ot = OriginTable()
     interner = SymbolInterner()
 
-    mm = MMBuilder(
-        interner=interner,
-        origin_table=ot,
-        module_id=MODULE_ID
-    )
+    mm = MMBuilder(interner=interner, origin_table=ot, module_id=MODULE_ID)
 
     try:
         # This calls interner.intern(), which checks for '$' prefix and raises LinkerDiagError
         mm.c("$bad")
-        
+
         # If builder check is bypassed (unlikely), link should fail
         unit = mm.to_proof_unit(UNIT_ID)
         LinkerV1.link(units=[unit], origin_table=ot, interner=interner)
-        
+
     except LinkerDiagError as e:
         # Check specific error code
         if e.diag.error_code == "E_RESERVED_TOKEN_NAME":

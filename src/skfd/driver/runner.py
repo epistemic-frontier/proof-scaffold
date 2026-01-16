@@ -24,11 +24,11 @@ class DriverRunner:
         self.target_dir = target_dir
         self.interner = SymbolInterner()
         self.origin_table = OriginTable()
-        
+
         # Build artifacts
         self.interfaces: dict[str, ModuleInterface] = {}
         self.lirs: dict[str, ProofUnitIR] = {}
-        
+
         # Discovered modules
         self.modules: dict[str, PackageModule] = {}
         self.deps_graph: dict[str, list[str]] = {}
@@ -51,20 +51,23 @@ class DriverRunner:
 
         # Attempt to load external module
         from .discover import load_external_build_module
+
         mod = load_external_build_module(name)
         if not mod:
-            raise ValueError(f"Dependency '{name}' not found locally or as installed package")
+            raise ValueError(
+                f"Dependency '{name}' not found locally or as installed package"
+            )
 
         logger.info(f"Resolved external dependency: {name}")
         self.modules[name] = mod
-        
+
         try:
             manifest = mod.manifest()
             self.deps_graph[name] = manifest["deps"]
         except Exception as e:
             logger.error(f"Failed to load manifest for external {name}: {e}")
             raise
-            
+
         # Recurse
         for dep in manifest["deps"]:
             self._resolve_dependency(dep)
@@ -72,16 +75,16 @@ class DriverRunner:
     def execute_all(self) -> None:
         """Build all packages in order."""
         self.discover()
-        
+
         # Ensure full closure is resolved (scan known deps)
         # We must copy keys because we modify self.modules during iteration
         for pkg in list(self.modules.keys()):
-             for dep in self.deps_graph.get(pkg, []):
-                 self._resolve_dependency(dep)
+            for dep in self.deps_graph.get(pkg, []):
+                self._resolve_dependency(dep)
 
         order = sort_packages(self.deps_graph)
         logger.info(f"Build plan: {order}")
-        
+
         for pkg_name in order:
             self.build_package(pkg_name)
 
@@ -90,22 +93,20 @@ class DriverRunner:
         logger.info(f"Building {name}...")
         mod = self.modules[name]
         deps_names = self.deps_graph[name]
-        
+
         # Resolve injected dependencies
         injected_deps = {dep: self.interfaces[dep] for dep in deps_names}
-        
+
         mm = MMBuilder(
-            interner=self.interner,
-            origin_table=self.origin_table,
-            module_id=name
+            interner=self.interner, origin_table=self.origin_table, module_id=name
         )
-        
+
         # Execute hook
         result = mod.build(mm, **injected_deps)
-        
+
         # Store result (default to empty dict if None)
         self.interfaces[name] = result if result is not None else {}
-        
+
         # Collect LIR using correct method name
         self.lirs[name] = mm.to_proof_unit(unit_id=name)
 
@@ -123,27 +124,25 @@ class DriverRunner:
         # 1. Identify dependencies
         chain = self._get_transitive_deps(name)
         chain.append(name)
-        
+
         logger.info(f"Verifying {name} (monolith chain: {chain})...")
-        
+
         # 2. Collect dependency units
         units = [self.lirs[n] for n in chain]
-        
+
         # 3. Emit
         self.target_dir.mkdir(parents=True, exist_ok=True)
         outfile = self.target_dir / f"{name}_full.mm"
-        
+
         with open(outfile, "w", encoding="utf-8") as f:
             # Pass list of units to LinkerV1
             res = LinkerV1.link(
-                units=units, 
-                origin_table=self.origin_table, 
-                interner=self.interner
+                units=units, origin_table=self.origin_table, interner=self.interner
             )
             f.write(res.mm_text)
-            
+
         logger.info(f"Generated verification monolith: {outfile}")
-        
+
         # 4. Run metamath-exe (if available)
         if shutil.which("metamath"):
             logger.info("Running metamath-exe...")
@@ -155,7 +154,7 @@ class DriverRunner:
         """Return list of dependencies in topological order (deps only)."""
         visited = set()
         result = []
-        
+
         def visit(n: str):
             if n in visited:
                 return
@@ -168,5 +167,5 @@ class DriverRunner:
         # Iterate deps_graph[root] and visit
         for dep in self.deps_graph.get(root, []):
             visit(dep)
-            
+
         return result

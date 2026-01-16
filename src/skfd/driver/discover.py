@@ -16,11 +16,11 @@ def load_build_module(path: Path) -> PackageModule:
     spec = importlib.util.spec_from_file_location(module_name, path)
     if spec is None or spec.loader is None:
         raise ImportError(f"Could not load build module from {path}")
-    
+
     module = importlib.util.module_from_spec(spec)
     sys.modules[module_name] = module
     spec.loader.exec_module(module)
-    
+
     return cast(PackageModule, module)
 
 
@@ -37,7 +37,7 @@ def load_external_build_module(package_name: str) -> PackageModule | None:
 def find_packages(root: Path) -> Iterator[tuple[str, Path, PackageModule]]:
     """
     Scan root directory for subdirectories containing build.py.
-    
+
     Yields:
         (package_name, package_dir, build_module)
     """

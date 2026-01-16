@@ -32,9 +32,11 @@ ExprSortAny = Literal["wff"]  # placeholder for future extension
 # Expr AST
 # -----------------------------------------------------------------------------
 
+
 @dataclass(frozen=True)
 class Expr:
     """Base class for authoring expressions."""
+
     sort: ExprSortAny = field(default="wff", init=False)
 
 
@@ -45,13 +47,17 @@ class Var(Expr):
     `name` is a human label used for pretty printing.
     Compilation will map it to a SymbolId via SymbolInterner.
     """
+
     name: str
 
 
 @dataclass(frozen=True)
 class App(Expr):
     """Application of a Constructor to argument Exprs."""
-    ctor: Constructor = field(compare=False, default_factory=lambda: Constructor("<unset>", 0))
+
+    ctor: Constructor = field(
+        compare=False, default_factory=lambda: Constructor("<unset>", 0)
+    )
     args: tuple[Expr, ...] = field(compare=False, default_factory=tuple)
 
     # keep Expr.sort default
@@ -60,6 +66,7 @@ class App(Expr):
 # -----------------------------------------------------------------------------
 # Constructors
 # -----------------------------------------------------------------------------
+
 
 @dataclass(frozen=True)
 class Constructor:
@@ -73,6 +80,7 @@ class Constructor:
     Call syntax:
       Imp(phi, psi)  -> App(Imp, (phi, psi))
     """
+
     name: str
     arity: int
 
@@ -88,6 +96,7 @@ class Constructor:
 # Require mechanism: declare the language skeleton
 # -----------------------------------------------------------------------------
 
+
 @dataclass(frozen=True)
 class RequireSpec:
     """A declaration that a Constructor is a well-typed operator.
@@ -96,6 +105,7 @@ class RequireSpec:
       - in_sorts: tuple of sorts
       - out_sort: sort
     """
+
     ctor: Constructor
     sig: RuleSig
     notes: str = ""
@@ -174,12 +184,12 @@ BuilderFn: TypeAlias = Callable[[Any, Sequence[Wff]], Wff]
 @dataclass(frozen=True)
 class CompileEnv:
     """Compilation environment for lowering authoring Expr to Wff tokens."""
+
     interner: SymbolInterner
     builtins: Any  # Opaque logic-specific builtins object
-    ctor_builders: Mapping[str, BuilderFn] # Must be provided by the logic system
+    ctor_builders: Mapping[str, BuilderFn]  # Must be provided by the logic system
     origin_module_id: str = "authoring"
     origin_ref: Any = None
-    
 
 
 def compile_wff(
@@ -209,13 +219,19 @@ def compile_wff(
     if isinstance(expr, App):
         spec = registry.spec_for(expr.ctor)
         if spec is None:
-            raise PreludeTypingError(f"compile: constructor not required: {expr.ctor.name!r}")
+            raise PreludeTypingError(
+                f"compile: constructor not required: {expr.ctor.name!r}"
+            )
 
         # Sort check: currently only wff supported; keep generic for future.
         if spec.sig.out_sort != "wff":
-            raise PreludeTypingError(f"compile: only wff out_sort supported (got {spec.sig.out_sort!r})")
+            raise PreludeTypingError(
+                f"compile: only wff out_sort supported (got {spec.sig.out_sort!r})"
+            )
         if any(s != "wff" for s in spec.sig.in_sorts):
-            raise PreludeTypingError("compile: only wff in_sorts supported in this phase")
+            raise PreludeTypingError(
+                "compile: only wff in_sorts supported in this phase"
+            )
 
         if len(expr.args) != spec.sig.arity:
             raise PreludeTypingError(
@@ -225,7 +241,9 @@ def compile_wff(
 
         builder = env.ctor_builders.get(expr.ctor.name)
         if builder is None:
-            raise PreludeTypingError(f"compile: no builder for constructor {expr.ctor.name!r}")
+            raise PreludeTypingError(
+                f"compile: no builder for constructor {expr.ctor.name!r}"
+            )
 
         args_wff = [compile_wff(a, env=env, registry=registry) for a in expr.args]
         return builder(env.builtins, args_wff)
@@ -236,6 +254,7 @@ def compile_wff(
 # -----------------------------------------------------------------------------
 # Pretty printing (author-facing)
 # -----------------------------------------------------------------------------
+
 
 def pretty(expr: Expr) -> str:
     """A minimal pretty printer for authoring expressions."""

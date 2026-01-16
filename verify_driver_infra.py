@@ -13,10 +13,10 @@ from skfd.driver.graph import sort_packages
 def main() -> None:
     root = Path("src")
     print(f"Scanning {root.absolute()}...")
-    
+
     packages = {}
     modules = {}
-    
+
     # 1. Discovery
     for pkg_name, pkg_path, module in find_packages(root):
         print(f"Found package: {pkg_name} at {pkg_path}")
@@ -33,11 +33,11 @@ def main() -> None:
     try:
         order = sort_packages(packages)
         print(f"\nBuild Order: {order}")
-        
-        expected = ['prelude', 'logic']
+
+        expected = ["prelude", "logic"]
         # Filter order to only include expected (there might be other folders)
         filtered_order = [p for p in order if p in expected]
-        
+
         if filtered_order == expected:
             print("SUCCESS: Order matches expected [prelude -> logic]")
         else:
@@ -47,6 +47,7 @@ def main() -> None:
     except Exception as e:
         print(f"Sort failed: {e}")
         sys.exit(1)
+
 
 if __name__ == "__main__":
     main()

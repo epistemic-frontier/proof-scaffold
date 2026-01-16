@@ -35,39 +35,41 @@ def run(*, ctx, units: list[ProofUnitIR]) -> list[ProofUnitIR]:
     # We use Unit object identity or unit_id (str) as key. Using unit_id for determinism/simplicity.
     symbol_owner: dict[SymbolId, str] = {}
     unit_exports: dict[str, set[SymbolId]] = {}
-    
+
     for u in units:
         uid = u.unit_id
         unit_exports[uid] = set(u.exports)
-        
+
         # Scan definitions to map ownership
         # Note: CONST/VAR are global-ish, but LABELS are owned by units.
         # We only care about Labels for export checks.
         for st in u.lir_stmts:
-            if isinstance(st, (Theorem, ConstDecl, VarDecl)):
-                 # Theorems define a label (st.label)
-                 if hasattr(st, "label"):
-                     symbol_owner[st.label] = uid
+            if isinstance(st, Theorem | ConstDecl | VarDecl):
+                # Theorems define a label (st.label)
+                if hasattr(st, "label"):
+                    symbol_owner[st.label] = uid
             # Axiom, FloatingHyp, EssentialHyp also define labels
             # But wait, LIR classes:
             # Axiom(label...), Theorem(label...), FloatingHyp(label...), EssentialHyp(label...)
             # We need to handle all labelled statements.
-        
+
         # Hand-checking LIR types from memory/imports...
         # Let's be generic or import all types to be safe.
-        # Currently imported: ConstDecl, Theorem, VarDecl. 
+        # Currently imported: ConstDecl, Theorem, VarDecl.
         # Need to import others or inspect dynamically?
         # Inspecting `st.label` presence is safer if we trust LIR structure.
         pass
 
     # Re-scan for full label ownership
     from skfd.core.lir import Axiom, EssentialHyp, FloatingHyp
-    
+
     for u in units:
         uid = u.unit_id
         for st in u.lir_stmts:
-             if hasattr(st, "label") and isinstance(st, (Theorem, Axiom, FloatingHyp, EssentialHyp)):
-                 symbol_owner[st.label] = uid
+            if hasattr(st, "label") and isinstance(
+                st, Theorem | Axiom | FloatingHyp | EssentialHyp
+            ):
+                symbol_owner[st.label] = uid
 
     for u in units:
         for st in u.lir_stmts:
@@ -95,7 +97,7 @@ def run(*, ctx, units: list[ProofUnitIR]) -> list[ProofUnitIR]:
                             tok_id=t,
                             tok_kind=k,
                         )
-                    
+
                     # Access Control Check
                     if t in symbol_owner:
                         owner_uid = symbol_owner[t]
@@ -120,7 +122,7 @@ def run(*, ctx, units: list[ProofUnitIR]) -> list[ProofUnitIR]:
                         # But maybe some symbols come from 'prelude' which might be treated differently?
                         # No, prelude is just another unit in LinkerV1.
                         # So we should fail if definition is missing.
-                        pass 
+                        pass
 
             elif isinstance(st, ConstDecl | VarDecl):
                 # tokens already SymbolIds; just ensure exist and kind matches.

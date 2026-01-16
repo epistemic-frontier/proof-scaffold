@@ -27,16 +27,11 @@ def build_units() -> tuple[OriginTable, SymbolInterner, list[ProofUnitIR]]:
     ot = OriginTable()
     interner = SymbolInterner()
 
-    mm = MMBuilder(
-        interner=interner,
-        origin_table=ot,
-        module_id=MODULE_ID
-    )
+    mm = MMBuilder(interner=interner, origin_table=ot, module_id=MODULE_ID)
 
     # Minimal: declare $c/$v, declare $f, prove theorem by referencing $f label.
     (
-        mm
-        .c("|-")
+        mm.c("|-")
         .v("ph")
         .f("wph", "|-", "ph")
         # NOTE: .p() takes (label, typecode, expr_str, proof)
@@ -47,7 +42,7 @@ def build_units() -> tuple[OriginTable, SymbolInterner, list[ProofUnitIR]]:
     )
 
     unit = mm.to_proof_unit(UNIT_ID)
-    
+
     return ot, interner, [unit]
 
 

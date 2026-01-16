@@ -66,7 +66,7 @@ class TextVisitor(BuilderVisitor):
         typecode_s: str,
         expr_s: Sequence[str],
         label_id: SymbolId,
-        typecode_id: SymbolId, 
+        typecode_id: SymbolId,
         expr_id: Sequence[SymbolId],
         origin_ref: OriginRef,
     ) -> None:

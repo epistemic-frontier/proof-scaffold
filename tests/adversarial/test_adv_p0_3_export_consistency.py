@@ -1,17 +1,18 @@
 from __future__ import annotations
 
 import pytest
+from skfd.core.diag import LinkerDiagError
+from skfd.core.lir import Axiom, ScopeEnter, ScopeExit, Theorem
 from skfd.core.origin import OriginRecord, OriginTable
 from skfd.core.symbols import SymbolInterner
 from skfd.core.unit import ProofUnitIR
-from skfd.core.lir import Axiom, Theorem, ScopeEnter, ScopeExit
-from skfd.core.diag import LinkerDiagError
 from skfd.linker.api import LinkerV1
+
 
 @pytest.mark.adversarial
 def test_adv_p0_3_export_consistency() -> None:
     """ADV-P0-3: Export-aware resolution consistency.
-    
+
     Referencing a non-exported label from another unit implies
     a violation of the interface contract. The linker must reject it.
     """
@@ -20,7 +21,7 @@ def test_adv_p0_3_export_consistency() -> None:
 
     orig_a = ot.intern(OriginRecord(module_id="A", file="a.py", line=1))
     orig_b = ot.intern(OriginRecord(module_id="B", file="b.py", line=1))
-    
+
     tc_wff = interner.intern(
         origin_module_id="prelude", local_name="wff", kind="Const", origin_ref=orig_a
     )
@@ -34,11 +35,13 @@ def test_adv_p0_3_export_consistency() -> None:
         origin_ref=orig_a,
         origin_module_id="A",
         lir_stmts=[
-            Axiom(label=ax_priv, typecode=tc_wff, expr=(), stmt_id=1, origin_ref=orig_a),
+            Axiom(
+                label=ax_priv, typecode=tc_wff, expr=[], stmt_id=1, origin_ref=orig_a
+            ),
             ScopeEnter(stmt_id=2, origin_ref=orig_a),
             ScopeExit(stmt_id=3, origin_ref=orig_a),
         ],
-        exports=[], # Empty!
+        exports=[],  # Empty!
     )
 
     # Unit B: tries to use "ax-private"
@@ -51,12 +54,12 @@ def test_adv_p0_3_export_consistency() -> None:
         origin_module_id="B",
         lir_stmts=[
             Theorem(
-                label=th_1, 
-                typecode=tc_wff, 
-                expr=(), 
-                proof=(ax_priv,), # Illegal usage of private symbol
-                stmt_id=1, 
-                origin_ref=orig_b
+                label=th_1,
+                typecode=tc_wff,
+                expr=[],
+                proof=[ax_priv],  # Illegal usage of private symbol
+                stmt_id=1,
+                origin_ref=orig_b,
             ),
             ScopeEnter(stmt_id=2, origin_ref=orig_b),
             ScopeExit(stmt_id=3, origin_ref=orig_b),
@@ -67,10 +70,12 @@ def test_adv_p0_3_export_consistency() -> None:
     # Expect Failure
     with pytest.raises(LinkerDiagError) as excinfo:
         LinkerV1.link(units=[unit_a, unit_b], origin_table=ot, interner=interner)
-    
+
     e = excinfo.value
     # Check for specific error code (e.g. E_SYMBOL_NOT_EXPORTED)
     # Since we haven't implemented it yet, we just check specifically that it fails.
     # But ideally it should be a meaningful error.
-    assert e.diag.error_code in ("E_SYMBOL_NOT_EXPORTED", "E_ACCESS_CONTROL"), \
-        f"Unexpected error code: {e.diag.error_code}"
+    assert e.diag.error_code in (
+        "E_SYMBOL_NOT_EXPORTED",
+        "E_ACCESS_CONTROL",
+    ), f"Unexpected error code: {e.diag.error_code}"

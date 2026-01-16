@@ -14,27 +14,20 @@ from skfd.core.lir import (
     VarDecl,
 )
 from skfd.core.symbols import SymbolDef, SymbolId
-from skfd.core.unit import ProofUnitIR
-
-
-from skfd.core.lir import (
-    Axiom, Comment, DisjointVar, EssentialHyp, FloatingHyp, 
-    ScopeEnter, ScopeExit, Theorem, ConstDecl, VarDecl
-)
-from skfd.core.symbols import SymbolDef, SymbolId
 from skfd.linker.passes.stage5_scope import LinearPlan
 
+
 def emit_mm(
-    *, 
-    symtab: dict[SymbolId, SymbolDef], 
+    *,
+    symtab: dict[SymbolId, SymbolDef],
     plan: LinearPlan,
-    reloc_table: dict[SymbolId, str] | None = None, 
+    reloc_table: dict[SymbolId, str] | None = None,
 ) -> str:
     """
     Emit a single .mm text stream from a LinearPlan.
     """
     out: list[str] = []
-    
+
     # helper to resolve name
     def get_name(sid: SymbolId) -> str:
         if reloc_table and sid in reloc_table:
@@ -58,8 +51,8 @@ def emit_mm(
     for frame in plan.frames:
         for st in frame.stmts:
             # ConstDecl/VarDecl handled in header (shouldn't differ here, but check just in case)
-            if isinstance(st, (ConstDecl, VarDecl)):
-                 continue
+            if isinstance(st, ConstDecl | VarDecl):
+                continue
 
             if isinstance(st, Comment):
                 out.append(f"$( {st.text} $)")
@@ -94,5 +87,5 @@ def emit_mm(
                 out.append("${")
             elif isinstance(st, ScopeExit):
                 out.append("$}")
-                
+
     return "\n".join(out) + "\n"

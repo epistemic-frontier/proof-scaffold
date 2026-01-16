@@ -11,9 +11,7 @@ StmtId = int
 TokenSeq = list[int]
 
 
-LIRStmt: TypeAlias = (
-    "ConstDecl | VarDecl | FloatingHyp | EssentialHyp | Axiom | Theorem | DisjointVar | Comment | ScopeEnter | ScopeExit"
-)
+LIRStmt: TypeAlias = "ConstDecl | VarDecl | FloatingHyp | EssentialHyp | Axiom | Theorem | DisjointVar | Comment | ScopeEnter | ScopeExit"
 
 
 @dataclass(frozen=True)

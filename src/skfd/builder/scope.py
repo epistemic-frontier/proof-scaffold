@@ -9,6 +9,7 @@ from skfd.core.errors import MMDSLError
 Label: TypeAlias = str
 Token: TypeAlias = str  # On the builder side (user facing), we deal with strings
 
+
 @dataclass
 class _Scope:
     # labels declared in this scope (for visibility + leakage prevention)

@@ -11,6 +11,7 @@ from .typing import RuleSig
 # Errors (local to this module)
 # -----------------------------------------------------------------------------
 
+
 class PreludeRulesError(ValueError):
     """Raised when rule/registry constraints are violated (e.g. duplicate labels)."""
 
@@ -24,27 +25,34 @@ R_co = TypeVar("R_co", covariant=True)  # result type (e.g. Wff)
 
 class Axiom1(Protocol[R_co]):
     """Axiom-like constructor taking 1 hypothesis and returning R."""
+
     label: str
     arity: int
+
     def __call__(self, h1: object) -> R_co: ...
 
 
 class Axiom2(Protocol[R_co]):
     """Axiom-like constructor taking 2 hypotheses and returning R."""
+
     label: str
     arity: int
+
     def __call__(self, h1: object, h2: object) -> R_co: ...
 
 
 class Rule2to1(Protocol[R_co]):
     """Rule-like inference taking 2 hypotheses and returning R."""
+
     label: str
+
     def __call__(self, h1: object, h2: object) -> R_co: ...
 
 
 # -----------------------------------------------------------------------------
 # Catalog / registry utilities
 # -----------------------------------------------------------------------------
+
 
 @dataclass(frozen=True)
 class RuleEntry:
@@ -53,6 +61,7 @@ class RuleEntry:
     `fn` is a callable object (usually a dataclass instance).
     `kind` helps downstream tooling categorize entries.
     """
+
     label: str
     kind: str  # e.g. "axiom" | "rule"
     fn: Callable[..., object]

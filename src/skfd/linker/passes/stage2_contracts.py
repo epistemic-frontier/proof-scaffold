@@ -3,15 +3,23 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from skfd.core.unit import ProofUnitIR
-from skfd.core.lir import Axiom, Theorem, FloatingHyp, EssentialHyp, ScopeEnter, ScopeExit
-from skfd.core.symbols import SymbolId, SymbolDef
 from skfd.core.contracts import AssertionContract, TheoremDetails
+from skfd.core.lir import (
+    Axiom,
+    EssentialHyp,
+    FloatingHyp,
+    ScopeEnter,
+    ScopeExit,
+    Theorem,
+)
+from skfd.core.symbols import SymbolDef, SymbolId
+from skfd.core.unit import ProofUnitIR
 
 
 @dataclass(frozen=True)
 class ContractIndex:
     """Results of contract extraction."""
+
     # usage: contracts[label_id] -> Contract
     contracts: dict[SymbolId, AssertionContract] = field(default_factory=dict)
     # usage: details[label_id] -> Details
@@ -21,7 +29,7 @@ class ContractIndex:
 def run(units: list[ProofUnitIR], symtab: dict[SymbolId, SymbolDef]) -> ContractIndex:
     """
     Stage 2: Contract Extraction.
-    
+
     Analyses units to determine:
     1. Interface definition of every $a/$p (Contract)
     2. Dependency usage of every $p (Details)
@@ -74,10 +82,9 @@ def run(units: list[ProofUnitIR], symtab: dict[SymbolId, SymbolDef]) -> Contract
         # If a unit has multiple assertions, are scoping rules respected?
         # LIR has `ScopeEnter/Exit`.
         # Correct scope logic: maintain a stack of active hyps.
-        
-        active_f: list[FloatingHyp] = []
-        active_e: list[EssentialHyp] = []
-        
+
+
+
         # We do need rudimentary scope tracking to be correct for multi-assertion units.
         scope_stack_f: list[list[FloatingHyp]] = []
         scope_stack_e: list[list[EssentialHyp]] = []
@@ -95,12 +102,12 @@ def run(units: list[ProofUnitIR], symtab: dict[SymbolId, SymbolDef]) -> Contract
                 # Metamath scopes nest. Inner scope sees outer symbols.
                 # New declarations in inner scope are local.
                 # So we usually copy or link. Python list copy is safe.
-                pass 
+                pass
                 # Wait, usually Metamath scope starts empty? No, it inherits.
                 # "${ ... $}"
                 # Definitions outside are visible. Definitions inside are discarded on exit.
                 # So: push state.
-                pass 
+                pass
 
             elif isinstance(st, ScopeExit):
                 if scope_stack_f:
@@ -113,37 +120,42 @@ def run(units: list[ProofUnitIR], symtab: dict[SymbolId, SymbolDef]) -> Contract
 
             elif isinstance(st, FloatingHyp):
                 current_frame_f.append(st)
-            
+
             elif isinstance(st, EssentialHyp):
                 current_frame_e.append(st)
-            
-            elif isinstance(st, (Axiom, Theorem)):
+
+            elif isinstance(st, Axiom | Theorem):
                 # Found an assertion attempt!
                 # Compute contract.
-                
+
                 # 1. Mandatory Hyps ($e)
                 # All active $e are mandatory for this assertion in this local scope block.
                 # (Unless we do logic minimalization, but here we trust the authoring frame).
                 m_hyps = [h.label for h in current_frame_e]
-                
+
                 # 2. Mandatory Vars ($f)
                 # Need to find variables in expr and hyps.
                 # Helper to collect Vars from an expr tokens
-                
+
                 required_vars: set[SymbolId] = set()
-                
-                def scan_vars(expr: tuple[SymbolId, ...]) -> None:
+
+                def scan_vars(expr: tuple[SymbolId, ...], target_vars: set[SymbolId]) -> None:
                     for t in expr:
                         kind = symtab[t].kind
                         if kind == "Var":
-                            required_vars.add(t)
-                
+                            target_vars.add(t)
+
                 # Scan assertion expr
-                scan_vars(st.expr)
-                # Scan $e exprs
-                for h in current_frame_e:
-                    scan_vars(h.expr)
-                
+                scan_vars(tuple(st.expr), required_vars)
+                # Scan mandatory hyps (essential hyps)
+                for h_stmt in current_frame_e:
+                    # Expr is list[int], scan_vars expects Sequence[int] or specific?
+                    # MyPy complained "expected tuple". Let's update Helper scan_vars or cast.
+                    # Helper definition: def scan_vars(tokens: tuple[int, ...], ...)
+                    # But LIR tokens are list[int].
+                    # We should convert to tuple before calling.
+                    scan_vars(tuple(h_stmt.expr), required_vars)
+
                 # Now filter active $f to find those matching required vars.
                 # Order matters? Standard Metamath is "order of appearance".
                 # But here we just need *a* set for the contract.
@@ -153,13 +165,13 @@ def run(units: list[ProofUnitIR], symtab: dict[SymbolId, SymbolDef]) -> Contract
                     if f.var in required_vars:
                         # Dedupe? Active frame shouldn't have dupe vars usually.
                         m_vars.append(f.label)
-                
+
                 contracts[st.label] = AssertionContract(
                     label=st.label,
                     mandatory_hyps=m_hyps,
                     mandatory_vars=m_vars,
                 )
-                
+
                 if isinstance(st, Theorem):
                     # Compute dependencies
                     deps = set()
@@ -177,7 +189,7 @@ def run(units: list[ProofUnitIR], symtab: dict[SymbolId, SymbolDef]) -> Contract
                         # Contract extraction usually focuses on "External References".
                         # Let's collect ALL labels for now, verify in Stage 4.
                         deps.add(t)
-                    
+
                     details[st.label] = TheoremDetails(
                         label=st.label,
                         direct_dependencies=deps,

@@ -9,7 +9,7 @@ from skfd.builder import MMBuilder
 from skfd.core.origin import OriginTable
 from skfd.core.symbols import SymbolInterner
 from skfd.core.unit import ProofUnitIR
-from skfd.linker.emit.emit_mm import emit_mm
+from skfd.linker.api import LinkerV1
 
 from .discover import find_packages
 from .graph import sort_packages
@@ -133,12 +133,14 @@ class DriverRunner:
         self.target_dir.mkdir(parents=True, exist_ok=True)
         outfile = self.target_dir / f"{name}_full.mm"
         
-        symtab = self.interner.symbol_table()
-        
         with open(outfile, "w", encoding="utf-8") as f:
-            # Pass list of units to emit_mm
-            text = emit_mm(symtab=symtab, units=units)
-            f.write(text)
+            # Pass list of units to LinkerV1
+            res = LinkerV1.link(
+                units=units, 
+                origin_table=self.origin_table, 
+                interner=self.interner
+            )
+            f.write(res.mm_text)
             
         logger.info(f"Generated verification monolith: {outfile}")
         

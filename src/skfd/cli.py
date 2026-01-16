@@ -209,10 +209,40 @@ def _cmd_verify(args: argparse.Namespace) -> int:
         runner.execute_all()
         
         # Verify phase
-        print(f"Verifying package '{args.package}'...")
-        runner.verify_package(args.package)
-        print("Verification completed successfully.")
-        return 0
+        pkg = args.package
+        print(f"Verifying package '{pkg}'...")
+        runner.verify_package(pkg)
+        
+        # Now run configured verifiers
+        outfile = target / f"{pkg}_full.mm"
+        if not outfile.exists():
+             print(f"Error: Verification artifact not found: {outfile}", file=sys.stderr)
+             return 1
+
+        cfg = load_config(args.root)
+        active_cmds = cfg.get_active_commands()
+        
+        if not active_cmds:
+            print("Warning: No active verifiers configured.", file=sys.stderr)
+        
+        all_passed = True
+        for name, cmd in active_cmds:
+            print(f"[{name}] Verifying {outfile.name}... ", end="", flush=True)
+            try:
+                verify(cmd, outfile)
+                print("OK")
+            except Exception as e:
+                print("FAIL")
+                print(f"    Error: {e}")
+                all_passed = False
+                
+        if all_passed:
+            print("Verification completed successfully.")
+            return 0
+        else:
+            print("Verification FAILED (some verifiers failed).", file=sys.stderr)
+            return 1
+
     except Exception as e:
         print(f"Verification failed: {e}", file=sys.stderr)
         return 1

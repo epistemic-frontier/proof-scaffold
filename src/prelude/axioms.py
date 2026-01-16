@@ -5,8 +5,8 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Generic, TypeVar
 
-from .formula import Formula, Sort
-from .typing import PreludeTypingError
+from skfd.authoring.formula import Formula, Sort
+from skfd.authoring.typing import PreludeTypingError
 
 F = TypeVar("F", bound=Formula[Sort])
 

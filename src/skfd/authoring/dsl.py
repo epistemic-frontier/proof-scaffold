@@ -1,4 +1,4 @@
-# prelude/authoring.py
+# skfd/authoring/dsl.py
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping, Sequence
@@ -9,11 +9,8 @@ from typing import (
     TypeAlias,
 )
 
-from .formula import Builtins, Wff, wff_atom
-from .formula import imp as mk_imp
-from .formula import wa as mk_wa
-from .formula import wn as mk_wn
-from .symbols import SymbolInterner
+from skfd.core.symbols import SymbolInterner
+from .formula import Wff, wff_atom
 from .typing import PreludeTypingError, RuleSig, Sort
 
 # -----------------------------------------------------------------------------
@@ -94,7 +91,7 @@ class Constructor:
 class RequireSpec:
     """A declaration that a Constructor is a well-typed operator.
 
-    `sig` is expressed using prelude.typing.RuleSig for consistency:
+    `sig` is expressed using skfd.authoring.typing.RuleSig for consistency:
       - in_sorts: tuple of sorts
       - out_sort: sort
     """
@@ -169,32 +166,19 @@ def require(
 # Authors should not need to touch this unless they are exporting to IR/.mm.
 # -----------------------------------------------------------------------------
 
-# Map authoring constructors to token-level builders.
-# You can override/extend this mapping in specific logic systems if needed.
-BuilderFn: TypeAlias = Callable[[Builtins, Sequence[Wff]], Wff]
-
-
-def _builtin_builder_map() -> dict[str, BuilderFn]:
-    # By name only, to decouple from Constructor object identity.
-    return {
-        "→": lambda b, xs: mk_imp(b, xs[0], xs[1]),
-        "¬": lambda b, xs: mk_wn(b, xs[0]),
-        "∧": lambda b, xs: mk_wa(b, xs[0], xs[1]),
-    }
+# Generic builder function: (builtins, args) -> Wff
+BuilderFn: TypeAlias = Callable[[Any, Sequence[Wff]], Wff]
 
 
 @dataclass(frozen=True)
 class CompileEnv:
     """Compilation environment for lowering authoring Expr to Wff tokens."""
     interner: SymbolInterner
-    builtins: Builtins
+    builtins: Any  # Opaque logic-specific builtins object
+    ctor_builders: Mapping[str, BuilderFn] # Must be provided by the logic system
     origin_module_id: str = "authoring"
     origin_ref: Any = None
-    ctor_builders: Mapping[str, BuilderFn] = field(default_factory=_builtin_builder_map)
-
-    def __post_init__(self) -> None:
-        # ctor_builders is provided by default_factory; nothing to do.
-        return
+    
 
 
 def compile_wff(

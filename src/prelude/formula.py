@@ -1,58 +1,15 @@
 # prelude/formula.py
 from __future__ import annotations
 
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import (
     Any,
-    Generic,
-    Literal,
     TypeAlias,
-    TypeVar,
 )
 
-from .symbols import SymbolId, SymbolInterner
-
-# -----------------------------------------------------------------------------
-# Sort
-# -----------------------------------------------------------------------------
-
-WffSort = Literal["wff"]
-ClassSort = Literal["class"]
-SetVarSort = Literal["setvar"]
-Sort = Literal["wff", "class", "setvar"]
-
-S = TypeVar("S", bound=Sort)
-
-# -----------------------------------------------------------------------------
-# Token-level Formula
-# -----------------------------------------------------------------------------
-
-TokenSeq: TypeAlias = tuple[SymbolId, ...]
-
-
-@dataclass(frozen=True)
-class Formula(Generic[S]):
-    """A typed Metamath formula represented as a token sequence (SymbolId).
-
-    Invariants:
-    - tokens are SymbolId produced by prelude.symbols.SymbolInterner
-    - tokens are layout-agnostic (no whitespace)
-    - Formula does not carry provenance; provenance lives elsewhere (Hypothesis/IR side-table)
-    """
-    sort: S
-    tokens: TokenSeq
-
-    def __iter__(self) -> Iterable[SymbolId]:
-        return iter(self.tokens)
-
-    def __len__(self) -> int:
-        return len(self.tokens)
-
-
-Wff = Formula[WffSort]
-Class = Formula[ClassSort]
-SetVar = Formula[SetVarSort]
+from skfd.authoring.formula import TokenSeq, Wff
+from skfd.core.symbols import SymbolId, SymbolInterner
 
 # -----------------------------------------------------------------------------
 # Reserved / builtin tokens (by name)
@@ -234,35 +191,7 @@ def try_parse_wa(b: Builtins, tokens: Sequence[SymbolId]) -> AndShape | None:
     return AndShape(left=left, right=right)
 
 
-# -----------------------------------------------------------------------------
-# Debug rendering (optional)
-# -----------------------------------------------------------------------------
-
-def render(tokens: Sequence[SymbolId], *, symtab: Mapping[SymbolId, Any]) -> str:
-    """Render tokens using a symbol table (SymbolId -> SymbolDef-like with .local_name).
-
-    This is for debugging only; do not use in emit layer.
-    """
-    parts: list[str] = []
-    for t in tokens:
-        d = symtab.get(t)
-        if d is None:
-            parts.append(f"<{t}>")
-        else:
-            parts.append(getattr(d, "local_name", str(d)))
-    return " ".join(parts)
-
-
 __all__ = [
-    "Sort",
-    "WffSort",
-    "ClassSort",
-    "SetVarSort",
-    "Formula",
-    "Wff",
-    "Class",
-    "SetVar",
-    "TokenSeq",
     "GLOBAL_PRELUDE_MODULE_ID",
     "Builtins",
     "wff_atom",
@@ -275,5 +204,4 @@ __all__ = [
     "try_parse_wn",
     "AndShape",
     "try_parse_wa",
-    "render",
 ]

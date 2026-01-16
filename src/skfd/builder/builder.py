@@ -40,6 +40,7 @@ class MMBuilder:
         self._constants: set[str] = set()
         self._variables: set[str] = set()
         self._labels: set[str] = set()
+        self._imports: dict[str, SymbolId] = {}
         
         # Origin provider
         self._origin: OriginProvider = InspectOriginAdapter(origin_table, module_id)
@@ -87,6 +88,8 @@ class MMBuilder:
         """
         Resolve a math token (const or var) that MUST already be declared.
         """
+        if name in self._imports:
+            return self._imports[name]
         if name in self._constants:
             return self._intern_const(name)
         if name in self._variables:
@@ -99,7 +102,8 @@ class MMBuilder:
         In this builder version, we assume local lookups or explicit imports.
         For now, we only support LOCAL labels or explicit SymbolIds passed in.
         """
-        # TODO: Support imports from other modules.
+        if name in self._imports:
+            return self._imports[name]
         # For now, simplistic check:
         if name in self._labels:
             return self._intern_label(name)
@@ -129,11 +133,31 @@ class MMBuilder:
             v.close_scope(o)
 
     # -----------------
-    # Exports
+    # Imports / Exports
     # -----------------
+    def import_symbols(self, **imports: SymbolId) -> MMBuilder:
+        """
+        Import symbols from other units.
+        Usage: builder.import_symbols(ax_1=100, ph=101)
+        """
+        for name, sid in imports.items():
+            # Validate?
+            # We assume the caller passes valid SymbolIds from another unit.
+            if name in self._imports:
+                raise MMDSLError(f"symbol '{name}' already imported")
+            if name in self._constants or name in self._variables or name in self._labels:
+                raise MMDSLError(f"symbol '{name}' conflicts with local declaration")
+            
+            self._imports[name] = sid
+        return self
+
     def export(self, *labels: str) -> MMBuilder:
         """Mark local labels as exported."""
         for lab in labels:
+            if lab in self._imports:
+                self._exports.add(self._imports[lab])
+                continue
+
             if lab not in self._labels:
                 raise MMDSLError(f"cannot export unknown label '{lab}'")
             # We must look up the ID. Since it's in _labels, we can intern it to get ID.
@@ -145,6 +169,29 @@ class MMBuilder:
     # -----------------
     # DSL methods
     # -----------------
+    def d(self, *vars: str) -> MMBuilder:
+        """
+        Distinct variable assertion: $d ph ps $.
+        """
+        if len(vars) < 2:
+            raise MMDSLError("$d must have at least 2 variables")
+        
+        var_ids: list[SymbolId] = []
+        o = self._origin.here_ref()
+        
+        for vname in vars:
+            # Must be a declared variable or imported
+            if vname in self._imports:
+                var_ids.append(self._imports[vname])
+            elif vname in self._variables:
+                var_ids.append(self._intern_var(vname))
+            else:
+                raise MMDSLError(f"$d variable '{vname}' not declared via $v or import")
+
+        for v in self._visitors:
+            v.disjoint_var(vars, var_ids, o)
+        return self
+
     def comment(self, text: str) -> MMBuilder:
         o = self._origin.here_ref()
         for v in self._visitors:
@@ -159,9 +206,10 @@ class MMBuilder:
         for s in symbols:
             if s in self._variables:
                 raise MMDSLError(f"token '{s}' already declared as $v")
+            if s in self._imports:
+                raise MMDSLError(f"token '{s}' already imported")
+
             self._constants.add(s)
-            # Re-intern with correct depth or reuse? 
-            # Ideally we intern here.
             sid = self._interner.intern(
                 origin_module_id=self._module_id,
                 local_name=s,
@@ -182,6 +230,9 @@ class MMBuilder:
         for s in symbols:
             if s in self._constants:
                 raise MMDSLError(f"token '{s}' already declared as $c")
+            if s in self._imports:
+                raise MMDSLError(f"token '{s}' already imported")
+
             self._variables.add(s)
             sid = self._interner.intern(
                 origin_module_id=self._module_id,
@@ -197,10 +248,14 @@ class MMBuilder:
 
     def f(self, label: str, typecode: str, var: str) -> MMBuilder:
         o = self._origin.here_ref()
-        if var not in self._variables:
-            raise MMDSLError(f"$f variable '{var}' not declared via $v")
-        if typecode not in self._constants:
-            raise MMDSLError(f"$f typecode '{typecode}' not declared via $c")
+        
+        # Check variable
+        if var not in self._variables and var not in self._imports:
+            raise MMDSLError(f"$f variable '{var}' not declared via $v or import")
+            
+        # Check typecode
+        if typecode not in self._constants and typecode not in self._imports:
+            raise MMDSLError(f"$f typecode '{typecode}' not declared via $c or import")
         
         self._labels.add(label)
         self._scope.register_local_label(label)
@@ -212,8 +267,10 @@ class MMBuilder:
             kind="Label",
             origin_ref=o
         )
-        tid = self._intern_const(typecode)
-        vid = self._intern_var(var)
+        
+        # Resolve vars/consts handling imports
+        tid = self._resolve_token(typecode)
+        vid = self._resolve_token(var)
 
         for v in self._visitors:
             v.floating_hyp(label, typecode, var, lid, tid, vid, o)
@@ -221,11 +278,13 @@ class MMBuilder:
 
     def e(self, label: str, typecode: str, eexpr: Sequence[str] | str) -> MMBuilder:
         o = self._origin.here_ref()
-        if typecode not in self._constants:
-             raise MMDSLError(f"$e typecode '{typecode}' not declared via $c")
+        if typecode not in self._constants and typecode not in self._imports:
+             raise MMDSLError(f"$e typecode '{typecode}' not declared via $c or import")
         
         tokens = eexpr.split() if isinstance(eexpr, str) else list(eexpr)
         token_ids = [self._resolve_token(t) for t in tokens]
+        # NEW: Resolve typecode
+        typecode_id = self._resolve_token(typecode)
         
         self._labels.add(label)
         self._scope.register_local_label(label)
@@ -239,16 +298,18 @@ class MMBuilder:
         )
         
         for v in self._visitors:
-            v.essential_hyp(label, typecode, tokens, lid, token_ids, o)
+            v.essential_hyp(label, typecode, tokens, lid, typecode_id, token_ids, o)
         return self
 
     def a(self, label: str, typecode: str, aexpr: Sequence[str] | str) -> MMBuilder:
         o = self._origin.here_ref()
-        if typecode not in self._constants:
-             raise MMDSLError(f"$a typecode '{typecode}' not declared via $c")
+        if typecode not in self._constants and typecode not in self._imports:
+             raise MMDSLError(f"$a typecode '{typecode}' not declared via $c or import")
         
         tokens = aexpr.split() if isinstance(aexpr, str) else list(aexpr)
         token_ids = [self._resolve_token(t) for t in tokens]
+        # NEW: Resolve typecode
+        typecode_id = self._resolve_token(typecode)
         
         self._labels.add(label)
         self._scope.register_local_label(label)
@@ -261,7 +322,7 @@ class MMBuilder:
         )
         
         for v in self._visitors:
-            v.axiom(label, typecode, tokens, lid, token_ids, o)
+            v.axiom(label, typecode, tokens, lid, typecode_id, token_ids, o)
         return self
 
     def p(
@@ -274,11 +335,13 @@ class MMBuilder:
         comment: str | None = None,
     ) -> MMBuilder:
         o = self._origin.here_ref()
-        if typecode not in self._constants:
-             raise MMDSLError(f"$p typecode '{typecode}' not declared via $c")
+        if typecode not in self._constants and typecode not in self._imports:
+             raise MMDSLError(f"$p typecode '{typecode}' not declared via $c or import")
         
         tokens = pexpr.split() if isinstance(pexpr, str) else list(pexpr)
         token_ids = [self._resolve_token(t) for t in tokens]
+        # NEW: Resolve typecode
+        typecode_id = self._resolve_token(typecode)
 
         # Proof normalization
         raw_proof: Sequence[str | SymbolId]
@@ -293,19 +356,16 @@ class MMBuilder:
         for step in raw_proof:
             if isinstance(step, int): # SymbolId
                 # It's an imported/explicit symbol ID
-                # We need to know its name for TextEmitter?
-                # This is tricky. TextEmitter needs strings.
-                # If we pass a SymbolId, we might not know its name easily unless we reverse lookup?
-                # Or we assume the user passes (SymbolId, name) tuple?
-                # For now, let's assume we REQUIRE strings for text, or we skip text?
-                # No, text is debugging.
-                # Let's assume we can lookup name from interner?
-                # SymbolInterner has `_defs[sid].local_name`.
                 proof_ids.append(step)
                 defn = self._interner.symbol_table().get(step)
                 proof_strs.append(defn.local_name if defn else f"ID<{step}>")
             else:
-                # String step - must be local label
+                # String step - try import first, then local
+                if step in self._imports:
+                    proof_strs.append(step)
+                    proof_ids.append(self._imports[step])
+                    continue
+                
                 if step not in self._scope.visible_labels():
                     raise MMDSLError(f"proof step '{step}' is not visible/known")
                 proof_strs.append(step)
@@ -325,7 +385,7 @@ class MMBuilder:
         )
 
         for v in self._visitors:
-            v.theorem(label, typecode, tokens, proof_strs, lid, token_ids, proof_ids, o)
+            v.theorem(label, typecode, tokens, proof_strs, lid, typecode_id, token_ids, proof_ids, o)
         return self
 
     # -----------------

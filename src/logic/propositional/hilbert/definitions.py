@@ -4,8 +4,8 @@ from __future__ import annotations
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 
-from prelude.authoring import Expr
-from prelude.typing import PreludeTypingError
+from skfd.authoring.dsl import Expr
+from skfd.authoring.typing import PreludeTypingError
 
 from ._structures import Imp, Not
 

@@ -7,6 +7,7 @@ from skfd.core.lir import (
     Axiom,
     Comment,
     ConstDecl,
+    DisjointVar,
     EssentialHyp,
     FloatingHyp,
     LIRStmt,
@@ -70,10 +71,11 @@ class LIRVisitor(BuilderVisitor):
         typecode_s: str,
         expr_s: Sequence[str],
         label_id: SymbolId,
+        typecode_id: SymbolId,
         expr_id: Sequence[SymbolId],
         origin_ref: OriginRef,
     ) -> None:
-        self._stmts.append(EssentialHyp(self._id(), origin_ref, label_id, list(expr_id)))
+        self._stmts.append(EssentialHyp(self._id(), origin_ref, label_id, typecode_id, list(expr_id)))
 
     def axiom(
         self,
@@ -81,10 +83,11 @@ class LIRVisitor(BuilderVisitor):
         typecode_s: str,
         expr_s: Sequence[str],
         label_id: SymbolId,
+        typecode_id: SymbolId,
         expr_id: Sequence[SymbolId],
         origin_ref: OriginRef,
     ) -> None:
-        self._stmts.append(Axiom(self._id(), origin_ref, label_id, list(expr_id)))
+        self._stmts.append(Axiom(self._id(), origin_ref, label_id, typecode_id, list(expr_id)))
 
     def theorem(
         self,
@@ -93,15 +96,24 @@ class LIRVisitor(BuilderVisitor):
         expr_s: Sequence[str],
         proof_s: Sequence[str],
         label_id: SymbolId,
+        typecode_id: SymbolId,
         expr_id: Sequence[SymbolId],
         proof_id: Sequence[SymbolId],
         origin_ref: OriginRef,
     ) -> None:
         self._stmts.append(
             Theorem(
-                self._id(), origin_ref, label_id, list(expr_id), list(proof_id)
+                self._id(), origin_ref, label_id, typecode_id, list(expr_id), list(proof_id)
             )
         )
+
+    def disjoint_var(
+        self,
+        vars_s: Sequence[str],
+        vars_id: Sequence[SymbolId],
+        origin_ref: OriginRef,
+    ) -> None:
+        self._stmts.append(DisjointVar(self._id(), origin_ref, list(vars_id)))
 
     def lir(self) -> list[LIRStmt]:
         return list(self._stmts)

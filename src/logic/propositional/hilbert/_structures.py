@@ -1,8 +1,8 @@
 # logic/propositional/hilbert/_structures.py
 from __future__ import annotations
 
-from prelude.authoring import Constructor, Var, require
-from prelude.typing import WFF
+from skfd.authoring.dsl import Constructor, Var, require
+from skfd.authoring.typing import WFF
 
 # -----------------------------------------------------------------------------
 # Language skeleton (author-facing)

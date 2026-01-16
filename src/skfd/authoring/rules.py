@@ -1,11 +1,11 @@
-# prelude/_syntactic.py
+# skfd/authoring/rules.py
 from __future__ import annotations
 
 from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
 from typing import Protocol, TypeVar
 
-from prelude.typing import RuleSig
+from .typing import RuleSig
 
 # -----------------------------------------------------------------------------
 # Errors (local to this module)

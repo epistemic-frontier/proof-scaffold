@@ -12,6 +12,7 @@ import sys
 from pathlib import Path
 
 from skfd.core.diag import LinkerDiagError
+from skfd.driver.runner import DriverRunner
 from skfd.verifier import verify
 
 from .config import VerifierConfig, load_config, save_config
@@ -190,6 +191,33 @@ def _cmd_verifier_remove(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_verify(args: argparse.Namespace) -> int:
+    """Run driver verification for a package."""
+    root = (args.root or Path.cwd()) / "src"
+    target = (args.root or Path.cwd()) / "target"
+    
+    if not root.exists():
+        print(f"Error: Source directory not found: {root}", file=sys.stderr)
+        return 1
+        
+    print(f"Initializing build driver (src={root}, target={target})...")
+    runner = DriverRunner(root, target)
+    
+    try:
+        # Build phase
+        print("Building all packages...")
+        runner.execute_all()
+        
+        # Verify phase
+        print(f"Verifying package '{args.package}'...")
+        runner.verify_package(args.package)
+        print("Verification completed successfully.")
+        return 0
+    except Exception as e:
+        print(f"Verification failed: {e}", file=sys.stderr)
+        return 1
+
+
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(prog="skfd", description="ProofScaffold CLI")
     p.add_argument("--root", type=Path, help="Project root", default=None)
@@ -230,6 +258,11 @@ def main(argv: list[str] | None = None) -> int:
     p_ver_rm = ver_sub.add_parser("remove", help="Remove a verifier")
     p_ver_rm.add_argument("name", help="Name of the verifier")
     p_ver_rm.set_defaults(func=_cmd_verifier_remove)
+
+    # --- verify (driver) ---
+    p_verify = sub.add_parser("verify", help="Build and verify a package")
+    p_verify.add_argument("package", help="Name of the package to verify (e.g. 'logic')")
+    p_verify.set_defaults(func=_cmd_verify)
 
     args = p.parse_args(argv)
 

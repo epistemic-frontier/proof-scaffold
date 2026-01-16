@@ -5,9 +5,12 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from typing import TypeAlias
 
-from prelude.formula import Builtins, Wff, imp, try_parse_imp, wa, wn
-from prelude.rules import RuleEntry, build_catalog, rules_view
-from prelude.typing import (
+# Wff is generic framework; imp/wa/wn/Builtins are specific content
+from skfd.authoring.formula import Wff
+from prelude.formula import Builtins, imp, try_parse_imp, wa, wn
+
+from skfd.authoring.rules import RuleEntry, build_catalog, rules_view
+from skfd.authoring.typing import (
     WFF,
     HypWff,
     PreludeShapeError,

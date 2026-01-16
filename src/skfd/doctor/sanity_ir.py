@@ -52,7 +52,8 @@ def build_sanity_ir() -> tuple[OriginTable, SymbolInterner, list[ProofUnitIR]]:
             stmt_id=3,
             origin_ref=origin_ref,
             label=l_th1,
-            expr=[c_turnstile, v_ph],
+            typecode=c_turnstile,
+            expr=[v_ph],  # expr is just [ph] because typecode is |-
             proof=[l_wph],
         ),
     ]

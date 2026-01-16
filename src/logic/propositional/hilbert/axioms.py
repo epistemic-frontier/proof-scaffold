@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 
-from prelude.authoring import Expr
+from skfd.authoring.dsl import Expr
 
 from ._structures import Imp, Not, chi, phi, psi
 

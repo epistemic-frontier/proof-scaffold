@@ -53,8 +53,10 @@ These are placeholders initially; replace them with minimal, verifiable `.mm` sn
 ## References
 
 - `references/001_arch-design.md` — Design notes (Rev. 2)
-- `references/002_link-model_v3.md` — Linker model v3 (contracts, relocation, scopes)
+- `references/002_link-model_v3.md` — Linker model v4 (contracts, relocation, scopes)
 - `references/003_roadmap-methodology_v2.md` — Roadmap & methodology (document-first plan)
+- `references/004_generator_design_v2.md` — Generator (document-first plan)
+- `references/005_authoring.md` — Authoring specs
 
 ## Project Hygiene
 

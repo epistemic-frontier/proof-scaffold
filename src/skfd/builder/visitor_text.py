@@ -66,6 +66,7 @@ class TextVisitor(BuilderVisitor):
         typecode_s: str,
         expr_s: Sequence[str],
         label_id: SymbolId,
+        typecode_id: SymbolId, 
         expr_id: Sequence[SymbolId],
         origin_ref: OriginRef,
     ) -> None:
@@ -77,6 +78,7 @@ class TextVisitor(BuilderVisitor):
         typecode_s: str,
         expr_s: Sequence[str],
         label_id: SymbolId,
+        typecode_id: SymbolId,
         expr_id: Sequence[SymbolId],
         origin_ref: OriginRef,
     ) -> None:
@@ -89,6 +91,7 @@ class TextVisitor(BuilderVisitor):
         expr_s: Sequence[str],
         proof_s: Sequence[str],
         label_id: SymbolId,
+        typecode_id: SymbolId,
         expr_id: Sequence[SymbolId],
         proof_id: Sequence[SymbolId],
         origin_ref: OriginRef,
@@ -96,6 +99,14 @@ class TextVisitor(BuilderVisitor):
         self._lines.append(f"{label_s} $p {typecode_s} {' '.join(expr_s)} $=")
         self._lines.append(f"  {' '.join(proof_s)}")
         self._lines.append("$.")
+
+    def disjoint_var(
+        self,
+        vars_s: Sequence[str],
+        vars_id: Sequence[SymbolId],
+        origin_ref: OriginRef,
+    ) -> None:
+        self._lines.append(f"$d {' '.join(vars_s)} $.")
 
     def render(self) -> str:
         return "\n".join(self._lines) + ("\n" if self._lines else "")

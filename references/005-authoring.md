@@ -196,11 +196,3 @@ By respecting the condensation phase, we gain:
 * clearer theories
 * more stable foundations
 * and a path from human reasoning to machine verification that remains intelligible.
-
----
-
-If you want, the next natural follow-up note would be:
-
-**“Authoring-First Logic vs. Proof-Assistant-First Logic: Where Complexity Lives.”**
-
-That would make an excellent companion document.

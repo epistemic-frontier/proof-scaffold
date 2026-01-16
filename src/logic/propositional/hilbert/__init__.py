@@ -5,15 +5,38 @@ from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any, TypeAlias
 
-from prelude.authoring import CompileEnv, Expr, RequireRegistry, compile_wff
-from prelude.formula import Builtins, Wff
-from prelude.symbols import SymbolInterner
-from prelude.typing import HypothesisAny, PreludeTypingError, RuleApp
+from skfd.authoring.dsl import BuilderFn, CompileEnv, Expr, RequireRegistry, compile_wff
+from skfd.authoring.formula import Wff
+from skfd.authoring.typing import HypothesisAny, PreludeTypingError, RuleApp
+from skfd.core.symbols import SymbolInterner
+
+from prelude.formula import Builtins
+from prelude.formula import imp as mk_imp
+from prelude.formula import wa as mk_wa
+from prelude.formula import wn as mk_wn
 
 from ._syntactic import RuleBundle, make_rules
 
 RuleFn: TypeAlias = Callable[..., Wff]
 
+
+# -----------------------------------------------------------------------------
+# Builders for authoring -> token lowering
+# -----------------------------------------------------------------------------
+
+def _hilbert_builders() -> dict[str, BuilderFn]:
+    """Map authoring constructor names to token builders."""
+    # We match the names defined in _structures.py (→, ¬, ∧)
+    return {
+        "→": lambda b, xs: mk_imp(b, xs[0], xs[1]),
+        "¬": lambda b, xs: mk_wn(b, xs[0]),
+        "∧": lambda b, xs: mk_wa(b, xs[0], xs[1]),
+    }
+
+
+# -----------------------------------------------------------------------------
+# System
+# -----------------------------------------------------------------------------
 
 @dataclass(frozen=True)
 class HilbertSystem:
@@ -62,15 +85,16 @@ class HilbertSystem:
         """Return a CompileEnv + RequireRegistry for authoring compilation.
 
         - origin_module_id controls where authoring Vars are interned.
-        - registry defaults to prelude.authoring.DEFAULT_REQUIRE if not provided.
+        - registry defaults to skfd.authoring.dsl.DEFAULT_REQUIRE if not provided.
         """
         if registry is None:
-            from prelude.authoring import DEFAULT_REQUIRE as registry_default
+            from skfd.authoring.dsl import DEFAULT_REQUIRE as registry_default
             registry = registry_default
 
         env = CompileEnv(
             interner=self.interner,
             builtins=self.builtins,
+            ctor_builders=_hilbert_builders(),  # Injected here!
             origin_module_id=origin_module_id,
             origin_ref=origin_ref,
         )

@@ -39,7 +39,10 @@ def build_units() -> tuple[OriginTable, SymbolInterner, list[ProofUnitIR]]:
         .c("|-")
         .v("ph")
         .f("wph", "|-", "ph")
-        .p("th1", "|-", "|- ph", proof=["wph"])
+        # NOTE: .p() takes (label, typecode, expr_str, proof)
+        # emit_mm will output: label $p typecode expr_str $.
+        # So we pass "ph" as expr, not "|- ph".
+        .p("th1", "|-", "ph", proof=["wph"])
         .export("th1")
     )
 

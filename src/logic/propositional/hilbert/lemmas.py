@@ -3,8 +3,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from prelude.formula import Wff, render
-from prelude.typing import Hypothesis, PreludeTypingError, Sort
+from skfd.authoring.formula import Wff, render
+from skfd.authoring.typing import Hypothesis, PreludeTypingError, Sort
 
 from . import HilbertSystem
 from ._structures import Imp, phi, psi

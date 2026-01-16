@@ -133,6 +133,9 @@ class DriverRunner:
         # 3. Emit
         self.target_dir.mkdir(parents=True, exist_ok=True)
         outfile = self.target_dir / f"{name}_full.mm"
+        mapfile = self.target_dir / f"{name}_full.mm.map"
+
+        import json
 
         with open(outfile, "w", encoding="utf-8") as f:
             # Pass list of units to LinkerV1
@@ -141,7 +144,29 @@ class DriverRunner:
             )
             f.write(res.mm_text)
 
-        logger.info(f"Generated verification monolith: {outfile}")
+        with open(mapfile, "w", encoding="utf-8") as f:
+            # Resolve origins to make the map useful
+            # We dump the raw mappings (line -> origin_ref)
+            # And the origin table (origin_ref -> {file, line, module})
+            # OriginRef is an index into the table.
+            # Assuming origin_table structure allows easy dump.
+            
+            # OriginTable stores `_records`. We access protected member or add public accessor?
+            # Ideally add `to_json()` to OriginTable.
+            # For now, let's just use `res.ctx.origin_table._records` if we have to, 
+            # or rely on the Fact that OriginRef is just ID.
+            
+            # Let's inspect OriginTable.
+            # If I can't access `_records`, I'll iterate the refs in the map.
+            
+            map_data = {
+                "format": "skfd-sourcemap-v1",
+                "mappings": res.source_map.to_json(),
+                "origins": res.ctx.origin_table.dump(root=self.root),
+            }
+            json.dump(map_data, f, indent=2)
+
+        logger.info(f"Generated verification monolith: {outfile} (Map: {mapfile})")
 
         # 4. Run metamath-exe (if available)
         if shutil.which("metamath"):

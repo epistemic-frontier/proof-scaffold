@@ -92,7 +92,7 @@ def test_golden_scope_planning_determinism() -> None:
     plan = stage5([unit], symtab)
 
     # Stage 7: Emission
-    output = emit_mm(symtab=symtab, plan=plan)
+    output, _ = emit_mm(symtab=symtab, plan=plan)
 
     # 3. Validation
     # We expect:

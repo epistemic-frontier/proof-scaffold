@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from skfd.core.context import Context
 from skfd.core.diag import Diagnostic, LinkerDiagError
 from skfd.core.origin import OriginTable
+from skfd.core.source_map import SourceMap
 from skfd.core.symbols import SymbolInterner
 from skfd.core.unit import ProofUnitIR
 
@@ -21,6 +22,7 @@ from .passes.stage6_relocation import run as stage6_relocate
 @dataclass(frozen=True)
 class LinkResult:
     mm_text: str
+    source_map: SourceMap
     ctx: Context
 
 
@@ -62,5 +64,5 @@ class LinkerV1:
         # Stage 6: Relocation
         reloc_table = stage6_relocate(ctx.symtab)
 
-        mm_text = emit_mm(symtab=ctx.symtab, plan=plan, reloc_table=reloc_table)
-        return LinkResult(mm_text=mm_text, ctx=ctx)
+        mm_text, source_map = emit_mm(symtab=ctx.symtab, plan=plan, reloc_table=reloc_table)
+        return LinkResult(mm_text=mm_text, source_map=source_map, ctx=ctx)

@@ -13,6 +13,7 @@ from skfd.core.lir import (
     Theorem,
     VarDecl,
 )
+from skfd.core.source_map import SourceMap, SourceMapEntry
 from skfd.core.symbols import SymbolDef, SymbolId
 from skfd.linker.passes.stage5_scope import LinearPlan
 
@@ -22,11 +23,13 @@ def emit_mm(
     symtab: dict[SymbolId, SymbolDef],
     plan: LinearPlan,
     reloc_table: dict[SymbolId, str] | None = None,
-) -> str:
+) -> tuple[str, SourceMap]:
     """
     Emit a single .mm text stream from a LinearPlan.
+    Returns (content, source_map).
     """
     out: list[str] = []
+    map_entries: list[SourceMapEntry] = []
 
     # helper to resolve name
     def get_name(sid: SymbolId) -> str:
@@ -53,6 +56,13 @@ def emit_mm(
             # ConstDecl/VarDecl handled in header (shouldn't differ here, but check just in case)
             if isinstance(st, ConstDecl | VarDecl):
                 continue
+            
+            # Map the start of this statement to the current line (1-based)
+            start_line = len(out) + 1
+            
+            # Origin tracking: most statements have origin_ref
+            if hasattr(st, "origin_ref") and st.origin_ref:
+                map_entries.append(SourceMapEntry(line=start_line, origin=st.origin_ref))
 
             if isinstance(st, Comment):
                 out.append(f"$( {st.text} $)")
@@ -88,4 +98,4 @@ def emit_mm(
             elif isinstance(st, ScopeExit):
                 out.append("$}")
 
-    return "\n".join(out) + "\n"
+    return "\n".join(out) + "\n", SourceMap(entries=map_entries)

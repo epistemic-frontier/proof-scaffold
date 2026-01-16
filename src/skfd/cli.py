@@ -229,6 +229,14 @@ def _cmd_verify(args: argparse.Namespace) -> int:
 
         # Verify phase
         pkg = args.package
+        if pkg not in runner.lirs and "." in pkg:
+            root_pkg = pkg.split(".", 1)[0]
+            if root_pkg in runner.lirs:
+                print(
+                    f"Package '{pkg}' not found as a build unit; "
+                    f"falling back to top-level package '{root_pkg}'."
+                )
+                pkg = root_pkg
         level = getattr(args, "level", 0)
         print(f"Verifying package '{pkg}' (Level {level})...")
         runner.verify_package(pkg, conformance_level=level)

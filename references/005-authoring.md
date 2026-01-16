@@ -196,3 +196,31 @@ By respecting the condensation phase, we gain:
 * clearer theories
 * more stable foundations
 * and a path from human reasoning to machine verification that remains intelligible.
+
+---
+
+## 10. Authoring Experience (Hilbert Lemmas)
+
+Early experiments with a Hilbert-style propositional system provide some concrete feedback on this architecture.
+
+- Hilbert as “assembly language”  
+  - Writing the identity law lemma `L1_id : φ → φ` directly against A1/A2 and `mp` confirmed that the authoring contract works as intended:  
+    - authoring stays in terms of `Var`, `Imp`, etc.,  
+    - compilation is a single `compile(...)` call,  
+    - and verification remains downstream in Metamath.  
+  - The proof is mechanically close to textbook Hilbert derivations, which makes the correspondence between mathematics and code easy to see.
+
+- Classic propositional lemmas expose friction  
+  - For more substantial lemmas (De Morgan, contrapositive, double negation, excluded middle, Peirce), proofs become noticeably verbose when written purely in terms of A1/A2/A3 + `mp`.  
+  - Many steps are instantiations of the same higher-level pattern (for example, combining `A → (B → C)` and `A → B` to obtain `A → C` via A2), but today these patterns are expanded by hand.  
+  - Managing intermediate labels and `Hypothesis` objects is precise but laborious; small edits can require rechecking multiple downstream references.
+
+- Toolchain vs. authoring effort  
+  - Once a lemma is correctly expressed in the authoring layer, lowering to Metamath via `LemmaProof` and `emit_lemmas` is smooth.  
+  - Recent fixes around stack underflow and token mapping show that most remaining friction is in proof authoring, not in emission or verification.  
+  - This is a good sign: the backend is stable enough that iteration cost is dominated by how we write proofs, not by how we compile them.
+
+- Design implications for the authoring layer  
+  - These experiments reinforce the idea that **Hilbert should be treated as a backend target**, not as the primary authoring language.  
+  - A more ergonomic, assumption-aware proof DSL on top of the current authoring layer would let authors write natural-deduction style arguments, which could then be compiled down to Hilbert proofs using the Deduction Theorem as a specification.  
+  - In this view, the existing authoring constructs (`Expr`, `CompileEnv`, `LemmaProof`) are the right place to attach such a compiler, keeping the Hilbert layer thin and mechanical while preserving a mathematically natural authoring experience.

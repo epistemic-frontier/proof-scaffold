@@ -44,22 +44,34 @@ def verify(command: list[str], mm_file: Path, timeout_sec: int = 60) -> None:
             f"output:\n{proc.stdout}"
         )
 
-        # Attempt to map error back to source
         map_file = mm_file.with_suffix(".mm.map")
         if map_file.exists():
             import json
             import re
 
-            # Simple regex to catch "?Error at line N:"
             match = re.search(r"\?Error at line (\d+):", proc.stdout)
             if match:
                 line_failed = int(match.group(1))
                 try:
+                    mm_context = ""
+                    try:
+                        with open(mm_file, encoding="utf-8") as f_mm:
+                            all_lines = f_mm.read().splitlines()
+                        idx = line_failed - 1
+                        radius = 4
+                        start = max(0, idx - radius)
+                        end = min(len(all_lines), idx + radius + 1)
+                        numbered = []
+                        for i in range(start, end):
+                            prefix = ">" if i == idx else " "
+                            numbered.append(f"{prefix} {i+1:6d}: {all_lines[i]}")
+                        mm_context = "\n".join(numbered)
+                    except Exception as mm_exc:
+                        mm_context = f"(failed to read .mm context: {mm_exc})"
+
                     with open(map_file, encoding="utf-8") as f:
                         map_data = json.load(f)
 
-                    # Find entry for this line
-                    # Mappings: [{"line": 6, "origin_ref": 123}, ...]
                     origin_ref = None
                     for entry in map_data.get("mappings", []):
                         if entry.get("line") == line_failed:
@@ -67,15 +79,18 @@ def verify(command: list[str], mm_file: Path, timeout_sec: int = 60) -> None:
                             break
 
                     if origin_ref is not None:
-                        # Find origin in table
-                        # Origins: [{"module": "mod", "file": "f.py", "line": 10}, ...] (indexed by position!)
-                        # Wait, OriginTable.dump returns a LIST, and OriginRef is the INDEX into that list.
                         origins = map_data.get("origins", [])
                         if 0 <= origin_ref < len(origins):
                             orig = origins[origin_ref]
                             f_path = orig.get("file", "??")
                             f_line = orig.get("line", "??")
                             error_msg += f"\n\n--> Source Origin: {f_path}:{f_line}\n"
+
+                    if mm_context:
+                        error_msg += (
+                            f"\n\n--> MM context around line {line_failed} in {mm_file}:\n"
+                            f"{mm_context}\n"
+                        )
                 except Exception as e:
                     error_msg += f"\n(Failed to apply source map: {e})"
 

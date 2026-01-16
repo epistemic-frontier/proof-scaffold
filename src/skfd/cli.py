@@ -6,10 +6,12 @@ skfd: The ProofScaffold CLI
 from __future__ import annotations
 
 import argparse
+import importlib
 import os
 import platform
 import sys
 from pathlib import Path
+import pkgutil
 
 from skfd.core.diag import LinkerDiagError
 from skfd.driver.runner import DriverRunner
@@ -385,6 +387,126 @@ def _cmd_debug(args: argparse.Namespace) -> int:
         return 1
 
 
+def _cmd_list_lemmas(args: argparse.Namespace) -> int:
+    """Reflect over lemma constructors and print a simple index."""
+    package = args.package
+    rel_module = getattr(args, "module", "propositional.hilbert.lemmas")
+
+    if rel_module:
+        module_name = f"{package}.{rel_module}"
+    else:
+        module_name = package
+
+    try:
+        root_module = importlib.import_module(module_name)
+    except Exception as e:
+        print(f"Error: Failed to import module '{module_name}': {e}", file=sys.stderr)
+        return 1
+
+    modules: list[object] = []
+    if hasattr(root_module, "__path__"):
+        modules.append(root_module)
+        for info in pkgutil.walk_packages(root_module.__path__, root_module.__name__ + "."):
+            try:
+                submod = importlib.import_module(info.name)
+            except Exception:
+                continue
+            modules.append(submod)
+    else:
+        modules.append(root_module)
+
+    seen: dict[str, str] = {}
+    for module in modules:
+        for attr_name in dir(module):
+            if not attr_name.startswith("prove_"):
+                continue
+            fn = getattr(module, attr_name, None)
+            if not callable(fn):
+                continue
+            lemma_id = attr_name[len("prove_") :]
+            doc = fn.__doc__ or ""
+            first_line = ""
+            for line in doc.strip().splitlines():
+                stripped = line.strip()
+                if stripped:
+                    first_line = stripped
+                    break
+            if lemma_id not in seen:
+                seen[lemma_id] = first_line
+
+    if not seen:
+        print(f"No lemma constructors found under '{module_name}'.")
+        return 0
+
+    rows = sorted(seen.items(), key=lambda r: r[0])
+    width = max(len(name) for name, _ in rows)
+
+    print(f"Lemmas under {module_name}:")
+    for name, desc in rows:
+        print(f"  {name:<{width}}  {desc}")
+    return 0
+
+
+def _cmd_list_defs(args: argparse.Namespace) -> int:
+    """Reflect over definitional macros and print a simple index."""
+    package = args.package
+    rel_module = getattr(args, "module", "propositional.hilbert.definitions")
+
+    if rel_module:
+        module_name = f"{package}.{rel_module}"
+    else:
+        module_name = package
+
+    try:
+        root_module = importlib.import_module(module_name)
+    except Exception as e:
+        print(f"Error: Failed to import module '{module_name}': {e}", file=sys.stderr)
+        return 1
+
+    modules: list[object] = []
+    if hasattr(root_module, "__path__"):
+        modules.append(root_module)
+        for info in pkgutil.walk_packages(root_module.__path__, root_module.__name__ + "."):
+            try:
+                submod = importlib.import_module(info.name)
+            except Exception:
+                continue
+            modules.append(submod)
+    else:
+        modules.append(root_module)
+
+    collected: dict[str, object] = {}
+    for module in modules:
+        definitions = getattr(module, "DEFINITIONS", None)
+        if not isinstance(definitions, dict):
+            continue
+        for name, definition in definitions.items():
+            if name not in collected:
+                collected[name] = definition
+
+    if not collected:
+        print(f"No DEFINITIONS mapping found under '{module_name}'.")
+        return 0
+
+    rows: list[tuple[str, str]] = []
+    for name in sorted(collected):
+        definition = collected[name]
+        doc = getattr(definition, "doc", "") or ""
+        first_line = ""
+        for line in str(doc).strip().splitlines():
+            stripped = line.strip()
+            if stripped:
+                first_line = stripped
+                break
+        rows.append((name, first_line))
+
+    width = max(len(name) for name, _ in rows)
+    print(f"Definitions under {module_name}:")
+    for name, desc in rows:
+        print(f"  {name:<{width}}  {desc}")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(prog="skfd", description="ProofScaffold CLI")
     p.add_argument("--root", type=Path, help="Project root", default=None)
@@ -475,6 +597,30 @@ def main(argv: list[str] | None = None) -> int:
         help="Number of lines of context to show before/after the label line",
     )
     p_debug.set_defaults(func=_cmd_debug)
+
+    # --- list-lemmas (doc tooling) ---
+    p_list = sub.add_parser(
+        "list-lemmas", help="List lemma constructors for a logic package"
+    )
+    p_list.add_argument("package", help="Root package (e.g. 'logic')")
+    p_list.add_argument(
+        "--module",
+        default="propositional.hilbert.lemmas",
+        help="Module path relative to package (default: 'propositional.hilbert.lemmas')",
+    )
+    p_list.set_defaults(func=_cmd_list_lemmas)
+
+    # --- list-defs (doc tooling) ---
+    p_defs = sub.add_parser(
+        "list-defs", help="List definitional macros for a logic package"
+    )
+    p_defs.add_argument("package", help="Root package (e.g. 'logic')")
+    p_defs.add_argument(
+        "--module",
+        default="propositional.hilbert.definitions",
+        help="Module path relative to package (default: 'propositional.hilbert.definitions')",
+    )
+    p_defs.set_defaults(func=_cmd_list_defs)
 
     args = p.parse_args(argv)
 

@@ -36,10 +36,12 @@ class toks:
         self.lines_buf = [lines]
         self.tokbuf = []
         self.imported_files = set()
+        self.line_num = 0
 
     def read(self):
         while self.tokbuf == []:
             line = self.lines_buf[-1].readline()
+            self.line_num += 1
             if not line:
                 self.lines_buf.pop().close()
                 if not self.lines_buf:
@@ -76,13 +78,14 @@ class toks:
 
     def readstat(self):
         stat = []
+        start_line = self.line_num
         tok = self.readc()
         while tok != "$.":
             if tok is None:
                 raise MMError("EOF before $.")
             stat.append(tok)
             tok = self.readc()
-        return stat
+        return stat, start_line
 
 
 class Frame:
@@ -202,13 +205,15 @@ class MM:
         tok = toks.readc()
         while tok not in (None, "$}"):
             if tok == "$c":
-                for tok in toks.readstat():
+                stat, _ = toks.readstat()
+                for tok in stat:
                     self.fs.add_c(tok)
             elif tok == "$v":
-                for tok in toks.readstat():
+                stat, _ = toks.readstat()
+                for tok in stat:
                     self.fs.add_v(tok)
             elif tok == "$f":
-                stat = toks.readstat()
+                stat, _ = toks.readstat()
                 if not label:
                     raise MMError("$f must have label")
                 if len(stat) != 2:
@@ -218,21 +223,22 @@ class MM:
                 self.labels[label] = ("$f", [stat[0], stat[1]])
                 label = None
             elif tok == "$a":
+                stat, _ = toks.readstat()
                 if not label:
                     raise MMError("$a must have label")
-                self.labels[label] = ("$a", self.fs.make_assertion(toks.readstat()))
+                self.labels[label] = ("$a", self.fs.make_assertion(stat))
                 label = None
             elif tok == "$e":
+                stat, _ = toks.readstat()
                 if not label:
                     raise MMError("$e must have label")
-                stat = toks.readstat()
                 self.fs.add_e(stat, label)
                 self.labels[label] = ("$e", stat)
                 label = None
             elif tok == "$p":
                 if not label:
                     raise MMError("$p must have label")
-                stat = toks.readstat()
+                stat, lnum = toks.readstat()
                 proof = None
                 try:
                     i = stat.index("$=")
@@ -241,11 +247,18 @@ class MM:
                 except ValueError:
                     raise MMError("$p must contain proof after $=") from None
                 vprint(1, "verifying", label)
-                self.verify(label, stat, proof)
+                try:
+                    self.verify(label, stat, proof)
+                except MMError as e:
+                    # Enrich error with line number
+                    print(f"?Error at line {lnum}: {e}", file=sys.stderr)
+                    # Re-raise to ensure exit code 1
+                    raise
                 self.labels[label] = ("$p", self.fs.make_assertion(stat))
                 label = None
             elif tok == "$d":
-                self.fs.add_d(toks.readstat())
+                stat, _ = toks.readstat()
+                self.fs.add_d(stat)
             elif tok == "${":
                 self.read(toks)
             elif tok[0] != "$":

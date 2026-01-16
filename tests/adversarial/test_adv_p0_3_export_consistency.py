@@ -69,7 +69,9 @@ def test_adv_p0_3_export_consistency() -> None:
 
     # Expect Failure
     with pytest.raises(LinkerDiagError) as excinfo:
-        LinkerV1.link(units=[unit_a, unit_b], origin_table=ot, interner=interner)
+        LinkerV1.link(
+            units=[unit_a, unit_b], origin_table=ot, interner=interner, conformance_level=1
+        )
 
     e = excinfo.value
     # Check for specific error code (e.g. E_SYMBOL_NOT_EXPORTED)

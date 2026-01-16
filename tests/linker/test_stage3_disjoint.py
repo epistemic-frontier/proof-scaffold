@@ -12,8 +12,6 @@ def test_stage3_disjoint_extraction() -> None:
     # Setup
     symtab: dict[SymbolId, SymbolDef] = {}
 
-
-
     # Construct a unit with scopes and $d statements
     # Scope 0:
     #   $d x y
@@ -38,7 +36,7 @@ def test_stage3_disjoint_extraction() -> None:
             L_ax1: AssertionContract(L_ax1, [], []),
             L_th1: AssertionContract(L_th1, [], []),
         },
-        details={}
+        details={},
     )
 
     stmts: list[LIRStmt] = [
@@ -56,7 +54,7 @@ def test_stage3_disjoint_extraction() -> None:
         origin_ref=0,
         origin_module_id="mod",
         lir_stmts=stmts,
-        exports=[L_th1]
+        exports=[L_th1],
     )
 
     # Run Stage 3

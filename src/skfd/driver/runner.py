@@ -110,7 +110,7 @@ class DriverRunner:
         # Collect LIR using correct method name
         self.lirs[name] = mm.to_proof_unit(unit_id=name)
 
-    def verify_package(self, name: str) -> None:
+    def verify_package(self, name: str, conformance_level: int = 0) -> None:
         """
         Verify a specific package using Transient Monolith strategy.
         1. Collect LIRs of transitive dependencies + self.
@@ -140,7 +140,10 @@ class DriverRunner:
         with open(outfile, "w", encoding="utf-8") as f:
             # Pass list of units to LinkerV1
             res = LinkerV1.link(
-                units=units, origin_table=self.origin_table, interner=self.interner
+                units=units,
+                origin_table=self.origin_table,
+                interner=self.interner,
+                conformance_level=conformance_level,
             )
             f.write(res.mm_text)
 
@@ -150,15 +153,15 @@ class DriverRunner:
             # And the origin table (origin_ref -> {file, line, module})
             # OriginRef is an index into the table.
             # Assuming origin_table structure allows easy dump.
-            
+
             # OriginTable stores `_records`. We access protected member or add public accessor?
             # Ideally add `to_json()` to OriginTable.
-            # For now, let's just use `res.ctx.origin_table._records` if we have to, 
+            # For now, let's just use `res.ctx.origin_table._records` if we have to,
             # or rely on the Fact that OriginRef is just ID.
-            
+
             # Let's inspect OriginTable.
             # If I can't access `_records`, I'll iterate the refs in the map.
-            
+
             map_data = {
                 "format": "skfd-sourcemap-v1",
                 "mappings": res.source_map.to_json(),

@@ -49,15 +49,15 @@ def verify(command: list[str], mm_file: Path, timeout_sec: int = 60) -> None:
         if map_file.exists():
             import json
             import re
-            
+
             # Simple regex to catch "?Error at line N:"
             match = re.search(r"\?Error at line (\d+):", proc.stdout)
             if match:
                 line_failed = int(match.group(1))
                 try:
-                    with open(map_file, "r", encoding="utf-8") as f:
+                    with open(map_file, encoding="utf-8") as f:
                         map_data = json.load(f)
-                        
+
                     # Find entry for this line
                     # Mappings: [{"line": 6, "origin_ref": 123}, ...]
                     origin_ref = None
@@ -65,7 +65,7 @@ def verify(command: list[str], mm_file: Path, timeout_sec: int = 60) -> None:
                         if entry.get("line") == line_failed:
                             origin_ref = entry.get("origin_ref")
                             break
-                    
+
                     if origin_ref is not None:
                         # Find origin in table
                         # Origins: [{"module": "mod", "file": "f.py", "line": 10}, ...] (indexed by position!)
@@ -78,5 +78,5 @@ def verify(command: list[str], mm_file: Path, timeout_sec: int = 60) -> None:
                             error_msg += f"\n\n--> Source Origin: {f_path}:{f_line}\n"
                 except Exception as e:
                     error_msg += f"\n(Failed to apply source map: {e})"
-        
+
         raise RuntimeError(error_msg)

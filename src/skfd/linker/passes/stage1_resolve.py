@@ -24,7 +24,9 @@ def _raise(
     )
 
 
-def run(*, ctx, units: list[ProofUnitIR]) -> list[ProofUnitIR]:
+def run(
+    *, ctx, units: list[ProofUnitIR], conformance_level: int = 0
+) -> list[ProofUnitIR]:
     symtab = ctx.symtab
 
     def kind_of(tok: SymbolId) -> str | None:
@@ -98,8 +100,8 @@ def run(*, ctx, units: list[ProofUnitIR]) -> list[ProofUnitIR]:
                             tok_kind=k,
                         )
 
-                    # Access Control Check
-                    if t in symbol_owner:
+                    # Access Control Check (Level 1+)
+                    if conformance_level >= 1 and t in symbol_owner:
                         owner_uid = symbol_owner[t]
                         if owner_uid != u.unit_id:
                             # Cross-unit reference. Must be exported.

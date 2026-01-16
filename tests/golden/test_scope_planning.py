@@ -65,9 +65,7 @@ def test_golden_scope_planning_determinism() -> None:
             FloatingHyp(
                 label=l_wffph, typecode=c_wff, var=v_ph, stmt_id=4, origin_ref=orig
             ),
-            Axiom(
-                label=l_ax1, typecode=c_wff, expr=[v_ph], stmt_id=5, origin_ref=orig
-            ),
+            Axiom(label=l_ax1, typecode=c_wff, expr=[v_ph], stmt_id=5, origin_ref=orig),
             Theorem(
                 label=l_th1,
                 typecode=c_wff,

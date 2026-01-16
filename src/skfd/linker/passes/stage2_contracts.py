@@ -83,8 +83,6 @@ def run(units: list[ProofUnitIR], symtab: dict[SymbolId, SymbolDef]) -> Contract
         # LIR has `ScopeEnter/Exit`.
         # Correct scope logic: maintain a stack of active hyps.
 
-
-
         # We do need rudimentary scope tracking to be correct for multi-assertion units.
         scope_stack_f: list[list[FloatingHyp]] = []
         scope_stack_e: list[list[EssentialHyp]] = []
@@ -139,7 +137,9 @@ def run(units: list[ProofUnitIR], symtab: dict[SymbolId, SymbolDef]) -> Contract
 
                 required_vars: set[SymbolId] = set()
 
-                def scan_vars(expr: tuple[SymbolId, ...], target_vars: set[SymbolId]) -> None:
+                def scan_vars(
+                    expr: tuple[SymbolId, ...], target_vars: set[SymbolId]
+                ) -> None:
                     for t in expr:
                         kind = symtab[t].kind
                         if kind == "Var":

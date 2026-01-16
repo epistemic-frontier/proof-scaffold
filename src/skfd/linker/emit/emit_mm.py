@@ -56,13 +56,15 @@ def emit_mm(
             # ConstDecl/VarDecl handled in header (shouldn't differ here, but check just in case)
             if isinstance(st, ConstDecl | VarDecl):
                 continue
-            
+
             # Map the start of this statement to the current line (1-based)
             start_line = len(out) + 1
-            
+
             # Origin tracking: most statements have origin_ref
             if hasattr(st, "origin_ref") and st.origin_ref:
-                map_entries.append(SourceMapEntry(line=start_line, origin=st.origin_ref))
+                map_entries.append(
+                    SourceMapEntry(line=start_line, origin=st.origin_ref)
+                )
 
             if isinstance(st, Comment):
                 out.append(f"$( {st.text} $)")

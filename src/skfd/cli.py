@@ -17,6 +17,7 @@ from skfd.verifier import verify
 
 from .config import VerifierConfig, load_config, save_config
 from .doctor.check import run_sanity
+from .doctor.slice import slice_package
 
 # Hack: ensure CWD is in path so we can import examples/user code
 cwd = str(Path.cwd())
@@ -100,6 +101,24 @@ def _cmd_doctor(args: argparse.Namespace) -> int:
         return 0
     else:
         print("Doctor check FAILED (some verifiers failed).")
+        return 1
+
+
+def _cmd_doctor_slice(args: argparse.Namespace) -> int:
+    """Run debug slice on a package."""
+    root = (args.root or Path.cwd()) / "target"
+    pkg = args.package
+    label = args.label
+
+    mm_file = root / f"{pkg}_full.mm"
+    map_file = root / f"{pkg}_full.mm.map"
+
+    try:
+        report = slice_package(mm_file, map_file, label)
+        print(report.render())
+        return 0
+    except Exception as e:
+        print(f"Slice failed: {e}", file=sys.stderr)
         return 1
 
 
@@ -210,8 +229,9 @@ def _cmd_verify(args: argparse.Namespace) -> int:
 
         # Verify phase
         pkg = args.package
-        print(f"Verifying package '{pkg}'...")
-        runner.verify_package(pkg)
+        level = getattr(args, "level", 0)
+        print(f"Verifying package '{pkg}' (Level {level})...")
+        runner.verify_package(pkg, conformance_level=level)
 
         # Now run configured verifiers
         outfile = target / f"{pkg}_full.mm"
@@ -254,8 +274,21 @@ def main(argv: list[str] | None = None) -> int:
     sub = p.add_subparsers(dest="cmd", required=True)
 
     # --- doctor ---
-    p_doctor = sub.add_parser("doctor", help="Check environment and toolchain health")
-    p_doctor.set_defaults(func=_cmd_doctor)
+    # --- doctor ---
+    p_doctor = sub.add_parser("doctor", help="Diagnostic tools")
+    doc_sub = p_doctor.add_subparsers(dest="doc_cmd", required=True)
+
+    # check
+    p_doc_check = doc_sub.add_parser(
+        "check", help="Check environment and toolchain health"
+    )
+    p_doc_check.set_defaults(func=_cmd_doctor)
+
+    # slice
+    p_doc_slice = doc_sub.add_parser("slice", help="Debug slice a statement")
+    p_doc_slice.add_argument("package", help="Package name (e.g. logic)")
+    p_doc_slice.add_argument("label", help="Target label (e.g. th-1)")
+    p_doc_slice.set_defaults(func=_cmd_doctor_slice)
 
     # --- smoke (legacy) ---
     p_smoke = sub.add_parser("smoke", help="[Legacy] run sanity + minimal_ok")
@@ -293,6 +326,13 @@ def main(argv: list[str] | None = None) -> int:
     p_verify = sub.add_parser("verify", help="Build and verify a package")
     p_verify.add_argument(
         "package", help="Name of the package to verify (e.g. 'logic')"
+    )
+    p_verify.add_argument(
+        "--level",
+        type=int,
+        default=0,
+        choices=[0, 1, 2],
+        help="Conformance level (0=Loose, 1=Strict Interface, 2=FOL)",
     )
     p_verify.set_defaults(func=_cmd_verify)
 

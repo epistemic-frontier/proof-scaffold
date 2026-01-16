@@ -25,19 +25,19 @@ def _build_failing_units() -> tuple[list[ProofUnitIR], OriginTable, SymbolIntern
         lir_stmts=[
             Axiom(1, 100, 10, S_wff, []),
         ],
-        exports=[10]
+        exports=[10],
     )
-    
+
     # Define Unit B (Duplicate Label 10)
     u2 = ProofUnitIR(
         unit_id="unitB",
         origin_ref=200,  # File B
         origin_module_id="modB",
         lir_stmts=[
-             ConstDecl(2, 200, [S_wff]),
-             Theorem(3, 200, 10, S_wff, [], []), # distinct stmt_id, same label 10
+            ConstDecl(2, 200, [S_wff]),
+            Theorem(3, 200, 10, S_wff, [], []),  # distinct stmt_id, same label 10
         ],
-        exports=[10]
+        exports=[10],
     )
     return [u1, u2], ot, interner
 

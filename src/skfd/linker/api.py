@@ -29,14 +29,20 @@ class LinkResult:
 class LinkerV1:
     @staticmethod
     def link(
-        *, units: list[ProofUnitIR], origin_table: OriginTable, interner: SymbolInterner
+        *,
+        units: list[ProofUnitIR],
+        origin_table: OriginTable,
+        interner: SymbolInterner,
+        conformance_level: int = 0,
     ) -> LinkResult:
         # Stage1: lint/resolution baseline (bootstrap assumes Stage0 already interned)
         ctx = Context(
             origin_table=origin_table, interner=interner, symtab=interner.symbol_table()
         )
         try:
-            units1 = stage1_run(ctx=ctx, units=units)
+            units1 = stage1_run(
+                ctx=ctx, units=units, conformance_level=conformance_level
+            )
         except LinkerDiagError:
             raise
         except Exception as e:  # wrap as diagnostic
@@ -64,5 +70,7 @@ class LinkerV1:
         # Stage 6: Relocation
         reloc_table = stage6_relocate(ctx.symtab)
 
-        mm_text, source_map = emit_mm(symtab=ctx.symtab, plan=plan, reloc_table=reloc_table)
+        mm_text, source_map = emit_mm(
+            symtab=ctx.symtab, plan=plan, reloc_table=reloc_table
+        )
         return LinkResult(mm_text=mm_text, source_map=source_map, ctx=ctx)

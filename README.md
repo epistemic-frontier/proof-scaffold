@@ -2,65 +2,72 @@
 
 A layered, sanity-checked scaffold for building modular Metamath artifacts.
 
-This repository treats Python as the builder (compiler/linker) and Metamath as the verifier (semantic authority). Documents capture design intent first; code implements passes with explicit invariants; tests provide the non-negotiable gates.
+This repository treats Python as the builder (compiler/linker) and Metamath as the verifier (semantic authority).
+We follow a **Transient Monolith** verification strategy: explicit Python packages (`skfd.driver`) generate intermediate representations (LIR), which are concatenated into ephemeral `.mm` files for verification by `metamath-exe`.
 
 ## Quickstart
 
+**Requirements**:
 - Python >= 3.10
-- Install dev deps and run tests:
+- [uv](https://github.com/astral-sh/uv) (Recommended)
+- [metamath-exe](https://github.com/metamath/metamath-exe) (Optional, for verification)
 
-```
-python3 -m pip install -e .[dev]
-pytest -q -ra
-```
+**Installation**:
 
-The default test suite contains always-on sanity checks (00–04). See `docs/sanity/` for the associated specs and `tools/sanity/` for the generators.
+```bash
+# Install dependencies (including dev tools)
+uv pip install -e .[dev]
 
-## Milestone M0.2: Progress-Gated Tests
-
-We use a "document-first + test-first + don’t break CI" approach. Instead of commenting out tests, we commit executable tests that are initially marked as `skip` (or `xfail(strict=True)` for negative cases). As each capability lands, we remove the gate on a per-test basis.
-
-- New file: `tests/test_sanity_m02.py`
-- Markers:
-  - `sanity_m02`: all M0.2 tests
-  - `step05`, `step06`, `step07`: per-step groupings
-- Run just the M0.2 suite:
-
-```
-pytest -q -ra -m sanity_m02
+# Check environment health
+python3 -m skfd.cli doctor
 ```
 
-### Unskip workflow
+## Key Components
 
-1) Land a minimal implementation for a step (e.g., 05 mp) and add/replace the corresponding fixture(s) under `fixtures/sanity/`.
-2) Remove the `@pytest.mark.skip` on the happy-path test.
-3) For adversarial tests, switch from `skip` to `xfail(strict=True)` until the early gate exists; then remove `xfail` and assert the precise diagnostic.
+### 1. Generic Logic Driver (`skfd.driver`)
 
-### Fixture conventions (to keep deltas small)
+Manages the build lifecycle of logic packages.
+- **Explicit Dependencies**: Packages declare deps in `build.py` (e.g., `prelude`, `logic`).
+- **No Implicit Globals**: The driver injects dependencies explicitly.
+- **Subcommand**: `skfd verify <package>`
 
-- `fixtures/sanity/05_mp_happy.mm`
-- `fixtures/sanity/05_mp_missing_hyp.mm`
-- `fixtures/sanity/05_mp_bad_proof_tokens.mm`
-- `fixtures/sanity/06_scope_happy.mm`
-- `fixtures/sanity/06_scope_leakage.mm`
-- `fixtures/sanity/06_scope_unbalanced.mm`
-- `fixtures/sanity/07_two_units_happy.mm`
-- `fixtures/sanity/07_cycle.mm`
-- `fixtures/sanity/07_non_exported_label_ref.mm`
+### 2. Builder API (`skfd.builder`)
 
-These are placeholders initially; replace them with minimal, verifiable `.mm` snippets (or generator scripts in `tools/sanity/` that emit them) as you implement each step.
+A fluent Python API for constructing Metamath databases.
+- Supports atomic LIR generation.
+- Handles symbol interning and origin tracking automatically.
 
-## References
+### 3. Engineering Standards (`AGENT.md`)
 
-- `references/001_arch-design.md` — Design notes (Rev. 2)
-- `references/002_link-model_v3.md` — Linker model v4 (contracts, relocation, scopes)
-- `references/003_roadmap-methodology_v2.md` — Roadmap & methodology (document-first plan)
-- `references/004_generator_design_v2.md` — Generator (document-first plan)
-- `references/005_authoring.md` — Authoring specs
+We adhere to strict engineering standards enforced by CI:
+- **Lint/Format**: Ruff
+- **Typing**: MyPy (Strict)
+- **Testing**: Pytest
 
-## Project Hygiene
+See [AGENT.md](./AGENT.md) for the full protocol.
 
-- Always keep sanity checks green.
-- Treat interface contracts as public API.
-- Prefer small ProofUnits with clear exports.
-- Determinism and explicitness are first-class constraints.
+## Usage
+
+### Run Tests
+```bash
+python3 -m pytest
+```
+
+### Build & Verify Logic
+```bash
+# Verify the 'logic' package (and its 'prelude' dependency)
+python3 -m skfd.cli verify logic
+```
+
+This will:
+1.  Discover all `build.py` files in `src/`.
+2.  Topologically sort dependencies.
+3.  Build each package in memory.
+4.  Generate `target/logic_full.mm` (Transient Monolith).
+5.  Run `metamath-exe` (if available).
+
+## Documentation
+
+- `projects/009-logic_driver.md`: Driver Design & Verification Strategy.
+- `src/skfd/`: Core Toolchain Source.
+- `examples/`: Minimal usage examples.

@@ -16,8 +16,10 @@ from pathlib import Path
 from skfd.core.diag import LinkerDiagError
 from skfd.driver.runner import DriverRunner
 from skfd.verifier import verify
+from skfd.verifier.aggregate import VerifierResult, summarize
 
 from .config import VerifierConfig, load_config, save_config
+from .doctor.alignment import check_alignment
 from .doctor.check import run_sanity
 from .doctor.slice import slice_package
 
@@ -36,70 +38,6 @@ def _build_dir(*parts: str) -> Path:
 def _write_text(path: Path, text: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(text, encoding="utf-8")
-
-
-def _normalize_pkg_name(name: str) -> str:
-    return name.strip().replace("-", "_")
-
-
-def _init_gitignore(path: Path) -> None:
-    entry = ".skfd"
-    if path.exists():
-        existing = path.read_text(encoding="utf-8")
-        if entry in existing.splitlines():
-            return
-        text = existing.rstrip("\n") + "\n" + entry + "\n"
-        path.write_text(text, encoding="utf-8")
-        return
-    _write_text(path, entry + "\n")
-
-
-def _init_skfd(path: Path) -> None:
-    _write_text(path, "active = ['mmverify']\n")
-
-
-def _init_pyproject(path: Path, *, project_name: str) -> None:
-    text = f"""[build-system]
-requires = ["setuptools>=68", "wheel"]
-build-backend = "setuptools.build_meta"
-
-[project]
-name = "{project_name}"
-version = "0.0.1"
-requires-python = ">=3.10"
-
-# Keep dependencies minimal for scaffolded projects.
-dependencies = [
-  "proof-scaffold",
-]
-
-[tool.setuptools.packages.find]
-where = ["src"]
-"""
-    _write_text(path, text)
-
-
-def _init_proof_template(path: Path) -> None:
-    text = """from logic.propositional.hilbert import HilbertSystem
-from logic.propositional.hilbert.lemmas import LemmaBuilder, LemmaProof
-
-
-def prove_minimal(sys: HilbertSystem) -> LemmaProof:
-    \"\"\"Minimal proof template: ph -> ph (A1 + MP).\"\"\"
-    lb = LemmaBuilder(sys, "minimal")
-
-    # Hypothesis
-    h1 = lb.hyp("h1", "ph")
-
-    # A1: ph -> (ps -> ph)
-    s1 = lb.step("s1", "ph -> ( ps -> ph )", "A1")
-
-    # MP h1, s1 => ps -> ph
-    s2 = lb.mp("s2", h1, s1)
-
-    return lb.build(s2)
-"""
-    _write_text(path, text)
 
 
 def _run_example_minimal_ok(verifier_cmd: list[str], *, write_mm: bool = True) -> None:
@@ -125,33 +63,6 @@ def _run_example_minimal_diag(*, write_mm: bool = False) -> None:
     # minimal_diag is expected to fail before emission; keep side effects minimal.
     if write_mm:
         raise AssertionError("minimal_diag should not emit")
-
-
-def _cmd_init(args: argparse.Namespace) -> int:
-    """Initialize a new ProofScaffold project."""
-    root = Path(args.name).resolve()
-    mode = args.mode
-    pkg_name = _normalize_pkg_name(args.package or args.name)
-
-    if root.exists() and any(root.iterdir()):
-        print(f"Error: target directory not empty: {root}", file=sys.stderr)
-        return 1
-
-    root.mkdir(parents=True, exist_ok=True)
-
-    _init_skfd(root / ".skfd")
-    _init_gitignore(root / ".gitignore")
-
-    if mode == "package":
-        _init_pyproject(root / "pyproject.toml", project_name=pkg_name)
-        pkg_dir = root / "src" / pkg_name
-        pkg_dir.mkdir(parents=True, exist_ok=True)
-        _write_text(pkg_dir / "__init__.py", "")
-    else:
-        _init_proof_template(root / "proof.py")
-
-    print(f"Initialized {mode} project at {root}")
-    return 0
 
 
 def _cmd_doctor(args: argparse.Namespace) -> int:
@@ -222,13 +133,24 @@ def _cmd_smoke(args: argparse.Namespace) -> int:
 
     for name, cmd in active_cmds:
         print(f"===[{name}]===")
-        print("Running sanity check...")
-        run_sanity(cmd)
-        print("Running minimal_ok example...")
-        _run_example_minimal_ok(cmd, write_mm=not args.no_write)
-        print(f"[{name}] accepted")
+        try:
+            print("Running sanity check...")
+            run_sanity(cmd)
+            print("Running minimal_ok example...")
+            _run_example_minimal_ok(cmd, write_mm=not args.no_write)
+            print(f"[{name}] accepted")
+            agg_results.append(VerifierResult(name=name, passed=True, returncode=0, output=""))
+        except Exception as e:
+            print(f"[{name}] failed")
+            print(f"    Error: {e}")
+            agg_results.append(VerifierResult(name=name, passed=False, returncode=1, output=str(e)))
+            all_passed = False
 
-    return 0
+    if agg_results:
+        print("\nSummary:")
+        print(summarize(agg_results))
+
+    return 0 if all_passed else 1
 
 
 def _cmd_example(args: argparse.Namespace) -> int:
@@ -303,8 +225,177 @@ def _cmd_verifier_remove(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_init_pkg(args: argparse.Namespace) -> int:
+    """Initialize a new logic package."""
+    name = args.name
+    root = (args.root or Path.cwd())
+    pkg_dir = root / "src" / name
+
+    if pkg_dir.exists():
+        print(f"Error: Directory {pkg_dir} already exists.", file=sys.stderr)
+        return 1
+
+    print(f"Initializing package '{name}' at {pkg_dir}...")
+    pkg_dir.mkdir(parents=True)
+
+    # __init__.py
+    (pkg_dir / "__init__.py").touch()
+
+    # build.py
+    build_py = pkg_dir / "build.py"
+    build_py.write_text("""
+from logic.propositional.hilbert import HilbertSystem
+from skfd.core.symbols import SymbolInterner
+
+def build():
+    interner = SymbolInterner()
+    # Create your system here
+    sys = HilbertSystem.make(interner=interner)
+    return sys
+""".strip() + "\n", encoding="utf-8")
+
+    # .skfd config in root
+    cfg_path = root / ".skfd"
+    if not cfg_path.exists():
+        print(f"Creating default config at {cfg_path}...")
+        # Create default config with mmverify
+        from .config import SkfdConfig, save_config
+        cfg = SkfdConfig(active_verifiers=["mmverify"])
+        save_config(cfg, root)
+
+    print("Done.")
+    return 0
+
+
+def _cmd_init_proof(args: argparse.Namespace) -> int:
+    """Initialize a standalone proof script."""
+    name = args.name
+    if not name.endswith(".py"):
+        name += ".py"
+
+    path = Path(name)
+    if path.exists():
+        print(f"Error: File {path} already exists.", file=sys.stderr)
+        return 1
+
+    print(f"Creating proof script '{path}'...")
+    path.write_text("""
+import sys
+from pathlib import Path
+import tempfile
+import os
+
+# Helper to ensure project root is in path if needed
+ROOT = Path(__file__).resolve().parents[1]
+
+from skfd.core.symbols import SymbolInterner
+from skfd.builder import MMBuilder
+from skfd.authoring.emit import emit_axioms, emit_lemmas
+from skfd.verifier.aggregate import run_all, summarize
+from skfd.core.origin import OriginTable
+from skfd.config import load_config
+
+from logic.propositional.hilbert import HilbertSystem
+from logic.propositional.hilbert.lemmas import LemmaBuilder, LemmaProof
+
+def verify_proofs(hs: HilbertSystem, proofs: list[LemmaProof]) -> None:
+    print(f"\\nVerifying {len(proofs)} proofs...")
+    
+    with tempfile.NamedTemporaryFile(suffix=".mm", delete=False, mode="w") as tmp:
+        mm_path = Path(tmp.name)
+    
+    try:
+        origin_table = OriginTable()
+        builder = MMBuilder(
+            interner=hs.interner,
+            origin_table=origin_table,
+            module_id="manual_verify"
+        )
+        builder.c("wff")
+        emit_axioms(builder, hs)
+        emit_lemmas(builder, hs, proofs)
+        
+        mm_path.write_text(builder.render())
+        print(f"Generated .mm file at: {mm_path}")
+
+        # Use skfd config to find verifiers
+        cfg = load_config(ROOT)
+        active_cmds = cfg.get_active_commands()
+        
+        if not active_cmds:
+            print("Warning: No active verifiers found in .skfd. Using default mmverify.")
+            # Fallback logic is handled by cfg.get_active_commands() usually returning mmverify if empty?
+            # Actually load_config defaults to mmverify if active list is empty.
+        
+        results = run_all(mm_path, active_cmds)
+        print("\\n" + "="*20 + " VERIFICATION SUMMARY " + "="*20)
+        print(summarize(results))
+        
+        failed = False
+        for r in results:
+            if not r.passed:
+                failed = True
+                print(f"\\n❌ {r.name} FAILED:\\n{r.output}")
+        
+        if failed:
+            sys.exit(1)
+                
+    finally:
+        # os.unlink(mm_path)
+        print(f"(Temporary file kept at {mm_path})")
+
+def prove_example(sys: HilbertSystem) -> LemmaProof:
+    lb = LemmaBuilder(sys, "example_lemma")
+    # A simple proof: ph -> ph
+    h1 = lb.step("s1", "ph -> ph", "A1 with (phi, psi)=(ph, ph)") 
+    # This is just a dummy step, normally you use A1 properly
+    # See logic.propositional.hilbert.lemmas for real examples
+    
+    # Real L1_id proof for demonstration:
+    # 1. ph -> (ph -> ph) (A1)
+    # 2. (ph -> ((ph -> ph) -> ph)) -> ((ph -> (ph -> ph)) -> (ph -> ph)) (A2)
+    # ...
+    # For now let's just assume we want to prove something simple or use existing lemmas
+    
+    # Let's just return a dummy proof object to show it works
+    # In reality you would use lb.step(), lb.mp() etc.
+    # Here we just re-use a known lemma construction if available or fail
+    
+    return lb.build(lb.step("dummy", "ph -> (ps -> ph)", "A1"))
+
+def run():
+    interner = SymbolInterner()
+    sys = HilbertSystem.make(interner=interner)
+    
+    print("Constructing proofs...")
+    # proof = prove_example(sys)
+    # verify_proofs(sys, [proof])
+    print("Edit this script to add your proofs!")
+    
+    # Example usage:
+    # verify_proofs(sys, [])
+
+if __name__ == "__main__":
+    run()
+""".strip() + "\n", encoding="utf-8")
+
+    print("Done. Run it with: skfd verify " + str(path))
+    return 0
+
+
 def _cmd_verify(args: argparse.Namespace) -> int:
-    """Run driver verification for a package."""
+    """Run driver verification for a package OR execute a proof script."""
+
+    # Check if 'package' argument looks like a file script
+    target_arg = args.package
+    target_path = Path(target_arg)
+
+    if target_path.suffix == ".py" or (target_path.exists() and target_path.is_file()):
+        print(f"Verifying script: {target_path} ...")
+        # Magic Runner Mode
+        from skfd.driver.script_runner import verify_script
+        return verify_script(target_path, args.root)
+
     root = (args.root or Path.cwd()) / "src"
     target = (args.root or Path.cwd()) / "target"
 
@@ -347,21 +438,28 @@ def _cmd_verify(args: argparse.Namespace) -> int:
             print("Warning: No active verifiers configured.", file=sys.stderr)
 
         all_passed = True
+        agg_results: list[VerifierResult] = []
         for name, cmd in active_cmds:
             print(f"[{name}] Verifying {outfile.name}... ", end="", flush=True)
             try:
                 verify(cmd, outfile)
                 print("OK")
+                agg_results.append(VerifierResult(name=name, passed=True, returncode=0, output=""))
             except Exception as e:
                 print("FAIL")
                 print(f"    Error: {e}")
+                agg_results.append(VerifierResult(name=name, passed=False, returncode=1, output=str(e)))
                 all_passed = False
 
         if all_passed:
             print("Verification completed successfully.")
+            print("\nSummary:")
+            print(summarize(agg_results))
             return 0
         else:
             print("Verification FAILED (some verifiers failed).", file=sys.stderr)
+            print("\nSummary:")
+            print(summarize(agg_results))
             return 1
 
     except Exception as e:
@@ -598,10 +696,39 @@ def _cmd_list_defs(args: argparse.Namespace) -> int:
     return 0
 
 
+def _configure_path(root: Path | None) -> None:
+    """Auto-configure sys.path for workspace layouts."""
+    if not root:
+        root = Path.cwd()
+
+    # 1. Add root
+    sys.path.insert(0, str(root))
+
+    # 2. Add 'src' if exists
+    src = root / "src"
+    if src.exists():
+        sys.path.insert(0, str(src))
+
+    # 3. Add '*/src' (e.g. metamath-logic/src)
+    for p in root.glob("*/src"):
+        if p.is_dir():
+            sys.path.insert(0, str(p))
+
+
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(prog="skfd", description="ProofScaffold CLI")
     p.add_argument("--root", type=Path, help="Project root", default=None)
     sub = p.add_subparsers(dest="cmd", required=True)
+
+    # --- init-pkg ---
+    p_init_pkg = sub.add_parser("init-pkg", help="Initialize a new logic package")
+    p_init_pkg.add_argument("name", help="Name of the package")
+    p_init_pkg.set_defaults(func=_cmd_init_pkg)
+
+    # --- init-proof ---
+    p_init_proof = sub.add_parser("init-proof", help="Initialize a standalone proof script")
+    p_init_proof.add_argument("name", help="Filename for the script (e.g. my_proof.py)")
+    p_init_proof.set_defaults(func=_cmd_init_proof)
 
     # --- doctor ---
     # --- doctor ---
@@ -620,20 +747,9 @@ def main(argv: list[str] | None = None) -> int:
     p_doc_slice.add_argument("label", help="Target label (e.g. th-1)")
     p_doc_slice.set_defaults(func=_cmd_doctor_slice)
 
-    # --- init ---
-    p_init = sub.add_parser("init", help="Initialize a new project")
-    p_init.add_argument("name", help="Project directory name")
-    p_init.add_argument(
-        "--mode",
-        choices=["package", "proof"],
-        default="package",
-        help="Project mode (default: package)",
-    )
-    p_init.add_argument(
-        "--package",
-        help="Python package name (package mode only; defaults to project name)",
-    )
-    p_init.set_defaults(func=_cmd_init)
+    # align
+    p_doc_align = doc_sub.add_parser("align", help="Check alignment with set.mm")
+    p_doc_align.set_defaults(func=_cmd_doctor_align)
 
     # --- smoke (legacy) ---
     p_smoke = sub.add_parser("smoke", help="[Legacy] run sanity + minimal_ok")
@@ -730,9 +846,8 @@ def main(argv: list[str] | None = None) -> int:
 
     args = p.parse_args(argv)
 
-    # Handle root override if needed for sys.path?
-    if args.root:
-        sys.path.insert(0, str(args.root.resolve()))
+    root = args.root or Path.cwd()
+    _configure_path(root)
 
     try:
         if hasattr(args, "func"):

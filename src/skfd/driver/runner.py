@@ -4,16 +4,20 @@ from __future__ import annotations
 import logging
 import shutil
 from pathlib import Path
+from typing import Any
+
+import tomllib
 
 from skfd.builder import MMBuilder
 from skfd.core.origin import OriginTable
 from skfd.core.symbols import SymbolInterner
 from skfd.core.unit import ProofUnitIR
+from skfd.globals import reset_context, set_context
 from skfd.linker.api import LinkerV1
 
-from .discover import find_packages
+from .discover import find_packages, get_package_deps, load_build_module
 from .graph import sort_packages
-from .types import ModuleInterface, PackageModule
+from .types import ModuleInterface
 
 logger = logging.getLogger(__name__)
 
@@ -29,27 +33,65 @@ class DriverRunner:
         self.interfaces: dict[str, ModuleInterface] = {}
         self.lirs: dict[str, ProofUnitIR] = {}
 
-        # Discovered modules
-        self.modules: dict[str, PackageModule] = {}
+        # Discovered info
+        self.build_paths: dict[str, Path] = {}
         self.deps_graph: dict[str, list[str]] = {}
 
     def discover(self) -> None:
         """Scan and plan build order."""
-        for name, _, mod in find_packages(self.root):
+        for name, _, path in find_packages(self.root):
             try:
-                manifest = mod.manifest()
-                self.modules[name] = mod
-                self.deps_graph[name] = manifest["deps"]
+                deps = get_package_deps(path)
+                self.build_paths[name] = path
+                self.deps_graph[name] = deps
             except Exception as e:
-                logger.error(f"Failed to load manifest for {name}: {e}")
+                logger.error(f"Failed to discover dependencies for {name}: {e}")
                 raise
 
     def _resolve_dependency(self, name: str) -> None:
         """Recursively resolve missing dependencies from installed packages."""
-        if name in self.modules:
+        if name in self.build_paths:
             return
 
+        project_root = self.root.parent
+        pyproject = project_root / "pyproject.toml"
+        if pyproject.exists():
+            try:
+                with open(pyproject, "rb") as f:
+                    data = tomllib.load(f)
+                sources = (
+                    data.get("tool", {})
+                    .get("uv", {})
+                    .get("sources", {})
+                )
+                src_spec = sources.get(name)
+                if isinstance(src_spec, dict):
+                    rel = src_spec.get("path")
+                    if isinstance(rel, str):
+                        dep_root = (project_root / rel).resolve()
+                        dep_src = dep_root / "src"
+                        if dep_src.exists():
+                            for dep_name, _, build_path in find_packages(dep_src):
+                                if dep_name != name:
+                                    continue
+                                deps = get_package_deps(build_path)
+                                self.build_paths[dep_name] = build_path
+                                self.deps_graph[dep_name] = deps
+                                for dep in deps:
+                                    self._resolve_dependency(dep)
+                                return
+            except Exception:
+                pass
+
         # Attempt to load external module
+        # Note: External modules are installed, so we don't have a source path usually.
+        # We rely on importlib to find them.
+        # This part is tricky with the new path-based approach.
+        # But `load_external_build_module` returns a module.
+        # We can handle external modules differently (store in a separate dict?)
+        # Or just treat them as "built".
+        
+        # For now, let's assume we can load them and check deps.
         from .discover import load_external_build_module
 
         mod = load_external_build_module(name)
@@ -59,17 +101,33 @@ class DriverRunner:
             )
 
         logger.info(f"Resolved external dependency: {name}")
-        self.modules[name] = mod
+        # We store 'None' as path for external modules to indicate "already loaded/installed"
+        # But wait, we need to build them?
+        # If they are installed packages, they should provide pre-built artifacts?
+        # Or we run their build.py?
+        # ProofScaffold assumes we run build.py to generate IR.
+        # So we treat them as "modules with no path but a loaded module object".
+        # This requires `build_paths` to store `Path | PackageModule`.
+        
+        # Hack: Store the module in a separate cache
+        if not hasattr(self, "_external_modules"):
+            self._external_modules = {}
+        self._external_modules[name] = mod
 
         try:
-            manifest = mod.manifest()
-            self.deps_graph[name] = manifest["deps"]
+            # Check manifest for deps
+            deps = []
+            if hasattr(mod, "manifest"):
+                m = mod.manifest()
+                if "deps" in m:
+                    deps = m["deps"]
+            self.deps_graph[name] = deps
         except Exception as e:
             logger.error(f"Failed to load manifest for external {name}: {e}")
             raise
 
         # Recurse
-        for dep in manifest["deps"]:
+        for dep in deps:
             self._resolve_dependency(dep)
 
     def execute_all(self) -> None:
@@ -77,8 +135,7 @@ class DriverRunner:
         self.discover()
 
         # Ensure full closure is resolved (scan known deps)
-        # We must copy keys because we modify self.modules during iteration
-        for pkg in list(self.modules.keys()):
+        for pkg in list(self.build_paths.keys()):
             for dep in self.deps_graph.get(pkg, []):
                 self._resolve_dependency(dep)
 
@@ -91,32 +148,74 @@ class DriverRunner:
     def build_package(self, name: str) -> None:
         """Execute build() for a single package."""
         logger.info(f"Building {name}...")
-        mod = self.modules[name]
         deps_names = self.deps_graph[name]
 
         # Resolve injected dependencies
-        injected_deps = {dep: self.interfaces[dep] for dep in deps_names}
+        injected_deps: dict[str, Any] = {}
+        missing: list[str] = []
+        for dep in deps_names:
+            if dep in self.interfaces:
+                # Map kebab-case to snake_case for Python arguments
+                # e.g. metamath-prelude -> metamath_prelude
+                key = dep.replace("-", "_")
+                injected_deps[key] = self.interfaces[dep]
+            else:
+                missing.append(dep)
+        if missing:
+            raise ValueError(f"Missing built interfaces for deps of '{name}': {missing}")
 
         mm = MMBuilder(
             interner=self.interner, origin_table=self.origin_table, module_id=name
         )
 
-        # Execute hook
-        result = mod.build(mm, **injected_deps)
+        # Set Context
+        tokens = set_context(mm, injected_deps)
+        
+        try:
+            # Load/Execute Module
+            mod: Any
+            if name in self.build_paths:
+                mod = load_build_module(self.build_paths[name])
+            else:
+                # External module
+                mod = self._external_modules[name]
 
-        # Store result (default to empty dict if None)
-        self.interfaces[name] = result if result is not None else {}
+            # Check for legacy 'build' function
+            result = None
+            if hasattr(mod, "build"):
+                # Call with dependency injection
+                # Note: injected_deps are passed as kwargs.
+                # If build() signature doesn't match, it will fail (user error).
+                result = mod.build(mm, **injected_deps)
+            
+            # If result is None (Script Mode or build() returned None),
+            # we construct exports from MMBuilder state.
+            if result is None:
+                # Construct exports dict
+                # { name: id }
+                exports = {}
+                symtab = self.interner.symbol_table()
+                for sid in mm._exports:
+                    if sid in symtab:
+                        sym = symtab[sid]
+                        exports[sym.local_name] = sid
+                result = exports
+
+            self.interfaces[name] = result
+
+        finally:
+            reset_context(tokens)
 
         # Collect LIR using correct method name
-        self.lirs[name] = mm.to_proof_unit(unit_id=name)
+        unit = mm.to_proof_unit(unit_id=name)
+        # Pre-check: LIR must not be empty to avoid emitting degenerate monoliths
+        if not getattr(unit, "lir_stmts", None):
+            raise ValueError(f"Build produced empty LIR for package '{name}'")
+        self.lirs[name] = unit
 
     def verify_package(self, name: str, conformance_level: int = 0) -> None:
         """
         Verify a specific package using Transient Monolith strategy.
-        1. Collect LIRs of transitive dependencies + self.
-        2. Concatenate (via list).
-        3. Emit to target/{name}_full.mm.
-        4. (Optional) Run metamath-exe.
         """
         if name not in self.lirs:
             raise ValueError(f"Package {name} has not been built yet.")
@@ -148,20 +247,6 @@ class DriverRunner:
             f.write(res.mm_text)
 
         with open(mapfile, "w", encoding="utf-8") as f:
-            # Resolve origins to make the map useful
-            # We dump the raw mappings (line -> origin_ref)
-            # And the origin table (origin_ref -> {file, line, module})
-            # OriginRef is an index into the table.
-            # Assuming origin_table structure allows easy dump.
-
-            # OriginTable stores `_records`. We access protected member or add public accessor?
-            # Ideally add `to_json()` to OriginTable.
-            # For now, let's just use `res.ctx.origin_table._records` if we have to,
-            # or rely on the Fact that OriginRef is just ID.
-
-            # Let's inspect OriginTable.
-            # If I can't access `_records`, I'll iterate the refs in the map.
-
             map_data = {
                 "format": "skfd-sourcemap-v1",
                 "mappings": res.source_map.to_json(),

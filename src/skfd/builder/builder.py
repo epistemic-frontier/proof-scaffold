@@ -162,8 +162,16 @@ class MMBuilder:
                 self._exports.add(self._imports[lab])
                 continue
 
+            if lab in self._constants:
+                self._exports.add(self._intern_const(lab))
+                continue
+
+            if lab in self._variables:
+                self._exports.add(self._intern_var(lab))
+                continue
+
             if lab not in self._labels:
-                raise MMDSLError(f"cannot export unknown label '{lab}'")
+                raise MMDSLError(f"cannot export unknown symbol '{lab}'")
             # We must look up the ID. Since it's in _labels, we can intern it to get ID.
             # (interning is idempotent)
             lid = self._intern_label(lab)
@@ -370,7 +378,7 @@ class MMBuilder:
                     proof_ids.append(self._imports[step])
                     continue
 
-                if step not in self._scope.visible_labels():
+                if step not in self._labels:
                     raise MMDSLError(f"proof step '{step}' is not visible/known")
                 proof_strs.append(step)
                 proof_ids.append(self._intern_label(step))

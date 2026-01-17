@@ -207,4 +207,7 @@ __all__ = [
     "RuleApp",
     # Sort type
     "Sort",
+    "WFF",
+    "CLS",
+    "SETVAR",
 ]

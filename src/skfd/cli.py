@@ -38,6 +38,70 @@ def _write_text(path: Path, text: str) -> None:
     path.write_text(text, encoding="utf-8")
 
 
+def _normalize_pkg_name(name: str) -> str:
+    return name.strip().replace("-", "_")
+
+
+def _init_gitignore(path: Path) -> None:
+    entry = ".skfd"
+    if path.exists():
+        existing = path.read_text(encoding="utf-8")
+        if entry in existing.splitlines():
+            return
+        text = existing.rstrip("\n") + "\n" + entry + "\n"
+        path.write_text(text, encoding="utf-8")
+        return
+    _write_text(path, entry + "\n")
+
+
+def _init_skfd(path: Path) -> None:
+    _write_text(path, "active = ['mmverify']\n")
+
+
+def _init_pyproject(path: Path, *, project_name: str) -> None:
+    text = f"""[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "{project_name}"
+version = "0.0.1"
+requires-python = ">=3.10"
+
+# Keep dependencies minimal for scaffolded projects.
+dependencies = [
+  "proof-scaffold",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+"""
+    _write_text(path, text)
+
+
+def _init_proof_template(path: Path) -> None:
+    text = """from logic.propositional.hilbert import HilbertSystem
+from logic.propositional.hilbert.lemmas import LemmaBuilder, LemmaProof
+
+
+def prove_minimal(sys: HilbertSystem) -> LemmaProof:
+    \"\"\"Minimal proof template: ph -> ph (A1 + MP).\"\"\"
+    lb = LemmaBuilder(sys, "minimal")
+
+    # Hypothesis
+    h1 = lb.hyp("h1", "ph")
+
+    # A1: ph -> (ps -> ph)
+    s1 = lb.step("s1", "ph -> ( ps -> ph )", "A1")
+
+    # MP h1, s1 => ps -> ph
+    s2 = lb.mp("s2", h1, s1)
+
+    return lb.build(s2)
+"""
+    _write_text(path, text)
+
+
 def _run_example_minimal_ok(verifier_cmd: list[str], *, write_mm: bool = True) -> None:
     from examples.minimal_ok import run as run_example
 
@@ -61,6 +125,33 @@ def _run_example_minimal_diag(*, write_mm: bool = False) -> None:
     # minimal_diag is expected to fail before emission; keep side effects minimal.
     if write_mm:
         raise AssertionError("minimal_diag should not emit")
+
+
+def _cmd_init(args: argparse.Namespace) -> int:
+    """Initialize a new ProofScaffold project."""
+    root = Path(args.name).resolve()
+    mode = args.mode
+    pkg_name = _normalize_pkg_name(args.package or args.name)
+
+    if root.exists() and any(root.iterdir()):
+        print(f"Error: target directory not empty: {root}", file=sys.stderr)
+        return 1
+
+    root.mkdir(parents=True, exist_ok=True)
+
+    _init_skfd(root / ".skfd")
+    _init_gitignore(root / ".gitignore")
+
+    if mode == "package":
+        _init_pyproject(root / "pyproject.toml", project_name=pkg_name)
+        pkg_dir = root / "src" / pkg_name
+        pkg_dir.mkdir(parents=True, exist_ok=True)
+        _write_text(pkg_dir / "__init__.py", "")
+    else:
+        _init_proof_template(root / "proof.py")
+
+    print(f"Initialized {mode} project at {root}")
+    return 0
 
 
 def _cmd_doctor(args: argparse.Namespace) -> int:
@@ -528,6 +619,21 @@ def main(argv: list[str] | None = None) -> int:
     p_doc_slice.add_argument("package", help="Package name (e.g. logic)")
     p_doc_slice.add_argument("label", help="Target label (e.g. th-1)")
     p_doc_slice.set_defaults(func=_cmd_doctor_slice)
+
+    # --- init ---
+    p_init = sub.add_parser("init", help="Initialize a new project")
+    p_init.add_argument("name", help="Project directory name")
+    p_init.add_argument(
+        "--mode",
+        choices=["package", "proof"],
+        default="package",
+        help="Project mode (default: package)",
+    )
+    p_init.add_argument(
+        "--package",
+        help="Python package name (package mode only; defaults to project name)",
+    )
+    p_init.set_defaults(func=_cmd_init)
 
     # --- smoke (legacy) ---
     p_smoke = sub.add_parser("smoke", help="[Legacy] run sanity + minimal_ok")

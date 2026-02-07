@@ -65,6 +65,16 @@ def _run_example_minimal_diag(*, write_mm: bool = False) -> None:
         raise AssertionError("minimal_diag should not emit")
 
 
+def _cmd_doctor_align(args: argparse.Namespace) -> int:
+    """Check alignment with set.mm and Hilbert systems."""
+    try:
+        check_alignment()
+        return 0
+    except Exception as e:
+        print(f"Alignment check failed: {e}", file=sys.stderr)
+        return 1
+
+
 def _cmd_doctor(args: argparse.Namespace) -> int:
     """Check environment and toolchain health."""
     cfg = load_config(args.root)
@@ -131,6 +141,9 @@ def _cmd_smoke(args: argparse.Namespace) -> int:
     cfg = load_config(args.root)
     active_cmds = cfg.get_active_commands()
 
+    all_passed = True
+    agg_results: list[VerifierResult] = []
+
     for name, cmd in active_cmds:
         print(f"===[{name}]===")
         try:
@@ -139,11 +152,15 @@ def _cmd_smoke(args: argparse.Namespace) -> int:
             print("Running minimal_ok example...")
             _run_example_minimal_ok(cmd, write_mm=not args.no_write)
             print(f"[{name}] accepted")
-            agg_results.append(VerifierResult(name=name, passed=True, returncode=0, output=""))
+            agg_results.append(
+                VerifierResult(name=name, passed=True, returncode=0, output="")
+            )
         except Exception as e:
             print(f"[{name}] failed")
             print(f"    Error: {e}")
-            agg_results.append(VerifierResult(name=name, passed=False, returncode=1, output=str(e)))
+            agg_results.append(
+                VerifierResult(name=name, passed=False, returncode=1, output=str(e))
+            )
             all_passed = False
 
     if agg_results:
@@ -229,7 +246,8 @@ def _cmd_init_pkg(args: argparse.Namespace) -> int:
     """Initialize a new logic package."""
     name = args.name
     root = (args.root or Path.cwd())
-    pkg_dir = root / "src" / name
+    pkg_name = name.replace("-", "_")
+    pkg_dir = root / "src" / pkg_name
 
     if pkg_dir.exists():
         print(f"Error: Directory {pkg_dir} already exists.", file=sys.stderr)
@@ -254,6 +272,29 @@ def build():
     return sys
 """.strip() + "\n", encoding="utf-8")
 
+    # pyproject.toml
+    pyproject_path = root / "pyproject.toml"
+    if not pyproject_path.exists():
+        pyproject_path.write_text(
+            f"""[build-system]
+requires = [\"setuptools>=68\", \"wheel\"]
+build-backend = \"setuptools.build_meta\"
+
+[project]
+name = \"{pkg_name}\"
+version = \"0.0.1\"
+requires-python = \">=3.10\"
+
+dependencies = [
+  \"proof-scaffold\",
+]
+
+[tool.setuptools.packages.find]
+where = [\"src\"]
+""",
+            encoding="utf-8",
+        )
+
     # .skfd config in root
     cfg_path = root / ".skfd"
     if not cfg_path.exists():
@@ -277,6 +318,14 @@ def _cmd_init_proof(args: argparse.Namespace) -> int:
     if path.exists():
         print(f"Error: File {path} already exists.", file=sys.stderr)
         return 1
+
+    root = (args.root or Path.cwd())
+    cfg_path = root / ".skfd"
+    if not cfg_path.exists():
+        print(f"Creating default config at {cfg_path}...")
+        from .config import SkfdConfig, save_config
+        cfg = SkfdConfig(active_verifiers=["mmverify"])
+        save_config(cfg, root)
 
     print(f"Creating proof script '{path}'...")
     path.write_text("""

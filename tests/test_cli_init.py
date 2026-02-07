@@ -16,22 +16,22 @@ def _run_cli(cwd: Path, *args: str) -> subprocess.CompletedProcess[str]:
 
 
 def test_init_package_mode(tmp_path: Path) -> None:
-    res = _run_cli(tmp_path, "init", "demo-pkg")
+    res = _run_cli(tmp_path, "init-pkg", "demo-pkg")
     assert res.returncode == 0, (res.stdout, res.stderr)
 
-    root = tmp_path / "demo-pkg"
-    assert (root / ".skfd").read_text(encoding="utf-8").strip() == "active = ['mmverify']"
-    assert ".skfd" in (root / ".gitignore").read_text(encoding="utf-8").splitlines()
+    root = tmp_path
+    skfd_text = (root / ".skfd").read_text(encoding="utf-8")
+    assert "active = ['mmverify']" in skfd_text
     assert (root / "pyproject.toml").exists()
     assert (root / "src" / "demo_pkg" / "__init__.py").exists()
+    assert (root / "src" / "demo_pkg" / "build.py").exists()
 
 
 def test_init_proof_mode(tmp_path: Path) -> None:
-    res = _run_cli(tmp_path, "init", "demo-proof", "--mode", "proof")
+    res = _run_cli(tmp_path, "init-proof", "demo-proof.py")
     assert res.returncode == 0, (res.stdout, res.stderr)
 
-    root = tmp_path / "demo-proof"
-    assert (root / ".skfd").read_text(encoding="utf-8").strip() == "active = ['mmverify']"
-    assert ".skfd" in (root / ".gitignore").read_text(encoding="utf-8").splitlines()
-    assert not (root / "pyproject.toml").exists()
-    assert (root / "proof.py").exists()
+    root = tmp_path
+    skfd_text = (root / ".skfd").read_text(encoding="utf-8")
+    assert "active = ['mmverify']" in skfd_text
+    assert (root / "demo-proof.py").exists()

@@ -54,10 +54,10 @@ class Theorem:
 # --- 4. The Collector (The Core Logic) ---
 
 class Collector:
-    def __init__(self):
+    def __init__(self) -> None:
         self.needed_refs: set[Ref] = set()
 
-    def scan(self, thm: Theorem):
+    def scan(self, thm: Theorem) -> None:
         """Scan a theorem for external references."""
         for step in thm.steps:
             if isinstance(step.rule, Ref):
@@ -65,7 +65,7 @@ class Collector:
 
 # --- 5. The Build Process (Mocking build.py + skfd orchestration) ---
 
-def run_demo():
+def run_demo() -> None:
     print("=== Step 1: Build Upstream Package (pkg_a) ===")
     ot = OriginTable()
     interner = SymbolInterner()

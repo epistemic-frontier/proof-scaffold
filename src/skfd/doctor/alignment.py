@@ -116,8 +116,15 @@ def compile_zfc_expr(pred: Any, expr: Any, ctx: str) -> Any:
     # Use global module ID for stability
     mod_id = "__zfc_defs__" 
     
-    def get_sym(name):
-        return interner.intern(origin_module_id=mod_id, local_name=name, kind="Const", origin_ref=None)
+    def get_sym(name: str) -> int:
+        return int(
+            interner.intern(
+                origin_module_id=mod_id,
+                local_name=name,
+                kind="Const",
+                origin_ref=None,
+            )
+        )
 
     subq = get_sym("C_")
     uni = get_sym("U.")
@@ -165,7 +172,7 @@ def compile_zfc_expr(pred: Any, expr: Any, ctx: str) -> Any:
     # 4. Compile
     return compile_wff(expr, env=env, registry=registry)
 
-def check_alignment():
+def check_alignment() -> None:
     print("Checking alignment between set.mm and Hilbert system...")
     _ensure_repo_paths()
 

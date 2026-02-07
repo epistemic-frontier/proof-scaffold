@@ -6,7 +6,7 @@ from pathlib import Path
 # Ensure src is in path
 sys.path.insert(0, os.path.abspath("src"))
 
-from skfd.driver.discover import find_packages
+from skfd.driver.discover import find_packages, load_build_module
 from skfd.driver.graph import sort_packages
 
 
@@ -18,12 +18,13 @@ def main() -> None:
     modules = {}
 
     # 1. Discovery
-    for pkg_name, pkg_path, module in find_packages(root):
+    for pkg_name, pkg_path, build_path in find_packages(root):
         print(f"Found package: {pkg_name} at {pkg_path}")
         try:
-            m = module.manifest()
-            packages[pkg_name] = m["deps"]
-            modules[pkg_name] = module
+            build_mod = load_build_module(build_path)
+            m = build_mod.manifest()
+            packages[pkg_name] = m.get("deps", [])
+            modules[pkg_name] = build_mod
         except Exception as e:
             print(f"Error reading manifest for {pkg_name}: {e}")
 

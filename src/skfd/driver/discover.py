@@ -93,7 +93,8 @@ def get_package_deps(build_path: Path) -> list[str]:
         if hasattr(mod, "manifest"):
             m = mod.manifest()
             if "deps" in m:
-                return m["deps"]
+                deps_val = m.get("deps")
+                return deps_val if isinstance(deps_val, list) else []
     except Exception:
         pass
         
@@ -109,7 +110,8 @@ def get_package_name(build_path: Path) -> str | None:
             try:
                 with open(p, "rb") as f:
                     data = tomllib.load(f)
-                return data.get("project", {}).get("name")
+                name = data.get("project", {}).get("name")
+                return name if isinstance(name, str) else None
             except Exception:
                 pass
         curr = curr.parent

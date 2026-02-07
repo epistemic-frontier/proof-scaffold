@@ -8,10 +8,10 @@ from __future__ import annotations
 import argparse
 import importlib
 import os
+import pkgutil
 import platform
 import sys
 from pathlib import Path
-import pkgutil
 
 from skfd.core.diag import LinkerDiagError
 from skfd.driver.runner import DriverRunner

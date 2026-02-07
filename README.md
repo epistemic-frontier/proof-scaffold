@@ -53,6 +53,20 @@ See [AGENT.md](./AGENT.md) for the full protocol.
 python3 -m pytest
 ```
 
+### Initialize a Project
+
+**Package mode (default):** creates `src/` + `pyproject.toml`
+```bash
+python3 -m skfd.cli init my-proofs
+```
+
+**Short proof mode:** creates `proof.py` in project root (no `src/`)
+```bash
+python3 -m skfd.cli init my-proof --mode proof
+```
+
+Both modes create `.skfd` (default active verifier: `mmverify`) and a `.gitignore` that includes `.skfd`.
+
 ### Build & Verify Logic
 ```bash
 # Verify the 'logic' package (and its 'prelude' dependency)

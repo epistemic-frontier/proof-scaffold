@@ -1,4 +1,4 @@
-# Migration Plan: Porting v0-archive Builder to Global Symbol Architecture
+# Migration Plan: Porting legacy v0 Builder to Global Symbol Architecture
 
 ## 1. Goal
 Port the `MMBuilder` and `CompositeEmitter` (Text + LIR) from `v0-archive` to `src/proof_scaffold/builder`, adapting it to work with the new **Global Symbol Table** (`SymbolInterner`) architecture instead of `v0`'s unit-local symbol tables.

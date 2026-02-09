@@ -1,0 +1,9 @@
+[run]
+source = skfd
+omit =
+    src/skfd/cli.py
+    src/skfd/doctor/*
+
+[report]
+show_missing = true
+skip_covered = true

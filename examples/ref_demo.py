@@ -15,10 +15,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from skfd.builder import MMBuilder
+from skfd.builder_v2 import MMBuilderV2
 from skfd.core.origin import OriginTable
 from skfd.core.symbols import SymbolInterner
 from skfd.linker.api import LinkerV1
+from skfd.names import NameResolver
 
 # --- 1. The Reference System (Mocking skfd.core.refs) ---
 
@@ -70,18 +71,25 @@ def run_demo() -> None:
     ot = OriginTable()
     interner = SymbolInterner()
     
-    mm_a = MMBuilder(interner=interner, origin_table=ot, module_id="pkg_a")
-    mm_a.c("wff", "|-", "ph")
-    mm_a.v("x")
-    # Define ax-1: |- x
-    mm_a.a("ax-1", "|-", "x") 
-    
-    # Export ax-1
-    ax1_id = mm_a._intern_label("ax-1")
-    pkg_a_exports = {"ax-1": ax1_id}
-    
-    unit_a = mm_a.to_proof_unit("pkg_a:unit0")
-    print(f"Upstream built. Exports: {pkg_a_exports}")
+    mm_a = MMBuilderV2(
+        interner=interner,
+        origin_table=ot,
+        names=NameResolver(),
+        unit_id="pkg_a:unit0",
+        origin_module_id="pkg_a",
+    )
+    wff = mm_a.sym.const("wff")
+    turnstile = mm_a.sym.const("|-")
+    x = mm_a.sym.var("x")
+    mm_a.auto.floating(x, tc=wff)
+    ax1 = mm_a.sym.label("ax-1")
+    mm_a.a(ax1, tc=turnstile, expr=[x])
+    mm_a.export(wff, turnstile, x, ax1)
+
+    unit_a = mm_a.finish()
+    symtab = interner.symbol_table()
+    pkg_a_exports: dict[str, int] = {symtab[sid].local_name: sid for sid in unit_a.exports}
+    print(f"Upstream built. Exports: {sorted(pkg_a_exports)}")
 
     print("\n=== Step 2: Define References (refs.py) ===")
     # This is what the user would import
@@ -107,13 +115,19 @@ def run_demo() -> None:
     print(f"Collector found refs: {collector.needed_refs}")
 
     # 2. Build Downstream (pkg_b)
-    mm_b = MMBuilder(interner=interner, origin_table=ot, module_id="pkg_b")
+    mm_b = MMBuilderV2(
+        interner=interner,
+        origin_table=ot,
+        names=NameResolver(),
+        unit_id="pkg_b:unit0",
+        origin_module_id="pkg_b",
+    )
     
     # 3. Resolve & Auto-Import
     # Mocking the dependency injection
     deps = {"pkg_a": UpstreamPackage(pkg_a_exports)}
     
-    local_map = {} # Ref -> Local SymbolId
+    local_map: dict[Ref, int] = {}
     
     for ref in collector.needed_refs:
         print(f"Resolving {ref}...")
@@ -126,34 +140,24 @@ def run_demo() -> None:
             
         target_id = upstream.exports[ref.name]
         
-        # Auto-Import into mm_b
-        # We use the same name for simplicity, but could rename
-        mm_b.import_symbols(**{ref.name: target_id})
-        local_map[ref] = ref.name # Map Ref to the local string name used in import
-        print(f"  -> Imported '{ref.name}' as ID {target_id}")
+        local_map[ref] = target_id
+        print(f"  -> Resolved '{ref.name}' as ID {target_id}")
 
     # 4. Emit Theorem
     print(f"Emitting {my_thm.name}...")
-    # Need to declare local usage first (normally handled by emit_axioms)
-    # Since we share the interner, the constants/vars are "known" globally but need local declaration
-    # For this demo, we cheat and re-declare or assume shared context.
-    # In real skfd, we'd import wff/ph too.
-    # Let's just do minimal declarations to make it valid
-    mm_b.c("wff", "|-", "ph") 
-    mm_b.v("x") 
-
     # Translate proof steps
-    proof_labels = []
+    proof_labels: list[int] = []
     for step in my_thm.steps:
         if isinstance(step.rule, Ref):
-            # Use the imported name
             proof_labels.append(local_map[step.rule])
         else:
-            proof_labels.append(step.rule)
-            
-    mm_b.p(my_thm.name, "|-", my_thm.stmt, proof=proof_labels)
-    
-    unit_b = mm_b.to_proof_unit("pkg_b:unit0")
+            proof_labels.append(pkg_a_exports[step.rule])
+
+    turnstile_id = pkg_a_exports["|-"]
+    x_id = pkg_a_exports["x"]
+    th1 = mm_b.sym.label(my_thm.name)
+    mm_b.p(th1, tc=turnstile_id, expr=[x_id], proof=proof_labels)
+    unit_b = mm_b.finish()
 
     print("\n=== Step 5: Linking ===")
     res = LinkerV1.link(units=[unit_a, unit_b], origin_table=ot, interner=interner)

@@ -4,11 +4,12 @@ from __future__ import annotations
 
 from typing import Final
 
-from skfd.builder import MMBuilder
+from skfd.builder_v2 import MMBuilderV2
 from skfd.core.origin import OriginTable
 from skfd.core.symbols import SymbolInterner
 from skfd.core.unit import ProofUnitIR
 from skfd.linker.api import LinkerV1
+from skfd.names import NameResolver
 
 MODULE_A: Final[str] = "examples.multi.unitA"
 UNIT_A_ID: Final[str] = f"{MODULE_A}:unit0"
@@ -23,39 +24,38 @@ def build() -> tuple[OriginTable, SymbolInterner, list[ProofUnitIR]]:
 
     # --- Unit A ---
     print(f"Building {UNIT_A_ID}...")
-    mm_a = MMBuilder(interner=interner, origin_table=ot, module_id=MODULE_A)
-    # Declarations in A
-    mm_a.c("|-", "wff", "->")
-    mm_a.v("ph", "ps")
-    mm_a.f("wph", "wff", "ph")
-    # Axiom: ax-1 |- ph
-    mm_a.a("ax-1", "|-", "|- ph")
+    mm_a = MMBuilderV2(
+        interner=interner,
+        origin_table=ot,
+        names=NameResolver(),
+        unit_id=UNIT_A_ID,
+        origin_module_id=MODULE_A,
+    )
+    turnstile = mm_a.sym.const("|-")
+    wff = mm_a.sym.const("wff")
+    ph = mm_a.sym.var("ph")
+    mm_a.auto.floating(ph, tc=wff)
+    ax1 = mm_a.sym.label("ax-1")
+    mm_a.a(ax1, tc=turnstile, expr=[ph])
+    mm_a.export(turnstile, wff, ph, ax1)
 
-    # Export symbols for B to use (manually extraction for this test)
-    # We access protected members to get IDs for the test harness
-    id_ax1 = mm_a._intern_label("ax-1")
-    id_turnstile = mm_a._intern_const("|-")
-    id_ph = mm_a._intern_var("ph")
-
-    unit_a = mm_a.to_proof_unit(UNIT_A_ID)
+    unit_a = mm_a.finish()
 
     # --- Unit B ---
     print(f"Building {UNIT_B_ID}...")
-    mm_b = MMBuilder(interner=interner, origin_table=ot, module_id=MODULE_B)
+    mm_b = MMBuilderV2(
+        interner=interner,
+        origin_table=ot,
+        names=NameResolver(),
+        unit_id=UNIT_B_ID,
+        origin_module_id=MODULE_B,
+    )
 
-    # Import from A
-    # We demonstrate aliasing: "|-" -> "turnstile"
-    mm_b.import_symbols(ax_1=id_ax1, turnstile=id_turnstile, ph=id_ph)
+    th2 = mm_b.sym.label("th-2")
+    mm_b.p(th2, tc=turnstile, expr=[ph], proof=[ax1])
+    mm_b.export(th2)
 
-    # Prove "th-2": |- ph using ax-1
-    # Usage of imported symbols:
-    # label: "th-2"
-    # typecode: "turnstile" (aliased import)
-    # pexpr: "turnstile ph" (aliased import + direct import)
-    # proof: ["ax_1"] (imported label)
-    mm_b.p("th-2", "turnstile", "turnstile ph", proof=["ax_1"])
-
-    unit_b = mm_b.to_proof_unit(UNIT_B_ID)
+    unit_b = mm_b.finish()
 
     return ot, interner, [unit_a, unit_b]
 

@@ -13,21 +13,21 @@ def workspace(tmp_path):
     return src, target
 
 
+def _write_pyproject(pkg_dir: Path, *, name: str, deps: list[str]) -> None:
+    deps_list = ", ".join(f'"{d}"' for d in deps)
+    content = f"""
+[project]
+name = "{name}"
+dependencies = [{deps_list}]
+"""
+    (pkg_dir / "pyproject.toml").write_text(content, encoding="utf-8")
+
+
 def create_package(src_root: Path, name: str, deps: list[str], build_code: str):
     pkg_dir = src_root / name
     pkg_dir.mkdir()
-    # Note: we need to handle indentation in build_code manually or dedicat
-    # Better to just write simple strings.
-
-    manifest_code = f"""
-from typing import Any
-from skfd.builder import MMBuilder
-
-def manifest() -> dict[str, Any]:
-    return {{ "deps": {deps} }}
-"""
-    full_code = manifest_code + "\n" + build_code
-    (pkg_dir / "build.py").write_text(full_code, encoding="utf-8")
+    _write_pyproject(pkg_dir, name=name, deps=deps)
+    (pkg_dir / "build.py").write_text(build_code, encoding="utf-8")
 
 
 def test_runner_integration(workspace):
@@ -39,9 +39,17 @@ def test_runner_integration(workspace):
         "pkg_a",
         [],
         """
-def build(mm: MMBuilder, **deps: Any) -> Any:
-    mm.c("const_a")
-    return {"val": "A"}
+from skfd.api_v2 import BuildContextV2
+
+def build(ctx: BuildContextV2) -> None:
+    mm = ctx.mm
+    wff = mm.sym.const("wff")
+    ph = mm.sym.var("ph")
+    const_a = mm.sym.const("const_a")
+    mm.auto.floating(ph, tc=wff)
+    ax_a = mm.sym.label("ax-a")
+    mm.a(ax_a, tc=wff, expr=[const_a, ph])
+    mm.export(wff, ph, const_a, ax_a)
 """,
     )
 
@@ -51,14 +59,18 @@ def build(mm: MMBuilder, **deps: Any) -> Any:
         "pkg_b",
         ["pkg_a"],
         """
-def build(mm: MMBuilder, **deps: Any) -> Any:
-    # Check injection
-    if deps.get("pkg_a", {}).get("val") != "A":
-        raise ValueError("Deps injection failed")
-        
-    mm.c("const_b")
-    mm.v("var_b")
-    return {"val": "B"}
+from skfd.api_v2 import BuildContextV2
+
+def build(ctx: BuildContextV2) -> None:
+    mm = ctx.mm
+    pkg_a = ctx.deps.pkg_a
+    wff = pkg_a["wff"]
+    ph = pkg_a["ph"]
+    const_a = pkg_a["const_a"]
+    const_b = mm.sym.const("const_b")
+    ax_b = mm.sym.label("ax-b")
+    mm.a(ax_b, tc=wff, expr=[const_a, const_b, ph])
+    mm.export(const_b, ax_b)
 """,
     )
 
@@ -66,11 +78,21 @@ def build(mm: MMBuilder, **deps: Any) -> Any:
     create_package(
         src,
         "pkg_c",
-        ["pkg_b"],
+        ["pkg_b", "pkg_a"],
         """
-def build(mm: MMBuilder, **deps: Any) -> Any:
-    mm.c("const_c")
-    return None
+from skfd.api_v2 import BuildContextV2
+
+def build(ctx: BuildContextV2) -> None:
+    mm = ctx.mm
+    pkg_b = ctx.deps.pkg_b
+    pkg_a = ctx.deps.pkg_a
+    wff = pkg_a["wff"]
+    ph = pkg_a["ph"]
+    const_b = pkg_b["const_b"]
+    const_c = mm.sym.const("const_c")
+    ax_c = mm.sym.label("ax-c")
+    mm.a(ax_c, tc=wff, expr=[const_b, const_c, ph])
+    mm.export(const_c, ax_c)
 """,
     )
 
@@ -92,7 +114,6 @@ def build(mm: MMBuilder, **deps: Any) -> Any:
     content_b = out_b.read_text()
     assert "const_a" in content_b
     assert "const_b" in content_b
-    assert "var_b" in content_b
     assert "const_c" not in content_b  # Downstream
 
     # Verify pkg_c (Should include A, B, and C)

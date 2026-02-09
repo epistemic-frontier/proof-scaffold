@@ -10,18 +10,15 @@ from typing import Any
 import tomllib
 
 from skfd.api_v2 import BuildConfig, BuildContextV2, DepsView, ExportsView, UnitMeta
-from skfd.builder import MMBuilder
 from skfd.builder_v2 import MMBuilderV2
 from skfd.core.origin import OriginTable
 from skfd.core.symbols import SymbolInterner
 from skfd.core.unit import ProofUnitIR
-from skfd.globals import reset_context, set_context
 from skfd.linker.api import LinkerV1
 from skfd.names import NameResolver
 
 from .discover import find_packages, get_package_deps, load_build_module
 from .graph import sort_packages
-from .types import ModuleInterface
 
 logger = logging.getLogger(__name__)
 
@@ -36,7 +33,6 @@ class DriverRunner:
         self.cfg = BuildConfig()
 
         # Build artifacts
-        self.interfaces: dict[str, ModuleInterface] = {}
         self.exports_by_pkg: dict[str, dict[str, int]] = {}
         self.lirs: dict[str, ProofUnitIR] = {}
 
@@ -130,22 +126,7 @@ class DriverRunner:
             self._external_modules = {}
         self._external_modules[name] = mod
         self.metas[name] = UnitMeta(dist_name=name, module_name=name, build_path=None)
-
-        try:
-            # Check manifest for deps
-            deps = []
-            if hasattr(mod, "manifest"):
-                m = mod.manifest()
-                if "deps" in m:
-                    deps = m["deps"]
-            self.deps_graph[name] = deps
-        except Exception as e:
-            logger.error(f"Failed to load manifest for external {name}: {e}")
-            raise
-
-        # Recurse
-        for dep in deps:
-            self._resolve_dependency(dep)
+        self.deps_graph[name] = []
 
     def execute_all(self) -> None:
         """Build all packages in order."""
@@ -167,100 +148,69 @@ class DriverRunner:
         logger.info(f"Building {name}...")
         deps_names = self.deps_graph[name]
 
-        # Resolve injected dependencies
-        injected_deps: dict[str, Any] = {}
-        missing: list[str] = []
         for dep in deps_names:
-            if dep in self.interfaces:
-                # Map kebab-case to snake_case for Python arguments
-                # e.g. metamath-prelude -> metamath_prelude
-                key = dep.replace("-", "_")
-                injected_deps[key] = self.interfaces[dep]
-            else:
-                missing.append(dep)
-        if missing:
-            raise ValueError(f"Missing built interfaces for deps of '{name}': {missing}")
+            if dep not in self.exports_by_pkg:
+                raise ValueError(f"Dependency '{dep}' must be built before '{name}'")
 
-        mm_legacy = MMBuilder(
-            interner=self.interner, origin_table=self.origin_table, module_id=name
+        mod: Any
+        if name in self.build_paths:
+            build_path = self.build_paths[name]
+            mod = load_build_module(build_path)
+        else:
+            mod = self._external_modules[name]
+
+        if not hasattr(mod, "build"):
+            raise ValueError(f"build.py for '{name}' is missing a build(ctx) entrypoint")
+
+        sig = inspect.signature(mod.build)
+        params = list(sig.parameters.values())
+        wants_ctx = (
+            len(params) == 1
+            and params[0].kind
+            in (
+                inspect.Parameter.POSITIONAL_ONLY,
+                inspect.Parameter.POSITIONAL_OR_KEYWORD,
+            )
         )
+        if not wants_ctx:
+            raise TypeError(
+                f"build() for '{name}' must have signature build(ctx: BuildContextV2) -> None"
+            )
 
-        # Set Context
-        tokens = set_context(mm_legacy, injected_deps)
-        
-        try:
-            # Load/Execute Module
-            mod: Any
-            if name in self.build_paths:
-                build_path = self.build_paths[name]
-                mod = load_build_module(build_path)
-            else:
-                # External module
-                mod = self._external_modules[name]
+        meta = self.metas[name]
+        dep_exports: dict[str, ExportsView] = {}
+        dep_metas: dict[str, UnitMeta] = {}
+        for dep in deps_names:
+            dep_exports[dep] = ExportsView(self.exports_by_pkg[dep])
+            dep_metas[dep] = self.metas[dep]
 
-            result: Any = None
-            unit: ProofUnitIR
+        deps_view = DepsView(deps=dep_exports, metas=dep_metas)
+        mm = MMBuilderV2(
+            interner=self.interner,
+            origin_table=self.origin_table,
+            names=self.names,
+            unit_id=name,
+            origin_module_id=meta.module_name,
+            cfg=self.cfg,
+        )
+        ctx = BuildContextV2(
+            mm=mm,
+            deps=deps_view,
+            unit=meta,
+            names=self.names,
+            cfg=self.cfg,
+            log=logger,
+        )
+        mod.build(ctx)
+        unit = mm.finish()
 
-            wants_ctx = False
-            if hasattr(mod, "build"):
-                sig = inspect.signature(mod.build)
-                params = list(sig.parameters.values())
-                wants_ctx = (
-                    len(params) == 1
-                    and params[0].kind
-                    in (
-                        inspect.Parameter.POSITIONAL_ONLY,
-                        inspect.Parameter.POSITIONAL_OR_KEYWORD,
-                    )
-                )
-
-            if wants_ctx:
-                meta = self.metas[name]
-                dep_exports: dict[str, ExportsView] = {}
-                dep_metas: dict[str, UnitMeta] = {}
-                for dep in deps_names:
-                    dep_exports[dep] = ExportsView(self.exports_by_pkg[dep])
-                    dep_metas[dep] = self.metas[dep]
-
-                deps_view = DepsView(deps=dep_exports, metas=dep_metas)
-                mm = MMBuilderV2(
-                    interner=self.interner,
-                    origin_table=self.origin_table,
-                    names=self.names,
-                    unit_id=name,
-                    origin_module_id=meta.module_name,
-                    cfg=self.cfg,
-                )
-                ctx = BuildContextV2(
-                    mm=mm,
-                    deps=deps_view,
-                    unit=meta,
-                    names=self.names,
-                    cfg=self.cfg,
-                    log=logger,
-                )
-                mod.build(ctx)
-                unit = mm.finish()
-                result = None
-            else:
-                if hasattr(mod, "build"):
-                    result = mod.build(mm_legacy, **injected_deps)
-                unit = mm_legacy.to_proof_unit(unit_id=name)
-
-            symtab = self.interner.symbol_table()
-            exports_dict: dict[str, int] = {}
-            for sid in unit.exports:
-                sym = symtab.get(sid)
-                if sym is not None:
-                    exports_dict[sym.local_name] = sid
-            self.exports_by_pkg[name] = exports_dict
-
-            if result is None:
-                result = exports_dict
-            self.interfaces[name] = result
-
-        finally:
-            reset_context(tokens)
+        symtab = self.interner.symbol_table()
+        exports_dict: dict[str, int] = {}
+        for sid in unit.exports:
+            sym = symtab.get(sid)
+            if sym is not None:
+                exports_dict[sym.local_name] = sid
+        self.exports_by_pkg[name] = exports_dict
 
         # Pre-check: LIR must not be empty to avoid emitting degenerate monoliths
         if not getattr(unit, "lir_stmts", None):

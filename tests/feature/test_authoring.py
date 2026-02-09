@@ -9,10 +9,11 @@ from skfd.authoring import dsl
 from skfd.authoring.emit import emit_axioms, emit_lemmas
 from skfd.authoring.formula import Wff, wff_atom, render
 from skfd.authoring.typing import Context, Hypothesis, PreludeTypingError, RuleApp, RuleSig
-from skfd.builder import MMBuilder
+from skfd.builder_v2 import MMBuilderV2
 from skfd.core.lir import Axiom, Theorem
 from skfd.core.origin import OriginTable
 from skfd.core.symbols import SymbolInterner
+from skfd.names import NameResolver
 
 
 @dataclass(frozen=True)
@@ -121,10 +122,15 @@ def test_render_and_emit_axioms() -> None:
         def compile_axioms(self) -> dict[str, Wff]:
             return {"ax": wff}
 
-    mm = MMBuilder(interner=interner, origin_table=OriginTable(), module_id="t")
-    mm.c("wff")
+    mm = MMBuilderV2(
+        interner=interner,
+        origin_table=OriginTable(),
+        names=NameResolver(),
+        unit_id="t",
+        origin_module_id="t",
+    )
     emit_axioms(mm, Provider(interner))
-    unit = mm.to_proof_unit(unit_id="t")
+    unit = mm.finish()
     assert any(isinstance(s, Axiom) for s in unit.lir_stmts)
 
 
@@ -151,13 +157,15 @@ def test_emit_lemmas_basic() -> None:
             self.statement = statement
             self.steps = steps
 
-    mm = MMBuilder(interner=interner, origin_table=OriginTable(), module_id="t")
-    mm.c("wff")
-    mm.c("c0")
-    mm.v("v1")
-    mm.f("w_v1", "wff", "v1")
+    mm = MMBuilderV2(
+        interner=interner,
+        origin_table=OriginTable(),
+        names=NameResolver(),
+        unit_id="t",
+        origin_module_id="t",
+    )
     emit_lemmas(mm, Provider(interner), [Lemma("L1", wff, [Step(wff)])])
-    unit = mm.to_proof_unit(unit_id="t")
+    unit = mm.finish()
     assert any(isinstance(s, Theorem) for s in unit.lir_stmts)
 
 

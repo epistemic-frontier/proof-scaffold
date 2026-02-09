@@ -12,10 +12,12 @@ from typing import Any, cast
 
 from skfd.authoring.emit import emit_axioms, emit_lemmas, emit_lowered_lemmas
 from skfd.authoring.parsing import wff
-from skfd.builder import MMBuilder
+from skfd.builder_v2 import MMBuilderV2
 from skfd.config import load_config
 from skfd.core.origin import OriginTable
 from skfd.core.symbols import SymbolInterner
+from skfd.linker.api import LinkerV1
+from skfd.names import NameResolver
 from skfd.verifier.aggregate import run_all, summarize
 
 HilbertSystem = Any
@@ -131,21 +133,23 @@ def verify_script(script_path: Path, project_root: Path | None = None) -> int:
     try:
         print(f"Emitting {len(proofs)} proofs to Metamath...", end=" ", flush=True)
         origin_table = OriginTable()
-        builder = MMBuilder(
+        names = NameResolver()
+        mm = MMBuilderV2(
             interner=hs.interner,
             origin_table=origin_table,
-            module_id=script_path.stem
+            names=names,
+            unit_id=script_path.stem,
+            origin_module_id=script_path.stem,
         )
-        
-        # Heuristic: declare basic types if missing
-        builder.c("wff") 
-        
-        emit_axioms(builder, hs)
+
+        wff_tc = mm.sym.const("wff")
+
+        emit_axioms(mm, hs)
         def _emit_rule_skeleton() -> None:
-            if "mp" in builder._labels:
+            axioms = hs.compile_axioms()
+            if "mp" in axioms:
                 return
 
-            symtab = hs.interner.symbol_table()
             wi_wff = hs.compile(wff("ph -> ps"), ctx="rule[wi]")
             wn_wff = hs.compile(wff("-. ph"), ctx="rule[wn]")
             wa_wff = hs.compile(wff("( ph /\\ ps )"), ctx="rule[wa]")
@@ -153,41 +157,17 @@ def verify_script(script_path: Path, project_root: Path | None = None) -> int:
             psi_wff = hs.compile(wff("ps"), ctx="rule[mp.psi]")
             imp_wff = hs.compile(wff("( ph -> ps )"), ctx="rule[mp.imp]")
 
-            const_ids: set[int] = set()
-            var_ids: set[int] = set()
+            if "wi" not in axioms:
+                mm.a(mm.sym.label("wi"), tc=wff_tc, expr=wi_wff.tokens)
+            if "wn" not in axioms:
+                mm.a(mm.sym.label("wn"), tc=wff_tc, expr=wn_wff.tokens)
+            if "wa" not in axioms:
+                mm.a(mm.sym.label("wa"), tc=wff_tc, expr=wa_wff.tokens)
 
-            for w_ in [wi_wff, wn_wff, wa_wff, phi_wff, psi_wff, imp_wff]:
-                for sid in w_.tokens:
-                    s = symtab[sid]
-                    if s.kind == "Const":
-                        const_ids.add(s.id)
-                    elif s.kind == "Var":
-                        var_ids.add(s.id)
-
-            token_map: dict[int, str] = {}
-            const_names: list[str] = []
-            for sid in sorted(const_ids):
-                name = f"c{sid}"
-                token_map[sid] = name
-                const_names.append(name)
-
-            for sid in sorted(var_ids):
-                token_map[sid] = f"v{sid}"
-
-            extra_consts = [name for name in const_names if name not in builder._constants]
-            if extra_consts:
-                builder.c(*extra_consts)
-
-            def _render(w_) -> str:
-                return " ".join(token_map[sid] for sid in w_.tokens)
-
-            for label, w_ in {"wi": wi_wff, "wn": wn_wff, "wa": wa_wff}.items():
-                builder.a(label, "wff", _render(w_))
-
-            with builder.block():
-                builder.e("mp.1", "wff", _render(phi_wff))
-                builder.e("mp.2", "wff", _render(imp_wff))
-                builder.a("mp", "wff", _render(psi_wff))
+            with mm.block():
+                mm.e(mm.sym.label("mp.1"), tc=wff_tc, expr=phi_wff.tokens)
+                mm.e(mm.sym.label("mp.2"), tc=wff_tc, expr=imp_wff.tokens)
+                mm.a(mm.sym.label("mp"), tc=wff_tc, expr=psi_wff.tokens)
 
         _emit_rule_skeleton()
 
@@ -212,12 +192,19 @@ def verify_script(script_path: Path, project_root: Path | None = None) -> int:
                     if ctor is not None:
                         dep_proofs.append(ctor(hs))
                 if dep_proofs:
-                    emit_lemmas(builder, hs, dep_proofs)
+                    emit_lemmas(mm, hs, dep_proofs)
             except Exception:
                 pass
 
-        emit_lowered_lemmas(builder, hs, proofs)
-        mm_path.write_text(builder.render(), encoding="utf-8")
+        emit_lowered_lemmas(mm, hs, proofs)
+        unit = mm.finish()
+        res = LinkerV1.link(
+            units=[unit],
+            origin_table=origin_table,
+            interner=hs.interner,
+            conformance_level=0,
+        )
+        mm_path.write_text(res.mm_text, encoding="utf-8")
         print("OK")
         
         # Run Verifiers

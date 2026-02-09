@@ -64,7 +64,6 @@ def get_package_deps(build_path: Path) -> list[str]:
     Determine dependencies for a package.
     Priority:
     1. pyproject.toml [project.dependencies] (Safe & Preferred)
-    2. module.manifest()['deps'] (Legacy / Explicit Override)
     """
     package_dir = build_path.parent
     
@@ -87,17 +86,6 @@ def get_package_deps(build_path: Path) -> list[str]:
                 print(f"Warning: Failed to parse pyproject.toml at {p}: {e}")
         curr = curr.parent
 
-    # 2. Try manifest (Legacy)
-    try:
-        mod = load_build_module(build_path)
-        if hasattr(mod, "manifest"):
-            m = mod.manifest()
-            if "deps" in m:
-                deps_val = m.get("deps")
-                return deps_val if isinstance(deps_val, list) else []
-    except Exception:
-        pass
-        
     return []
 
 

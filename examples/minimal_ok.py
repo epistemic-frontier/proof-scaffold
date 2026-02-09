@@ -13,11 +13,12 @@ from __future__ import annotations
 
 from typing import Final
 
-from skfd.builder import MMBuilder
+from skfd.builder_v2 import MMBuilderV2
 from skfd.core.origin import OriginTable
 from skfd.core.symbols import SymbolInterner
 from skfd.core.unit import ProofUnitIR
 from skfd.linker.api import LinkerV1
+from skfd.names import NameResolver
 
 MODULE_ID: Final[str] = "examples.minimal_ok"
 UNIT_ID: Final[str] = f"{MODULE_ID}:unit0"
@@ -27,21 +28,24 @@ def build_units() -> tuple[OriginTable, SymbolInterner, list[ProofUnitIR]]:
     ot = OriginTable()
     interner = SymbolInterner()
 
-    mm = MMBuilder(interner=interner, origin_table=ot, module_id=MODULE_ID)
-
-    # Minimal: declare $c/$v, declare $f, prove theorem by referencing $f label.
-    (
-        mm.c("|-")
-        .v("ph")
-        .f("wph", "|-", "ph")
-        # NOTE: .p() takes (label, typecode, expr_str, proof)
-        # emit_mm will output: label $p typecode expr_str $.
-        # So we pass "ph" as expr, not "|- ph".
-        .p("th1", "|-", "ph", proof=["wph"])
-        .export("th1")
+    mm = MMBuilderV2(
+        interner=interner,
+        origin_table=ot,
+        names=NameResolver(),
+        unit_id=UNIT_ID,
+        origin_module_id=MODULE_ID,
     )
 
-    unit = mm.to_proof_unit(UNIT_ID)
+    turnstile = mm.sym.const("|-")
+    ph = mm.sym.var("ph")
+    wph = mm.sym.label("wph")
+    th1 = mm.sym.label("th1")
+
+    mm.f(wph, tc=turnstile, var=ph)
+    mm.p(th1, tc=turnstile, expr=[ph], proof=[wph])
+    mm.export(th1)
+
+    unit = mm.finish()
 
     return ot, interner, [unit]
 

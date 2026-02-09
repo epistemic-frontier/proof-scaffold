@@ -85,7 +85,13 @@ def test_verify_script_success(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) 
 
         def compile(self, _expr, *, ctx: str):
             # Return a minimal Wff-like object
-            return type('Wff', (), {'tokens': (0,), 'sort': 'wff'})()
+            ph = self.interner.intern(
+                origin_module_id="dummy",
+                local_name="ph",
+                kind="Var",
+                origin_ref=None,
+            )
+            return type("Wff", (), {"tokens": (ph,), "sort": "wff"})()
 
         def compile_axioms(self):
             return {}
@@ -93,7 +99,37 @@ def test_verify_script_success(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) 
         @property
         def builtins(self):
             # Provide minimal tokens for emit_lowered_lemmas
-            return type('B', (), {'lp': 1, 'rp': 2, 'imp': 3, 'neg': 4, 'and_': 5})()
+            lp = self.interner.intern(
+                origin_module_id="dummy",
+                local_name="(",
+                kind="Const",
+                origin_ref=None,
+            )
+            rp = self.interner.intern(
+                origin_module_id="dummy",
+                local_name=")",
+                kind="Const",
+                origin_ref=None,
+            )
+            imp = self.interner.intern(
+                origin_module_id="dummy",
+                local_name="->",
+                kind="Const",
+                origin_ref=None,
+            )
+            neg = self.interner.intern(
+                origin_module_id="dummy",
+                local_name="-.",
+                kind="Const",
+                origin_ref=None,
+            )
+            and_ = self.interner.intern(
+                origin_module_id="dummy",
+                local_name="/\\",
+                kind="Const",
+                origin_ref=None,
+            )
+            return type("B", (), {"lp": lp, "rp": rp, "imp": imp, "neg": neg, "and_": and_})()
 
     def _fake_get_system(_module):
         # Monkeypatch parser entry to avoid full parsing

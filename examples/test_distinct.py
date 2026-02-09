@@ -1,9 +1,10 @@
 import sys
 
-from skfd.builder.builder import MMBuilder
+from skfd.builder_v2 import MMBuilderV2
 from skfd.core.origin import OriginTable
 from skfd.core.symbols import SymbolInterner
 from skfd.linker.api import LinkerV1
+from skfd.names import NameResolver
 
 
 def main() -> None:
@@ -13,33 +14,30 @@ def main() -> None:
     origin_table = OriginTable()
 
     # Create a builder instance
-    mm = MMBuilder(
+    mm = MMBuilderV2(
         interner=interner,
         origin_table=origin_table,
-        module_id="test_distinct",
-        ascii_comments=True,
+        names=NameResolver(),
+        unit_id="unit_d",
+        origin_module_id="test_distinct",
     )
 
     # Build a simple module with $d
-    mm.c("wff", "|-", "->")
-    mm.v("ph", "ps", "ch")
-
-    mm.f("wph", "wff", "ph")
-    mm.f("wps", "wff", "ps")
-    mm.f("wch", "wff", "ch")
+    ph = mm.sym.var("ph")
+    ps = mm.sym.var("ps")
+    ch = mm.sym.var("ch")
 
     # Assert disjointness - 2 vars
-    mm.d("ph", "ps")
+    mm.d(ph, ps)
 
     # Assert disjointness - 3 vars
-    mm.d("ph", "ps", "ch")
+    mm.d(ph, ps, ch)
 
     # Assert disjointness in scope
     with mm.block():
-        mm.d("ch", "ph")
+        mm.d(ch, ph)
 
-    # Generate IR
-    unit = mm.to_proof_unit("unit_d")
+    unit = mm.finish()
 
     # Link and emit
     res = LinkerV1.link(units=[unit], origin_table=origin_table, interner=interner)

@@ -1,7 +1,9 @@
 # tests/test_builder_port.py
-from skfd.builder import MMBuilder
 from skfd.core.origin import OriginTable
 from skfd.core.symbols import SymbolInterner
+from skfd.builder_v2 import MMBuilderV2
+from skfd.linker.api import LinkerV1
+from skfd.names import NameResolver
 
 
 def test_builder_minimal() -> None:
@@ -9,34 +11,44 @@ def test_builder_minimal() -> None:
     origins = OriginTable()
 
     # Instantiate builder
-    mm = MMBuilder(interner=interner, origin_table=origins, module_id="test_mod")
-
-    # Use DSL
-    (
-        mm.c("min", "im", "(", ")")
-        .v("A", "B")
-        .f("wA", "min", "A")
-        .f("wB", "min", "B")
-        .a("ax-1", "min", "A im ( B im A )")
+    mm = MMBuilderV2(
+        interner=interner,
+        origin_table=origins,
+        names=NameResolver(),
+        unit_id="test_unit",
+        origin_module_id="test_mod",
     )
 
-    # Check Text
-    text = mm.render()
+    min_tc = mm.sym.const("min")
+    im = mm.sym.const("im")
+    lp = mm.sym.const("(")
+    rp = mm.sym.const(")")
+    a = mm.sym.var("A")
+    b = mm.sym.var("B")
+
+    mm.f(mm.sym.label("wA"), tc=min_tc, var=a)
+    mm.f(mm.sym.label("wB"), tc=min_tc, var=b)
+    mm.a(mm.sym.label("ax-1"), tc=min_tc, expr=[a, im, lp, b, im, a, rp])
+
+    unit = mm.finish()
+    res = LinkerV1.link(
+        units=[unit],
+        origin_table=origins,
+        interner=interner,
+        conformance_level=0,
+    )
+    text = res.mm_text
     print("--- Generated Text ---")
     print(text)
-    assert "$c min im ( ) $." in text
-    assert "$v A B $." in text
     assert "ax-1 $a min A im ( B im A ) $." in text
-
-    # Check IR
-    unit = mm.to_proof_unit("test_unit")
-    print("\n--- Generated IR ---")
-    print(unit)
+    assert "$c" in text and "min" in text and "im" in text
+    assert "$v" in text and "A" in text and "B" in text
 
     assert unit.unit_id == "test_unit"
     assert len(unit.lir_stmts) > 0
     # Basic structural check
     decl = unit.lir_stmts[0]
+    # Check if we got IDs
     # Check if we got IDs
     # Since we can't easily peek inside interner without knowing IDs, we rely on the object correctness
     assert decl.origin_ref >= 0

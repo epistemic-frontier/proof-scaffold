@@ -340,7 +340,9 @@ import os
 ROOT = Path(__file__).resolve().parents[1]
 
 from skfd.core.symbols import SymbolInterner
-from skfd.builder import MMBuilder
+from skfd.builder_v2 import MMBuilderV2
+from skfd.linker.api import LinkerV1
+from skfd.names import NameResolver
 from skfd.authoring.emit import emit_axioms, emit_lemmas
 from skfd.verifier.aggregate import run_all, summarize
 from skfd.core.origin import OriginTable
@@ -357,16 +359,26 @@ def verify_proofs(hs: HilbertSystem, proofs: list[LemmaProof]) -> None:
     
     try:
         origin_table = OriginTable()
-        builder = MMBuilder(
+        names = NameResolver()
+        mm = MMBuilderV2(
             interner=hs.interner,
             origin_table=origin_table,
-            module_id="manual_verify"
+            names=names,
+            unit_id="manual_verify",
+            origin_module_id="manual_verify",
         )
-        builder.c("wff")
-        emit_axioms(builder, hs)
-        emit_lemmas(builder, hs, proofs)
-        
-        mm_path.write_text(builder.render())
+        mm.sym.const("wff")
+        emit_axioms(mm, hs)
+        emit_lemmas(mm, hs, proofs)
+
+        unit = mm.finish()
+        res = LinkerV1.link(
+            units=[unit],
+            origin_table=origin_table,
+            interner=hs.interner,
+            conformance_level=0,
+        )
+        mm_path.write_text(res.mm_text, encoding="utf-8")
         print(f"Generated .mm file at: {mm_path}")
 
         # Use skfd config to find verifiers

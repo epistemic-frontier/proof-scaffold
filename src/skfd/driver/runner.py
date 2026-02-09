@@ -2,18 +2,22 @@
 from __future__ import annotations
 
 import logging
+import inspect
 import shutil
 from pathlib import Path
 from typing import Any
 
 import tomllib
 
+from skfd.api_v2 import BuildConfig, BuildContextV2, DepsView, ExportsView, UnitMeta
 from skfd.builder import MMBuilder
+from skfd.builder_v2 import MMBuilderV2
 from skfd.core.origin import OriginTable
 from skfd.core.symbols import SymbolInterner
 from skfd.core.unit import ProofUnitIR
 from skfd.globals import reset_context, set_context
 from skfd.linker.api import LinkerV1
+from skfd.names import NameResolver
 
 from .discover import find_packages, get_package_deps, load_build_module
 from .graph import sort_packages
@@ -28,13 +32,17 @@ class DriverRunner:
         self.target_dir = target_dir
         self.interner = SymbolInterner()
         self.origin_table = OriginTable()
+        self.names = NameResolver()
+        self.cfg = BuildConfig()
 
         # Build artifacts
         self.interfaces: dict[str, ModuleInterface] = {}
+        self.exports_by_pkg: dict[str, dict[str, int]] = {}
         self.lirs: dict[str, ProofUnitIR] = {}
 
         # Discovered info
         self.build_paths: dict[str, Path] = {}
+        self.metas: dict[str, UnitMeta] = {}
         self.deps_graph: dict[str, list[str]] = {}
 
     def discover(self) -> None:
@@ -43,6 +51,9 @@ class DriverRunner:
             try:
                 deps = get_package_deps(path)
                 self.build_paths[name] = path
+                self.metas[name] = UnitMeta(
+                    dist_name=name, module_name=path.parent.name, build_path=path
+                )
                 self.deps_graph[name] = deps
             except Exception as e:
                 logger.error(f"Failed to discover dependencies for {name}: {e}")
@@ -76,6 +87,11 @@ class DriverRunner:
                                     continue
                                 deps = get_package_deps(build_path)
                                 self.build_paths[dep_name] = build_path
+                                self.metas[dep_name] = UnitMeta(
+                                    dist_name=dep_name,
+                                    module_name=build_path.parent.name,
+                                    build_path=build_path,
+                                )
                                 self.deps_graph[dep_name] = deps
                                 for dep in deps:
                                     self._resolve_dependency(dep)
@@ -113,6 +129,7 @@ class DriverRunner:
         if not hasattr(self, "_external_modules"):
             self._external_modules = {}
         self._external_modules[name] = mod
+        self.metas[name] = UnitMeta(dist_name=name, module_name=name, build_path=None)
 
         try:
             # Check manifest for deps
@@ -164,12 +181,12 @@ class DriverRunner:
         if missing:
             raise ValueError(f"Missing built interfaces for deps of '{name}': {missing}")
 
-        mm = MMBuilder(
+        mm_legacy = MMBuilder(
             interner=self.interner, origin_table=self.origin_table, module_id=name
         )
 
         # Set Context
-        tokens = set_context(mm, injected_deps)
+        tokens = set_context(mm_legacy, injected_deps)
         
         try:
             # Load/Execute Module
@@ -181,34 +198,70 @@ class DriverRunner:
                 # External module
                 mod = self._external_modules[name]
 
-            # Check for legacy 'build' function
-            result = None
-            if hasattr(mod, "build"):
-                # Call with dependency injection
-                # Note: injected_deps are passed as kwargs.
-                # If build() signature doesn't match, it will fail (user error).
-                result = mod.build(mm, **injected_deps)
-            
-            # If result is None (Script Mode or build() returned None),
-            # we construct exports from MMBuilder state.
-            if result is None:
-                # Construct exports dict
-                # { name: id }
-                exports = {}
-                symtab = self.interner.symbol_table()
-                for sid in mm._exports:
-                    if sid in symtab:
-                        sym = symtab[sid]
-                        exports[sym.local_name] = sid
-                result = exports
+            result: Any = None
+            unit: ProofUnitIR
 
+            wants_ctx = False
+            if hasattr(mod, "build"):
+                sig = inspect.signature(mod.build)
+                params = list(sig.parameters.values())
+                wants_ctx = (
+                    len(params) == 1
+                    and params[0].kind
+                    in (
+                        inspect.Parameter.POSITIONAL_ONLY,
+                        inspect.Parameter.POSITIONAL_OR_KEYWORD,
+                    )
+                )
+
+            if wants_ctx:
+                meta = self.metas[name]
+                dep_exports: dict[str, ExportsView] = {}
+                dep_metas: dict[str, UnitMeta] = {}
+                for dep in deps_names:
+                    dep_exports[dep] = ExportsView(self.exports_by_pkg[dep])
+                    dep_metas[dep] = self.metas[dep]
+
+                deps_view = DepsView(deps=dep_exports, metas=dep_metas)
+                mm = MMBuilderV2(
+                    interner=self.interner,
+                    origin_table=self.origin_table,
+                    names=self.names,
+                    unit_id=name,
+                    origin_module_id=meta.module_name,
+                    cfg=self.cfg,
+                )
+                ctx = BuildContextV2(
+                    mm=mm,
+                    deps=deps_view,
+                    unit=meta,
+                    names=self.names,
+                    cfg=self.cfg,
+                    log=logger,
+                )
+                mod.build(ctx)
+                unit = mm.finish()
+                result = None
+            else:
+                if hasattr(mod, "build"):
+                    result = mod.build(mm_legacy, **injected_deps)
+                unit = mm_legacy.to_proof_unit(unit_id=name)
+
+            symtab = self.interner.symbol_table()
+            exports_dict: dict[str, int] = {}
+            for sid in unit.exports:
+                sym = symtab.get(sid)
+                if sym is not None:
+                    exports_dict[sym.local_name] = sid
+            self.exports_by_pkg[name] = exports_dict
+
+            if result is None:
+                result = exports_dict
             self.interfaces[name] = result
 
         finally:
             reset_context(tokens)
 
-        # Collect LIR using correct method name
-        unit = mm.to_proof_unit(unit_id=name)
         # Pre-check: LIR must not be empty to avoid emitting degenerate monoliths
         if not getattr(unit, "lir_stmts", None):
             raise ValueError(f"Build produced empty LIR for package '{name}'")
@@ -234,6 +287,7 @@ class DriverRunner:
         self.target_dir.mkdir(parents=True, exist_ok=True)
         outfile = self.target_dir / f"{name}_full.mm"
         mapfile = self.target_dir / f"{name}_full.mm.map"
+        namesfile = self.target_dir / f"{name}_full.names.json"
 
         import json
 
@@ -254,6 +308,9 @@ class DriverRunner:
                 "origins": res.ctx.origin_table.dump(root=self.root),
             }
             json.dump(map_data, f, indent=2)
+
+        with open(namesfile, "w", encoding="utf-8") as f:
+            json.dump(self.names.used_mappings(), f, indent=2, sort_keys=True)
 
         logger.info(f"Generated verification monolith: {outfile} (Map: {mapfile})")
 

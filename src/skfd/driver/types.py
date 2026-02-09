@@ -1,9 +1,10 @@
 # skfd/driver/types.py
 from __future__ import annotations
 
-from typing import Protocol, TypedDict
+from typing import Protocol, TypedDict, overload
 
 from skfd.builder import MMBuilder
+from skfd.api_v2 import BuildContextV2
 
 
 class ModuleInterface(Protocol):
@@ -32,6 +33,8 @@ class PackageModule(Protocol):
 
     def manifest(self) -> Manifest: ...
 
-    def build(
-        self, mm: MMBuilder, **deps: ModuleInterface
-    ) -> ModuleInterface | None: ...
+    @overload
+    def build(self, ctx: BuildContextV2) -> None: ...
+
+    @overload
+    def build(self, mm: MMBuilder, **deps: ModuleInterface) -> ModuleInterface | None: ...

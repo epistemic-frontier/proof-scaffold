@@ -178,6 +178,12 @@ class MMBuilder:
             self._exports.add(lid)
         return self
 
+    def declared_constants(self) -> set[str]:
+        return set(self._constants)
+
+    def declared_variables(self) -> set[str]:
+        return set(self._variables)
+
     # -----------------
     # DSL methods
     # -----------------

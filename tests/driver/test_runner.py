@@ -86,7 +86,9 @@ def build(mm: MMBuilder, **deps: Any) -> Any:
     # Verify pkg_b (Should include A and B)
     runner.verify_package("pkg_b")
     out_b = target / "pkg_b_full.mm"
+    names_b = target / "pkg_b_full.names.json"
     assert out_b.exists()
+    assert names_b.exists()
     content_b = out_b.read_text()
     assert "const_a" in content_b
     assert "const_b" in content_b
@@ -96,7 +98,9 @@ def build(mm: MMBuilder, **deps: Any) -> Any:
     # Verify pkg_c (Should include A, B, and C)
     runner.verify_package("pkg_c")
     out_c = target / "pkg_c_full.mm"
+    names_c = target / "pkg_c_full.names.json"
     assert out_c.exists()
+    assert names_c.exists()
     content_c = out_c.read_text()
     assert "const_a" in content_c
     assert "const_b" in content_c

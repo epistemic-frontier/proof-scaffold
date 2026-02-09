@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from typing import Any, Protocol
+from typing import Any, Protocol, cast
 
 from skfd.builder import MMBuilder
+from skfd.builder_v2 import MMBuilderV2
+from skfd.core.diag import Diagnostic, LinkerDiagError
+from skfd.core.symbols import SymbolId
 from skfd.core.symbols import SymbolInterner
 
 from .formula import Wff
@@ -16,7 +19,32 @@ class AxiomProvider(Protocol):
         ...
 
 
-def emit_axioms(mm: MMBuilder, provider: AxiomProvider, typecode: str = "wff") -> None:
+def emit_axioms(
+    mm: MMBuilder | MMBuilderV2,
+    provider: AxiomProvider,
+    typecode: str | SymbolId = "wff",
+) -> None:
+    if isinstance(mm, MMBuilderV2):
+        if provider.interner is not mm.interner:
+            raise LinkerDiagError(
+                Diagnostic(
+                    error_code="E_INTERNER_MISMATCH",
+                    message="provider.interner must be the same global interner as ctx.mm.interner",
+                    primary_origin_ref=-1,
+                    related_origin_refs=(),
+                    origin_chain=(),
+                    details={},
+                )
+            )
+        tc = typecode if isinstance(typecode, int) else mm.sym.const(typecode)
+        for label, wff in provider.compile_axioms().items():
+            mm.a(mm.sym.label(label), tc=tc, expr=wff.tokens)
+        return
+
+    if not isinstance(typecode, str):
+        raise TypeError("legacy emit_axioms expects typecode: str")
+    typecode_s = typecode
+
     axioms = provider.compile_axioms()
     symtab = provider.interner.symbol_table()
 
@@ -51,12 +79,12 @@ def emit_axioms(mm: MMBuilder, provider: AxiomProvider, typecode: str = "wff") -
     if var_names:
         mm.v(*var_names)
         for name in var_names:
-            mm.f(f"w_{name}", typecode, name)
+            mm.f(f"w_{name}", typecode_s, name)
 
     for label, wff in axioms.items():
         tokens = [token_map[sid] for sid in wff.tokens]
         expr = " ".join(tokens)
-        mm.a(label, typecode, expr)
+        mm.a(label, typecode_s, expr)
 
 
 class LemmaStepLike(Protocol):
@@ -70,11 +98,40 @@ class LemmaLike(Protocol):
 
 
 def emit_lemmas(
-    mm: MMBuilder,
+    mm: MMBuilder | MMBuilderV2,
     provider: AxiomProvider,
     lemmas: Sequence[LemmaLike],
-    typecode: str = "wff",
+    typecode: str | SymbolId = "wff",
 ) -> None:
+    if isinstance(mm, MMBuilderV2):
+        if provider.interner is not mm.interner:
+            raise LinkerDiagError(
+                Diagnostic(
+                    error_code="E_INTERNER_MISMATCH",
+                    message="provider.interner must be the same global interner as ctx.mm.interner",
+                    primary_origin_ref=-1,
+                    related_origin_refs=(),
+                    origin_chain=(),
+                    details={},
+                )
+            )
+        tc = typecode if isinstance(typecode, int) else mm.sym.const(typecode)
+        for lemma in lemmas:
+            ax_label_id = mm.sym.label(f"{lemma.name}_ax")
+            mm.a(ax_label_id, tc=tc, expr=lemma.statement.tokens)
+            proof = [*mm.auto.mandatory_f(lemma.statement.tokens, tc=tc), ax_label_id]
+            mm.p(
+                mm.sym.label(lemma.name),
+                tc=tc,
+                expr=lemma.statement.tokens,
+                proof=proof,
+            )
+        return
+
+    if not isinstance(typecode, str):
+        raise TypeError("legacy emit_lemmas expects typecode: str")
+    typecode_s = typecode
+
     axioms = provider.compile_axioms()
     symtab = provider.interner.symbol_table()
 
@@ -116,7 +173,7 @@ def emit_lemmas(
         tokens = [token_map[sid] for sid in lemma.statement.tokens]
         expr = " ".join(tokens)
         ax_label = f"{lemma.name}_ax"
-        mm.a(ax_label, typecode, expr)
+        mm.a(ax_label, typecode_s, expr)
         stmt_var_ids: list[int] = []
         seen: set[int] = set()
         for sid in lemma.statement.tokens:
@@ -125,7 +182,7 @@ def emit_lemmas(
                 seen.add(d.id)
                 stmt_var_ids.append(d.id)
         f_labels: list[str] = [f"w_{token_map[sid]}" for sid in stmt_var_ids]
-        mm.p(lemma.name, typecode, expr, [*f_labels, ax_label])
+        mm.p(lemma.name, typecode_s, expr, [*f_labels, ax_label])
 
 
 class LoweredStepLike(LemmaStepLike, Protocol):
@@ -140,11 +197,196 @@ class LoweredLemmaLike(LemmaLike, Protocol):
 
 
 def emit_lowered_lemmas(
-    mm: MMBuilder,
+    mm: MMBuilder | MMBuilderV2,
     provider: AxiomProvider,
     lemmas: Sequence[LoweredLemmaLike],
-    typecode: str = "wff",
+    typecode: str | SymbolId = "wff",
 ) -> None:
+    if isinstance(mm, MMBuilderV2):
+        if provider.interner is not mm.interner:
+            raise LinkerDiagError(
+                Diagnostic(
+                    error_code="E_INTERNER_MISMATCH",
+                    message="provider.interner must be the same global interner as ctx.mm.interner",
+                    primary_origin_ref=-1,
+                    related_origin_refs=(),
+                    origin_chain=(),
+                    details={},
+                )
+            )
+
+        symtab = provider.interner.symbol_table()
+        tc = typecode if isinstance(typecode, int) else mm.sym.const(typecode)
+
+        v2_label_by_name: dict[str, list[SymbolId]] = {}
+        for sid, d in mm.interner.symbol_table().items():
+            if d.kind != "Label":
+                continue
+            v2_label_by_name.setdefault(d.local_name, []).append(sid)
+
+        def v2_resolve_label(name: str) -> SymbolId:
+            canonical = mm.names.canonicalize("Label", name)
+            matches = v2_label_by_name.get(canonical, [])
+            if len(matches) == 1:
+                return matches[0]
+            if not matches:
+                raise LinkerDiagError(
+                    Diagnostic(
+                        error_code="E_UNKNOWN_LABEL_NAME",
+                        message="unknown proof label name",
+                        primary_origin_ref=-1,
+                        related_origin_refs=(),
+                        origin_chain=(),
+                        details={"label": canonical},
+                    )
+                )
+            raise LinkerDiagError(
+                Diagnostic(
+                    error_code="E_AMBIGUOUS_LABEL_NAME",
+                    message="ambiguous proof label name",
+                    primary_origin_ref=-1,
+                    related_origin_refs=(),
+                    origin_chain=(),
+                    details={"label": canonical, "candidates": sorted(matches)},
+                )
+            )
+
+        b = getattr(provider, "builtins", None)
+        if b is None:
+            raise ValueError("emit_lowered_lemmas: provider is missing .builtins")
+        b2 = cast(Any, b)
+
+        lp = b2.lp
+        rp = b2.rp
+        imp_tok = b2.imp
+
+        def v2_split_binary(
+            tokens: Sequence[int], op_token: int, *, lp: int, rp: int
+        ) -> tuple[tuple[int, ...], tuple[int, ...]] | None:
+            toks = tuple(tokens)
+            if len(toks) < 5 or toks[0] != lp or toks[-1] != rp:
+                return None
+            inner = toks[1:-1]
+            depth = 0
+            split_at: int | None = None
+            for i, t in enumerate(inner):
+                if t == lp:
+                    depth += 1
+                elif t == rp:
+                    depth -= 1
+                    if depth < 0:
+                        return None
+                elif t == op_token and depth == 0:
+                    split_at = i
+                    break
+            if depth != 0 or split_at is None:
+                return None
+            left = inner[:split_at]
+            right = inner[split_at + 1 :]
+            if not left or not right:
+                return None
+            return tuple(left), tuple(right)
+
+        def v2_wff_proof(tokens: Sequence[int]) -> list[SymbolId]:
+            toks = tuple(tokens)
+            if not toks:
+                raise ValueError("wff proof: empty token seq")
+
+            if len(toks) == 1 and symtab[toks[0]].kind == "Var":
+                return [mm.auto.floating(toks[0], tc=tc)]
+
+            if toks[0] == b2.neg:
+                return [*v2_wff_proof(toks[1:]), v2_resolve_label("wn")]
+
+            imp_parts = v2_split_binary(toks, b2.imp, lp=b2.lp, rp=b2.rp)
+            if imp_parts is not None:
+                left, right = imp_parts
+                return [*v2_wff_proof(left), *v2_wff_proof(right), v2_resolve_label("wi")]
+
+            and_parts = v2_split_binary(toks, b2.and_, lp=b2.lp, rp=b2.rp)
+            if and_parts is not None:
+                left, right = and_parts
+                return [*v2_wff_proof(left), *v2_wff_proof(right), v2_resolve_label("wa")]
+
+            raise ValueError(f"wff proof: unsupported token shape (len={len(toks)})")
+
+        def v2_emit_step(
+            label: str, *, visiting: set[str], steps: Mapping[str, LoweredStepLike]
+        ) -> list[SymbolId]:
+            if label in visiting:
+                raise ValueError(f"cycle detected at step {label!r}")
+            step = steps.get(label)
+            if step is None:
+                raise ValueError(f"unknown step label {label!r}")
+
+            if step.op == "hyp":
+                return [mm.sym.label(label)]
+
+            visiting.add(label)
+            try:
+                if step.op == "ref":
+                    if step.ref is None:
+                        raise ValueError(f"step {label!r}: missing ref label")
+                    mand = mm.auto.mandatory_f(step.wff.tokens, tc=tc)
+                    return [*mand, v2_resolve_label(step.ref)]
+
+                if step.op == "mp":
+                    if len(step.args) != 2:
+                        raise ValueError(
+                            f"step {label!r}: mp expects 2 args, got {len(step.args)}"
+                        )
+                    maj, minor = step.args[0], step.args[1]
+                    maj_step = steps.get(maj)
+                    minor_step = steps.get(minor)
+                    if maj_step is None or minor_step is None:
+                        raise ValueError(
+                            f"step {label!r}: mp args must reference prior steps"
+                        )
+
+                    minor_parts = v2_split_binary(
+                        minor_step.wff.tokens, imp_tok, lp=lp, rp=rp
+                    )
+                    if minor_parts is None:
+                        raise ValueError(f"step {label!r}: mp minor is not an implication")
+                    antecedent, consequent = minor_parts
+                    if tuple(maj_step.wff.tokens) != antecedent:
+                        raise ValueError(f"step {label!r}: mp antecedent mismatch")
+                    return [
+                        *v2_wff_proof(maj_step.wff.tokens),
+                        *v2_wff_proof(consequent),
+                        *v2_emit_step(maj, visiting=visiting, steps=steps),
+                        *v2_emit_step(minor, visiting=visiting, steps=steps),
+                        v2_resolve_label("mp"),
+                    ]
+
+                raise ValueError(f"step {label!r}: unknown op {step.op!r}")
+            finally:
+                visiting.remove(label)
+
+        for lemma in lemmas:
+            with mm.block():
+                step_by_label_v2: dict[str, LoweredStepLike] = {s.label: s for s in lemma.steps}
+
+                for step in lemma.steps:
+                    if step.op == "hyp":
+                        mm.e(mm.sym.label(step.label), tc=tc, expr=step.wff.tokens)
+
+                if not lemma.steps:
+                    raise ValueError(f"lemma {lemma.name!r}: has no steps")
+
+                last = lemma.steps[-1].label
+                mm.p(
+                    mm.sym.label(lemma.name),
+                    tc=tc,
+                    expr=lemma.statement.tokens,
+                    proof=v2_emit_step(last, visiting=set(), steps=step_by_label_v2),
+                )
+        return
+
+    if not isinstance(typecode, str):
+        raise TypeError("legacy emit_lowered_lemmas expects typecode: str")
+    typecode_s = typecode
+
     symtab = provider.interner.symbol_table()
     axioms = provider.compile_axioms()
 
@@ -168,14 +410,16 @@ def emit_lowered_lemmas(
         token_map: dict[int, str] = {sid: f"c{sid}" for sid in sorted(const_ids)}
         token_map.update({sid: f"v{sid}" for sid in sorted(var_ids)})
 
-        extra_consts = [f"c{sid}" for sid in sorted(const_ids) if f"c{sid}" not in mm._constants]
+        declared_consts = mm.declared_constants()
+        extra_consts = [f"c{sid}" for sid in sorted(const_ids) if f"c{sid}" not in declared_consts]
         if extra_consts:
             mm.c(*extra_consts)
-        extra_vars = [f"v{sid}" for sid in sorted(var_ids) if f"v{sid}" not in mm._variables]
+        declared_vars = mm.declared_variables()
+        extra_vars = [f"v{sid}" for sid in sorted(var_ids) if f"v{sid}" not in declared_vars]
         if extra_vars:
             mm.v(*extra_vars)
             for v in extra_vars:
-                mm.f(f"w_{v}", typecode, v)
+                mm.f(f"w_{v}", typecode_s, v)
 
         def _render_tokens(tokens: Sequence[int], _token_map: Mapping[int, str] = token_map) -> str:
             return " ".join(_token_map[sid] for sid in tokens)
@@ -185,7 +429,7 @@ def emit_lowered_lemmas(
 
             for step in lemma.steps:
                 if step.op == "hyp":
-                    mm.e(step.label, typecode, _render_tokens(step.wff.tokens))
+                    mm.e(step.label, typecode_s, _render_tokens(step.wff.tokens))
 
             b = getattr(provider, "builtins", None)
             if b is None:
@@ -327,4 +571,4 @@ def emit_lowered_lemmas(
 
             last = lemma.steps[-1].label
             stmt_expr = _render_tokens(lemma.statement.tokens)
-            mm.p(lemma.name, typecode, stmt_expr, _emit_step(last, visiting=set()))
+            mm.p(lemma.name, typecode_s, stmt_expr, _emit_step(last, visiting=set()))

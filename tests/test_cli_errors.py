@@ -55,11 +55,11 @@ def build(mm):
     assert "No module named" in combined
 
 
-def test_verify_prints_hint_for_missing_prelude() -> None:
-    # Arrange: mimic a prelude import failure
-    root = Path(__file__).resolve().parents[1]
+def test_verify_prints_hint_for_missing_prelude(tmp_path: Path) -> None:
+    # Arrange: mimic a prelude import failure (in an isolated temp project)
+    root = tmp_path
     src = root / "src" / "_tmp_missing_prelude"
-    src.mkdir(parents=True, exist_ok=True)
+    src.mkdir(parents=True)
 
     (src / "build.py").write_text(
         """
@@ -84,33 +84,11 @@ version = "0.0.1"
         encoding="utf-8",
     )
 
-    try:
-        # Act
-        proc = _run_cli(["verify", "_tmp_missing_prelude"], cwd=root)
+    # Act
+    proc = _run_cli(["verify", "_tmp_missing_prelude"], cwd=root)
 
-        # Assert
-        assert proc.returncode != 0
-        combined = proc.stderr + proc.stdout
-        assert "Hint: 'prelude' not found" in combined
-        assert "Traceback" in combined
-    finally:
-        # Cleanup
-        if src.exists():
-            for p in sorted(src.rglob("*"), reverse=True):
-                if p.is_file():
-                    p.unlink()
-                else:
-                    p.rmdir()
-        if src.parent.exists():
-            try:
-                src.parent.rmdir()
-            except OSError:
-                pass
-        # remove temporary pyproject.toml if created
-        # (keep if user already has one)
-        # only delete if it matches our minimal file
-        pp = root / "pyproject.toml"
-        if pp.exists():
-            content = pp.read_text(encoding="utf-8")
-            if "_tmp_missing_prelude" in content:
-                pp.unlink()
+    # Assert
+    assert proc.returncode != 0
+    combined = proc.stderr + proc.stdout
+    assert "Hint: 'prelude' not found" in combined
+    assert "Traceback" in combined

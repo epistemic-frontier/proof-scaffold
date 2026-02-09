@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
+import shutil
 from typing import Any
 
 import tomllib
@@ -29,6 +30,26 @@ class SkfdConfig:
 
     def get_active_commands(self) -> list[tuple[str, list[str]]]:
         """Get list of (name, command) for all active verifiers."""
+        def _command_exists(cmd: str) -> bool:
+            p = Path(cmd)
+            if p.is_absolute():
+                return p.exists()
+            return shutil.which(cmd) is not None
+
+        def _should_skip(name: str, cmd: list[str]) -> bool:
+            if not cmd:
+                return True
+            if not _command_exists(cmd[0]):
+                return True
+
+            if name == "metamath":
+                for a in cmd[1:]:
+                    if a.startswith("METAMATH_BIN="):
+                        bin_path = a.split("=", 1)[1]
+                        if bin_path and not Path(bin_path).exists():
+                            return True
+            return False
+
         res = []
         # If no active verifiers, fallback to mmverify if available, or just mmverify default
         candidates = self.active_verifiers
@@ -45,10 +66,15 @@ class SkfdConfig:
                     import skfd.verifier
 
                     mmverify_path = Path(skfd.verifier.__file__).parent / "mmverify.py"
-                    res.append((name, [sys.executable, str(mmverify_path)]))
+                    cmd = [sys.executable, str(mmverify_path)]
+                    if not _should_skip(name, cmd):
+                        res.append((name, cmd))
                 continue
 
-            res.append((name, self.get_verifier_command(name)))
+            cmd = self.get_verifier_command(name)
+            if _should_skip(name, cmd):
+                continue
+            res.append((name, cmd))
 
         return res
 

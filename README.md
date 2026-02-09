@@ -48,6 +48,32 @@ See [AGENT.md](./AGENT.md) for the full protocol.
 
 ## Usage
 
+### Verifier 配置与 doctor
+
+本项目支持多 verifier，通过 `.skfd` 进行配置。示例（加入 mmverify、metamath-knife、metamath-exe + shim）：
+
+```toml
+active = ['mmverify', 'metamath-knife', 'metamath-exe']
+
+[verifiers]
+
+[verifiers.metamath-knife]
+command = '../metamath-knife/target/release/metamath-knife'
+args = ['--verify']
+
+[verifiers.metamath-exe]
+command = '/usr/bin/env'
+args = ['METAMATH_BIN=../metamath-exe/src/metamath',
+        './.venv/bin/python',
+        './verifier/shims/metamath.py']
+```
+
+运行环境检查：
+
+```bash
+./.venv/bin/python -m skfd.cli doctor check
+```
+
 ### Run Tests
 ```bash
 python3 -m pytest

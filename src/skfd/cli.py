@@ -7,10 +7,12 @@ from __future__ import annotations
 
 import argparse
 import importlib
+import logging
 import os
 import pkgutil
 import platform
 import sys
+import traceback
 from pathlib import Path
 
 from skfd.core.diag import LinkerDiagError
@@ -513,6 +515,8 @@ def _cmd_verify(args: argparse.Namespace) -> int:
 
     except Exception as e:
         print(f"Verification failed: {e}", file=sys.stderr)
+        _print_friendly_hint(e)
+        traceback.print_exc()
         return 1
 
 
@@ -622,6 +626,8 @@ def _cmd_debug(args: argparse.Namespace) -> int:
 
     except Exception as e:
         print(f"Debug failed: {e}", file=sys.stderr)
+        _print_friendly_hint(e)
+        traceback.print_exc()
         return 1
 
 
@@ -764,7 +770,40 @@ def _configure_path(root: Path | None) -> None:
             sys.path.insert(0, str(p))
 
 
+def _configure_logging() -> None:
+    """Enable default logging for CLI runs."""
+    logging.basicConfig(
+        level=logging.INFO,
+        format="[%(levelname)s] %(name)s: %(message)s",
+    )
+
+
+def _print_friendly_hint(exc: Exception) -> None:
+    """Emit actionable hints for common setup errors."""
+    if isinstance(exc, ImportError):
+        msg = str(exc)
+        if "No module named 'prelude'" in msg:
+            print(
+                "Hint: 'prelude' not found. In dev mode, add metamath-prelude/src "
+                "to PYTHONPATH or install metamath-prelude.",
+                file=sys.stderr,
+            )
+        if "No module named 'logic'" in msg:
+            print(
+                "Hint: 'logic' not found. In dev mode, add metamath-logic/src "
+                "to PYTHONPATH or install metamath-logic.",
+                file=sys.stderr,
+            )
+    if isinstance(exc, RuntimeError) and "No active dependencies context" in str(exc):
+        print(
+            "Hint: this build.py was executed outside 'skfd'. "
+            "Run via 'python -m skfd.cli verify <project-name>'.",
+            file=sys.stderr,
+        )
+
+
 def main(argv: list[str] | None = None) -> int:
+    _configure_logging()
     p = argparse.ArgumentParser(prog="skfd", description="ProofScaffold CLI")
     p.add_argument("--root", type=Path, help="Project root", default=None)
     sub = p.add_subparsers(dest="cmd", required=True)

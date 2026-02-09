@@ -121,7 +121,7 @@ def verify_script(script_path: Path, project_root: Path | None = None) -> int:
             
     if not proofs:
         print("No proof objects returned to verify.")
-        return 0
+        return 1
         
     # Verify
     import tempfile

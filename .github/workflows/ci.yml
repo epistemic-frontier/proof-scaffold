@@ -19,20 +19,33 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Select workdir
+        run: |
+          if [ -f pyproject.toml ]; then
+            echo "WORKDIR=." >> "$GITHUB_ENV"
+          else
+            echo "WORKDIR=proof-scaffold" >> "$GITHUB_ENV"
+          fi
+
       - name: Install uv and set Python
         uses: astral-sh/setup-uv@v7
         with:
+          working-directory: ${{ env.WORKDIR }}
           python-version: ${{ matrix.python-version }}
           enable-cache: true
       
       - name: Install project (locked)
         run: uv sync --locked --all-extras --dev
+        working-directory: ${{ env.WORKDIR }}
 
       - name: Ruff check
         run: uv run --frozen ruff check .
+        working-directory: ${{ env.WORKDIR }}
 
       - name: Type check (mypy)
         run: uv run --frozen mypy .
+        working-directory: ${{ env.WORKDIR }}
 
       - name: Run tests (pytest)
         run: uv run --frozen python -m pytest
+        working-directory: ${{ env.WORKDIR }}

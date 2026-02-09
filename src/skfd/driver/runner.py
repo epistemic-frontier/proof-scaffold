@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import logging
-import re
 import shutil
 from pathlib import Path
 from typing import Any
@@ -177,10 +176,6 @@ class DriverRunner:
             mod: Any
             if name in self.build_paths:
                 build_path = self.build_paths[name]
-                if name != "prelude" and "prelude" not in deps_names:
-                    text = build_path.read_text(encoding="utf-8")
-                    if re.search(r"^\s*(from|import)\s+prelude\b", text, flags=re.M):
-                        raise ModuleNotFoundError("No module named 'prelude'")
                 mod = load_build_module(build_path)
             else:
                 # External module

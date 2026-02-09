@@ -48,9 +48,21 @@ See [AGENT.md](./AGENT.md) for the full protocol.
 
 ## Usage
 
-### Verifier 配置与 doctor
+### Dev Mode vs. User Mode
 
-本项目支持多 verifier，通过 `.skfd` 进行配置。示例（加入 mmverify、metamath-knife、metamath-exe + shim）：
+**Dev mode (multi-repo / local path deps)**
+- Repos live side-by-side; dependencies are pulled via local path (`uv` sources).
+- You may need to set `PYTHONPATH` so sibling packages can be imported.
+- `.skfd` typically points to local binaries and shims (multi-verifier runs).
+
+**User mode (installed via pyproject)**
+- Dependencies are installed packages; no `PYTHONPATH` needed.
+- `.skfd` can be minimal (default `mmverify`) and extended only if desired.
+- Verification can be run as: `python -m skfd.cli verify <project-name>`.
+
+### Verifier configuration and doctor
+
+This project supports multiple verifiers via `.skfd`. Example (mmverify + metamath-knife + metamath-exe + shim):
 
 ```toml
 active = ['mmverify', 'metamath-knife', 'metamath-exe']

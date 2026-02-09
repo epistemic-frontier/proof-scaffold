@@ -1,0 +1,4 @@
+extend-exclude = [
+  "v0-archive",
+  "verifier/mmverify.py",
+]

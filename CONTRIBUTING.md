@@ -17,6 +17,24 @@ ruff check .
 mypy
 ```
 
+## Dev mode vs. user mode
+
+**Dev mode (multi-repo / local path deps)**
+- Repos live side-by-side; dependencies are pulled via local path (`uv` sources).
+- You may need to set `PYTHONPATH` so sibling packages can be imported.
+- Use the dev-only helper:
+  ```bash
+  scripts/verify.sh <project-name>
+  ```
+  This script wires `PYTHONPATH` for sibling repos and runs `skfd verify`.
+
+**User mode (installed via pyproject)**
+- Dependencies are installed packages; no `PYTHONPATH` needed.
+- Run verification directly:
+  ```bash
+  python -m skfd.cli verify <project-name>
+  ```
+
 ## Repository conventions (M0.2)
 
 - `src/proof_scaffold/` is the installable package.

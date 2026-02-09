@@ -38,7 +38,16 @@ dependencies = [
 
 ## 3. The Build Script (`build.py`)
 
-The `build.py` file is executed by the ProofScaffold Linker during the build phase. It works in **Script Mode**: top-level code is executed immediately to construct the proof artifacts.
+The `build.py` file is executed by the ProofScaffold Driver during the build phase. It MUST expose a single entrypoint:
+
+```python
+from skfd.api_v2 import BuildContextV2
+
+def build(ctx: BuildContextV2) -> None:
+    ...
+```
+
+No script-mode globals are injected. The toolchain passes all build-time capabilities explicitly via `ctx`.
 
 ### 3.1 Why `build.py` is Necessary?
 
@@ -50,24 +59,30 @@ Unlike simple code libraries, Metamath databases are **order-sensitive** and req
 
 While it cannot be eliminated, it can be kept concise using the `skfd` library.
 
-### 3.2 Context Access (`skfd.context`)
+### 3.2 Context Access (`BuildContextV2`)
 
-The Linker injects the build context into the `skfd` module before executing the script.
+The Driver constructs a `BuildContextV2` and calls `build(ctx)`.
 
-*   `skfd.mm`: The global `MMBuilder` instance for the current package.
-*   `skfd.deps`: A proxy object to access exports from upstream dependencies.
+Key fields:
+
+* `ctx.mm`: an [MMBuilderV2](file:///Users/mingli/MetaMath/proof-scaffold/src/skfd/builder_v2/builder.py) instance (SymbolId-only emission).
+* `ctx.deps`: a [DepsView](file:///Users/mingli/MetaMath/proof-scaffold/src/skfd/api_v2.py) for accessing dependency exports.
+* `ctx.names`: a `NameResolver` shared by the build and toolchain for Unicode authoring → ASCII canonicalization.
+* `ctx.unit`: stable metadata (`dist_name`, `module_name`, `build_path`) for origin tracking and diagnostics.
 
 ### 3.3 Example 1: Minimal Build (Zero Config)
 
-For standard packages where the Python module structure already reflects the desired logical structure, `build.py` can be a single line:
+For standard packages where the Python module structure already reflects the desired logical structure, `build.py` can simply delegate to a local emitter:
 
 ```python
 # src/my_logic/build.py
-from skfd import auto_build
+from skfd.api_v2 import BuildContextV2
+from . import axioms, theorems
 
-# Automatically scans globals() for Theorems/Axioms/Defs
-# and emits them in definition order.
-auto_build.emit_package(globals())
+def build(ctx: BuildContextV2) -> None:
+    mm = ctx.mm
+    axioms.emit(mm, ctx=ctx)
+    theorems.emit(mm, ctx=ctx)
 ```
 
 ### 3.4 Example 2: Explicit Control
@@ -76,23 +91,19 @@ For packages requiring precise control over emission order or complex glue logic
 
 ```python
 # src/my_logic/build.py
-from skfd import mm, deps
-from . import axioms, theorems
+from skfd.api_v2 import BuildContextV2
 
-# 1. Import Dependencies
-mm.import_symbols(
-    wff=deps.metamath_prelude.wff,
-    imp=deps.metamath_prelude.wimp
-)
+def build(ctx: BuildContextV2) -> None:
+    mm = ctx.mm
+    prelude = ctx.deps.prelude  # or ctx.deps["metamath-prelude"]
 
-# 2. Emit Axioms (Order Matters!)
-axioms.emit(mm)
+    wff = prelude["wff"]  # SymbolId
+    mm.comment("My logic library")
 
-# 3. Emit Theorems
-theorems.emit(mm)
+    ax1 = mm.a(mm.sym.label("ax-1"), tc=wff, expr=[mm.sym.var("φ")])
+    th1 = mm.p(mm.sym.label("th-1"), tc=wff, expr=[mm.sym.var("φ")], proof=[ax1])
 
-# 4. Export Public API
-mm.export("ax-1", "th-1")
+    mm.export(ax1, th1)
 ```
 
 ## 4. How It Works (The Lifecycle)
@@ -106,28 +117,17 @@ mm.export("ax-1", "th-1")
     *   The Linker performs a topological sort of the packages.
 
 3.  **Execution (Dynamic)**:
-    *   The Linker iterates through the sorted packages.
+    *   The Driver iterates through the sorted packages.
     *   For each package:
-        1.  It creates a new `MMBuilder`.
-        2.  It populates `skfd.deps` with the results of already-built dependencies.
-        3.  It executes `src/<pkg>/build.py` using `importlib` or `exec`.
-        4.  It collects the artifacts from the builder and registers them as the package's output.
-
-## 5. Advanced: Function Mode (Legacy/Explicit)
-
-For complex scenarios requiring explicit control or unit testing, the legacy **Function Mode** is still supported. If `build.py` defines a `build(mm, **deps)` function, the Linker will call it instead of relying on side-effects.
-
-```python
-# src/my_logic/build.py
-def build(mm, metamath_prelude):
-    # Explicit dependency injection
-    ...
-```
+        1.  It creates a new `MMBuilderV2` (sharing a workspace-wide `SymbolInterner`).
+        2.  It creates a `DepsView` of already-built dependency exports.
+        3.  It calls `build(ctx: BuildContextV2)`.
+        4.  It finalizes the unit (`mm.finish()`), collects exports, and stores the unit IR for linking.
 
 ## 6. Namespace and Relocation
 
-*   **Implicit Names**: When using Script Mode, the Linker assumes the `build.py` file defines the root namespace of the package.
-*   **Relocation**: All locally defined symbols (e.g., `vx`) are automatically rewritten to globally unique names (e.g., `my_logic.vx`) in the final output.
+* **Unit identity**: each build unit has a stable `origin_module_id` (typically the Python module name containing `build.py`).
+* **Relocation**: Link-time relocation ensures the final emitted `.mm` is globally coherent, while preserving provenance via sourcemaps.
 
 ## 7. Internal Organization Patterns
 

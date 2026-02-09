@@ -88,22 +88,20 @@ args = ['METAMATH_BIN=../metamath-exe/src/metamath',
 
 ### Run Tests
 ```bash
-python3 -m pytest
+uv run pytest
 ```
 
 ### Initialize a Project
 
-**Package mode (default):** creates `src/` + `pyproject.toml`
+**Package mode:** creates `src/` + `pyproject.toml` + `.skfd`
 ```bash
-python3 -m skfd.cli init my-proofs
+python3 -m skfd.cli init-pkg my-proofs
 ```
 
-**Short proof mode:** creates `proof.py` in project root (no `src/`)
+**Standalone proof script:** creates `my_proof.py` (no `src/`)
 ```bash
-python3 -m skfd.cli init my-proof --mode proof
+python3 -m skfd.cli init-proof my_proof.py
 ```
-
-Both modes create `.skfd` (default active verifier: `mmverify`) and a `.gitignore` that includes `.skfd`.
 
 ### Build & Verify Logic
 ```bash

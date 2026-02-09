@@ -51,14 +51,19 @@ This layer makes **no logical commitments**.
 Example (author-facing):
 
 ```python
+from skfd.authoring.dsl import Var, symbol
+from skfd.authoring.typing import WFF
+
 phi = Var("φ")
 psi = Var("ψ")
 
-Imp = Constructor("→", 2)
-Not = Constructor("¬", 1)
+@symbol("→", 2, (WFF, WFF), WFF, op="rshift", precedence=20, assoc="right", aliases=["->"])
+def Imp(b, args):
+    return b.imp(args[0], args[1])
 
-require(Imp, in_sorts=(wff, wff), out_sort=wff)
-require(Not, in_sorts=(wff,), out_sort=wff)
+@symbol("¬", 1, (WFF,), WFF, op="invert", precedence=30, aliases=["-."])
+def Not(b, args):
+    return b.neg(args[0])
 ```
 
 This is recorded as structure, not semantics.
@@ -110,10 +115,12 @@ It only builds **Expr trees**.
 
 ### 4.2 Compilation Bridge
 
-A controlled bridge lowers authoring expressions into token-level formulas:
+A controlled bridge lowers authoring expressions into token-level formulas. In code, this is expressed as:
 
 ```python
-wff = system.compile(expr)
+from skfd.authoring.dsl import CompileEnv, compile_wff
+
+w = compile_wff(expr, env=env)   # returns a token-level Wff (SymbolId sequence)
 ```
 
 At this point, and only here:
@@ -123,6 +130,18 @@ At this point, and only here:
 * token sequences are produced
 
 This keeps the authoring experience clean while preserving formal rigor.
+
+Practical authoring ergonomics:
+
+- For quick authoring, use the string parser [parsing.wff](file:///Users/mingli/MetaMath/proof-scaffold/src/skfd/authoring/parsing.py#L142-L145) to build an `Expr`:
+
+```python
+from skfd.authoring.parsing import wff
+
+expr = wff("(φ → ψ) → (¬ψ → ¬φ)")
+```
+
+- For deterministic downstream output, the lowering step should use the same global `SymbolInterner` as the build context (`ctx.mm.interner`), and (in the BuilderV2 world) the same `NameResolver` policy as `ctx.names` so Unicode stays authoring-only.
 
 ---
 
@@ -138,6 +157,37 @@ This layer is intentionally minimal and stable.
 It does not grow with the theory.
 
 All higher reasoning happens in lemmas and theorems.
+
+---
+
+## 5.1 Integration with BuilderV2 (Build-Time Emission)
+
+Authoring produces token-level `Wff` values (a sequence of `SymbolId`). BuilderV2 consumes `SymbolId` directly, so emission is a thin, explicit bridge:
+
+```python
+from skfd.api_v2 import BuildContextV2
+from skfd.authoring.emit import emit_axioms, emit_lemmas
+from logic.propositional.hilbert import HilbertSystem
+from logic.propositional.hilbert.lemmas import LemmaProof
+
+def build(ctx: BuildContextV2) -> None:
+    mm = ctx.mm
+    prelude = ctx.deps.prelude
+
+    wff_tc = prelude["wff"]
+    sys = HilbertSystem.make(interner=mm.interner, names=ctx.names)
+
+    emit_axioms(mm, sys, typecode=wff_tc)
+    proofs: list[LemmaProof] = []
+    emit_lemmas(mm, sys, proofs, typecode=wff_tc)
+
+    mm.export(wff_tc)
+```
+
+Key properties that keep authoring “clean” and toolchain behavior deterministic:
+
+- Authoring and emission never use string token DSL for proof payloads; they pass `SymbolId` sequences end-to-end.
+- `$f` boilerplate is handled by [MMBuilderV2.auto](file:///Users/mingli/MetaMath/proof-scaffold/src/skfd/builder_v2/builder.py#L112-L170) by default (`auto_f=True`), not by proof authors.
 
 ---
 

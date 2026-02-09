@@ -21,16 +21,26 @@ jobs:
 
       - name: Select workdir
         run: |
-          if [ -f pyproject.toml ]; then
-            echo "WORKDIR=." >> "$GITHUB_ENV"
+          if [ -n "${SKFD_WORKDIR:-}" ]; then
+            WORKDIR="${SKFD_WORKDIR}"
+          elif [ -f "proof-scaffold/pyproject.toml" ]; then
+            WORKDIR="proof-scaffold"
+          elif [ -f "pyproject.toml" ]; then
+            WORKDIR="."
           else
-            echo "WORKDIR=proof-scaffold" >> "$GITHUB_ENV"
+            echo "ERROR: cannot find pyproject.toml in repo root or ./proof-scaffold" >&2
+            echo "PWD=$(pwd)" >&2
+            ls -la >&2
+            exit 2
           fi
+          echo "WORKDIR=${WORKDIR}" >> "$GITHUB_ENV"
+          echo "Selected WORKDIR=${WORKDIR}"
+        env:
+          SKFD_WORKDIR: ${{ vars.SKFD_WORKDIR }}
 
       - name: Install uv and set Python
         uses: astral-sh/setup-uv@v7
         with:
-          working-directory: ${{ env.WORKDIR }}
           python-version: ${{ matrix.python-version }}
           enable-cache: true
       

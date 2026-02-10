@@ -1,7 +1,7 @@
 # skfd/authoring/rules.py
 from __future__ import annotations
 
-from collections.abc import Callable, Iterable, Mapping
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Protocol, TypeVar
 
@@ -73,6 +73,78 @@ class RuleBundle:
     sigs: Mapping[str, RuleSig]
 
 
+@dataclass(frozen=True)
+class RuleDecl:
+    label: str
+    kind: str
+    sig: RuleSig
+    target: Callable[..., object]
+
+
+class RuleRegistry:
+    def __init__(self) -> None:
+        self._decls: list[RuleDecl] = []
+        self._by_label: dict[str, RuleDecl] = {}
+
+    def register(self, *, label: str, kind: str, sig: RuleSig, target: Callable[..., object]) -> None:
+        existing = self._by_label.get(label)
+        if existing is not None and existing.target is not target:
+            raise PreludeRulesError(f"duplicate rule label: {label!r}")
+        if hasattr(target, "label") and getattr(target, "label") != label:
+            raise PreludeRulesError(
+                f"rule label mismatch: decorator label={label!r} but target.label={getattr(target, 'label')!r}"
+            )
+        if hasattr(target, "sig") and getattr(target, "sig") != sig:
+            raise PreludeRulesError(
+                f"rule signature mismatch for {label!r}: decorator sig differs from target.sig"
+            )
+        decl = RuleDecl(label=label, kind=kind, sig=sig, target=target)
+        if existing is None:
+            self._decls.append(decl)
+        self._by_label[label] = decl
+
+    def decls(self) -> Sequence[RuleDecl]:
+        return tuple(self._decls)
+
+
+def rule(
+    *,
+    label: str,
+    kind: str,
+    sig: RuleSig,
+    registry: RuleRegistry,
+) -> Callable[[Callable[..., object]], Callable[..., object]]:
+    def deco(target: Callable[..., object]) -> Callable[..., object]:
+        registry.register(label=label, kind=kind, sig=sig, target=target)
+        return target
+
+    return deco
+
+
+def build_rule_bundle(
+    registry: RuleRegistry,
+    *,
+    bind: Callable[[Callable[..., object]], Callable[..., object]],
+) -> RuleBundle:
+    rules: dict[str, Callable[..., object]] = {}
+    sigs: dict[str, RuleSig] = {}
+    for d in registry.decls():
+        rules[d.label] = bind(d.target)
+        sigs[d.label] = d.sig
+    return RuleBundle(rules=rules, sigs=sigs)
+
+
+def build_rule_catalog(
+    registry: RuleRegistry,
+    *,
+    bind: Callable[[Callable[..., object]], Callable[..., object]],
+) -> dict[str, RuleEntry]:
+    entries: list[RuleEntry] = []
+    for d in registry.decls():
+        entries.append(RuleEntry(label=d.label, kind=d.kind, fn=bind(d.target)))
+    return build_catalog(entries)
+
+
 def build_catalog(entries: Iterable[RuleEntry]) -> dict[str, RuleEntry]:
     """Build a label->entry dict with duplicate-label checks."""
     cat: dict[str, RuleEntry] = {}
@@ -112,7 +184,13 @@ __all__ = [
     "Axiom2",
     "Rule2to1",
     "RuleEntry",
+    "RuleDecl",
+    "RuleRegistry",
+    "rule",
+    "RuleBundle",
     "build_catalog",
+    "build_rule_bundle",
+    "build_rule_catalog",
     "rules_view",
     "get_rule",
 ]

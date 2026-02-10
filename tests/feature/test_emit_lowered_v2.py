@@ -75,10 +75,9 @@ def test_emit_lowered_lemmas_v2_builds_theorem_proof_tokens() -> None:
 
     lemma_ref = _Lemma(
         name="Lref",
-        statement=phi,
+        statement=phi_imp_phi,
         steps=(
-            _Step(label="h1", op="hyp", args=(), ref=None, wff=phi),
-            _Step(label="s1", op="ref", args=(), ref="wi", wff=phi),
+            _Step(label="s1", op="ref", args=(), ref="wi", wff=phi_imp_phi),
         ),
     )
     lemma_mp = _Lemma(
@@ -95,4 +94,3 @@ def test_emit_lowered_lemmas_v2_builds_theorem_proof_tokens() -> None:
     emit_lowered_lemmas(mm, provider, [lemma_ref, lemma_mp], typecode="wff")
     unit = mm.finish()
     assert any(isinstance(s, Theorem) for s in unit.lir_stmts)
-

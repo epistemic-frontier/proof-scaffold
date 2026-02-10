@@ -58,7 +58,7 @@ def test_verify_script_success(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) 
         from types import SimpleNamespace
 
         class Step:
-            def __init__(self, label, wff, op='ref', args=(), ref='wi'):
+            def __init__(self, label, wff, op='hyp', args=(), ref=None):
                 self.label = label
                 self.wff = wff
                 self.op = op
@@ -74,7 +74,7 @@ def test_verify_script_success(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) 
         def prove_x(sys):
             # minimal proof object (structure only, contents won't be verified here)
             wff = sys.compile('ph', ctx='t')
-            return Proof('P1', wff, [Step('s1', wff)])
+            return Proof('P1', wff, [Step('s1', wff, op='hyp')])
         """,
     )
 

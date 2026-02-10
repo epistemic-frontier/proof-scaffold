@@ -10,6 +10,7 @@ from typing import (
 )
 
 from skfd.core.symbols import SymbolInterner
+from skfd.names import NameResolver
 
 from .formula import Wff, wff_atom
 from .typing import PreludeTypingError, RuleSig, Sort
@@ -381,6 +382,7 @@ class CompileEnv:
     """Compilation environment for lowering authoring Expr to Wff tokens."""
 
     interner: SymbolInterner
+    names: NameResolver
     builtins: Any  # Opaque logic-specific builtins object
     ctor_builders: Mapping[str, BuilderFn]  # Must be provided by the logic system
     origin_module_id: str = "authoring"
@@ -403,9 +405,10 @@ def compile_wff(
         * constructor name must have a builder in env.ctor_builders
     """
     if isinstance(expr, Var):
+        canonical = env.names.canonicalize("Var", expr.name)
         sid = env.interner.intern(
             origin_module_id=env.origin_module_id,
-            local_name=expr.name,
+            local_name=canonical,
             kind="Var",
             origin_ref=env.origin_ref,
         )

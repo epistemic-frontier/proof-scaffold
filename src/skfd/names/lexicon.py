@@ -102,7 +102,9 @@ def builtin_lexicon() -> Lexicon:
             LexiconEntry(kind="Const", canonical="/\\", aliases=("∧", "&"), display="∧"),
             LexiconEntry(kind="Var", canonical="ph", aliases=("φ",), display="φ"),
             LexiconEntry(kind="Var", canonical="ps", aliases=("ψ",), display="ψ"),
+            LexiconEntry(kind="Var", canonical="ch", aliases=("χ",), display="χ"),
+            LexiconEntry(kind="Var", canonical="th", aliases=("θ",), display="θ"),
+            LexiconEntry(kind="Var", canonical="ta", aliases=("τ",), display="τ"),
         ]
     )
     return lex
-

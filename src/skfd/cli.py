@@ -19,6 +19,7 @@ from skfd.core.diag import LinkerDiagError
 from skfd.driver.runner import DriverRunner
 from skfd.verifier import verify
 from skfd.verifier.aggregate import VerifierResult, summarize
+from skfd.api_v2 import BuildConfig
 
 from .config import VerifierConfig, load_config, save_config
 from .doctor.alignment import check_alignment
@@ -468,6 +469,12 @@ def _cmd_verify(args: argparse.Namespace) -> int:
 
     print(f"Initializing build driver (src={root}, target={target})...")
     runner = DriverRunner(root, target)
+    level = getattr(args, "level", 0)
+    runner.cfg = BuildConfig(
+        auto_f=getattr(getattr(runner, "cfg", None), "auto_f", True),
+        warn_raw=True,
+        forbid_raw=level >= 1,
+    )
 
     try:
         # Build phase
@@ -484,7 +491,6 @@ def _cmd_verify(args: argparse.Namespace) -> int:
                     f"falling back to top-level package '{root_pkg}'."
                 )
                 pkg = root_pkg
-        level = getattr(args, "level", 0)
         print(f"Verifying package '{pkg}' (Level {level})...")
         runner.verify_package(pkg, conformance_level=level)
 
@@ -543,6 +549,12 @@ def _cmd_debug(args: argparse.Namespace) -> int:
 
     print(f"Initializing build driver (src={root}, target={target})...")
     runner = DriverRunner(root, target)
+    level = getattr(args, "level", 0)
+    runner.cfg = BuildConfig(
+        auto_f=getattr(getattr(runner, "cfg", None), "auto_f", True),
+        warn_raw=True,
+        forbid_raw=level >= 1,
+    )
 
     try:
         print("Building all packages...")

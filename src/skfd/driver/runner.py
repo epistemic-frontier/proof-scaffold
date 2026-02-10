@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import logging
 import inspect
-import shutil
 from pathlib import Path
 from typing import Any
 
@@ -263,13 +262,6 @@ class DriverRunner:
             json.dump(self.names.used_mappings(), f, indent=2, sort_keys=True)
 
         logger.info(f"Generated verification monolith: {outfile} (Map: {mapfile})")
-
-        # 4. Run metamath-exe (if available)
-        if shutil.which("metamath"):
-            logger.info("Running metamath-exe...")
-            # subprocess.run(["metamath", str(outfile)], check=True)
-        else:
-            logger.warning("metamath-exe not found, skipping verification run.")
 
     def _get_transitive_deps(self, root: str) -> list[str]:
         """Return list of dependencies in topological order (deps only)."""

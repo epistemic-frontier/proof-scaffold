@@ -32,6 +32,7 @@ def _make_env() -> dsl.CompileEnv:
 
     return dsl.CompileEnv(
         interner=interner,
+        names=NameResolver(),
         builtins=object(),
         ctor_builders={"IMP": _builder},
         origin_module_id="test",
@@ -86,6 +87,7 @@ def test_compile_wff_missing_builder() -> None:
     reg.require(And, RuleSig(("wff", "wff"), "wff"))
     env = dsl.CompileEnv(
         interner=SymbolInterner(),
+        names=NameResolver(),
         builtins=object(),
         ctor_builders={},
         origin_module_id="test",
@@ -166,7 +168,7 @@ def test_emit_lemmas_basic() -> None:
     )
     emit_lemmas(mm, Provider(interner), [Lemma("L1", wff, [Step(wff)])])
     unit = mm.finish()
-    assert any(isinstance(s, Theorem) for s in unit.lir_stmts)
+    assert any(isinstance(s, Axiom) for s in unit.lir_stmts)
 
 
 def test_export_axioms_and_symbol_aliases() -> None:

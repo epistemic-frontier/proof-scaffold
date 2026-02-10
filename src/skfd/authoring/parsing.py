@@ -6,6 +6,17 @@ from .dsl import DEFAULT_REQUIRE, Expr, RequireRegistry, Var
 from .typing import PreludeTypingError
 
 # -----------------------------------------------------------------------------
+# Error formatting
+# -----------------------------------------------------------------------------
+
+
+def _format_parse_error(text: str, pos: int, message: str) -> str:
+    safe_pos = max(0, min(pos, len(text)))
+    caret_line = " " * safe_pos + "^"
+    return f"{message}\n{text}\n{caret_line}"
+
+
+# -----------------------------------------------------------------------------
 # Tokenizer
 # -----------------------------------------------------------------------------
 
@@ -71,7 +82,13 @@ class Parser:
     def parse(self) -> Expr:
         expr = self.parse_expr(0)
         if self.current.type != "EOF":
-            raise PreludeTypingError(f"Unexpected token at end: {self.current.value}")
+            raise PreludeTypingError(
+                _format_parse_error(
+                    self.tokenizer.text,
+                    self.current.pos,
+                    f"Unexpected token at end: {self.current.value!r}",
+                )
+            )
         return expr
 
     def parse_expr(self, min_prec: int) -> Expr:
@@ -113,7 +130,13 @@ class Parser:
         if tok.type == "LPAREN":
             expr = self.parse_expr(0)
             if self.current.type != "RPAREN":
-                raise PreludeTypingError("Expected ')'")
+                raise PreludeTypingError(
+                    _format_parse_error(
+                        self.tokenizer.text,
+                        self.current.pos,
+                        "Expected ')'",
+                    )
+                )
             self.consume()
             return expr
         
@@ -137,7 +160,13 @@ class Parser:
                 args.append(self.parse_expr(prec))
             return spec.ctor(*args)
             
-        raise PreludeTypingError(f"Unexpected token: {tok.value}")
+        raise PreludeTypingError(
+            _format_parse_error(
+                self.tokenizer.text,
+                tok.pos,
+                f"Unexpected token: {tok.value!r}",
+            )
+        )
 
 def wff(text: str, registry: RequireRegistry = DEFAULT_REQUIRE) -> Expr:
     """Parse a wff string into an Expr."""

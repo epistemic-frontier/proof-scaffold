@@ -17,6 +17,8 @@ from skfd.names import NameResolver
 @dataclass(frozen=True)
 class BuildConfig:
     auto_f: bool = True
+    warn_raw: bool = True
+    forbid_raw: bool = False
 
 
 @dataclass

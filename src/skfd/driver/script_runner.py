@@ -150,12 +150,16 @@ def verify_script(script_path: Path, project_root: Path | None = None) -> int:
             if "mp" in axioms:
                 return
 
-            wi_wff = hs.compile(wff("ph -> ps"), ctx="rule[wi]")
-            wn_wff = hs.compile(wff("-. ph"), ctx="rule[wn]")
-            wa_wff = hs.compile(wff("( ph /\\ ps )"), ctx="rule[wa]")
-            phi_wff = hs.compile(wff("ph"), ctx="rule[mp.phi]")
-            psi_wff = hs.compile(wff("ps"), ctx="rule[mp.psi]")
-            imp_wff = hs.compile(wff("( ph -> ps )"), ctx="rule[mp.imp]")
+            compile_fn = getattr(hs, "_compile", None)
+            if compile_fn is None:
+                compile_fn = hs.compile
+
+            wi_wff = compile_fn(wff("ph -> ps"), ctx="rule[wi]")
+            wn_wff = compile_fn(wff("-. ph"), ctx="rule[wn]")
+            wa_wff = compile_fn(wff("( ph /\\ ps )"), ctx="rule[wa]")
+            phi_wff = compile_fn(wff("ph"), ctx="rule[mp.phi]")
+            psi_wff = compile_fn(wff("ps"), ctx="rule[mp.psi]")
+            imp_wff = compile_fn(wff("( ph -> ps )"), ctx="rule[mp.imp]")
 
             if "wi" not in axioms:
                 mm.a(mm.sym.label("wi"), tc=wff_tc, expr=wi_wff.tokens)

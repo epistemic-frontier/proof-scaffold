@@ -215,10 +215,8 @@ python -m skfd.cli serve <project-name> --port 8000
 ```
 
 Then open http://127.0.0.1:8000/ and search/click assertions to inspect direct and reverse dependencies.
-```
 
 ---
-
 
 Run tests:
 

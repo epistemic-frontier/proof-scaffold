@@ -1,11 +1,35 @@
 [build-system]
-requires = ["setuptools>=68", "wheel"]
+requires = ["setuptools>=77", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "proof-scaffold"
 version = "0.0.1"
+description = "A layered, sanity-checked scaffold for building modular Metamath artifacts."
+readme = "README.md"
+license = "GPL-2.0-only"
+license-files = ["LICENSE"]
 requires-python = ">=3.10"
+keywords = ["metamath"]
+authors = [{ name = "Mingli Yuan", email = "mingli.yuan@gmail.com" }]
+maintainers = [{ name = "Mingli Yuan", email = "mingli.yuan@gmail.com" }]
+classifiers = [
+  "Development Status :: 2 - Pre-Alpha",
+  "Intended Audience :: Developers",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3 :: Only",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+]
+
+[project.urls]
+Homepage = "https://github.com/epistemic-frontier/proof-scaffold"
+Repository = "https://github.com/epistemic-frontier/proof-scaffold"
+Issues = "https://github.com/epistemic-frontier/proof-scaffold/issues"
+
+[project.scripts]
+skfd = "skfd.cli:main"
 
 [project.optional-dependencies]
 dev = [

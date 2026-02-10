@@ -207,6 +207,7 @@ python -m skfd.cli init-proof my_proof.py
 
 ```bash
 python -m skfd.cli verify <project-name>
+```
 
 ### Browse theorem dependency chains (local web)
 ```bash

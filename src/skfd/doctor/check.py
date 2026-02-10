@@ -19,10 +19,12 @@ def run_sanity(verifier_cmd: list[str] | None = None) -> None:
 
     # Verify
     if verifier_cmd is None:
-        # Fallback for tests invoking this directly without config
         import sys
 
-        verifier_cmd = [sys.executable, "verifier/mmverify.py"]
+        import skfd.verifier
+
+        mmverify_path = Path(skfd.verifier.__file__).parent / "mmverify.py"
+        verifier_cmd = [sys.executable, str(mmverify_path)]
 
     with TemporaryDirectory() as td:
         mm_path = Path(td) / "sanity.mm"

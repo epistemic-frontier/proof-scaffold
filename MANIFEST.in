@@ -1,0 +1,3 @@
+recursive-include verifier *.py
+prune src/proof_scaffold.egg-info
+recursive-exclude src/proof_scaffold.egg-info *

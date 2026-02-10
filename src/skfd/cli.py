@@ -896,9 +896,14 @@ def main(argv: list[str] | None = None) -> int:
     p_ver_rm.set_defaults(func=_cmd_verifier_remove)
 
     # --- verify (driver) ---
-    p_verify = sub.add_parser("verify", help="Build and verify a package")
+    p_verify = sub.add_parser(
+        "verify",
+        help="Build and verify a project (or run a standalone proof script)",
+    )
     p_verify.add_argument(
-        "package", help="Name of the package to verify (e.g. 'logic')"
+        "package",
+        metavar="TARGET",
+        help="Project name from pyproject.toml ([project].name), or a .py proof script",
     )
     p_verify.add_argument(
         "--level",

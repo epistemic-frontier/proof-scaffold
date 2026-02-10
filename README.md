@@ -38,10 +38,11 @@ Canonicalization is deterministic and whitespace-insensitive: the same formula a
 
 ```bash
 pip install proof-scaffold
-python -m skfd.cli init-pkg my-proofs
+mkdir my-proofs
 cd my-proofs
+python -m skfd.cli init-pkg my-proofs
 python -m skfd.cli doctor check
-python -m skfd.cli verify logic
+python -m skfd.cli verify my-proofs
 ````
 
 This will:
@@ -49,10 +50,11 @@ This will:
 1. Discover all `build.py` files under `src/`.
 2. Topologically sort packages by declared deps.
 3. Build each package in memory (LIR).
-4. Emit `target/logic_full.mm` (Transient Monolith).
+4. Emit `target/<project-name>_full.mm` (Transient Monolith).
 5. Run configured verifiers (if available).
 
-> Tip: `logic` is a **package name**. `verify <package>` targets one package and its dependency closure.
+> Tip: `my-proofs` is a **project name** (from `pyproject.toml` → `[project].name`).
+> `verify <project-name>` targets that project’s build unit (and its dependency closure).
 
 ---
 
@@ -79,7 +81,7 @@ def prove_modus_tollens(sys: HilbertSystem) -> LemmaProof:
 Verify:
 
 ```bash
-python -m skfd.cli verify logic
+python -m skfd.cli verify <project-name>
 ```
 
 For a larger proof that showcases lifting/distribution patterns and origin tracking, see `examples/`.
@@ -90,8 +92,9 @@ For a larger proof that showcases lifting/distribution patterns and origin track
 
 ### Terminology
 
-* **Project**: a ProofScaffold workspace (the repo you run the CLI in).
-* **Package**: a logic module under `src/<name>/` with a `build.py`.
+* **Project**: a ProofScaffold workspace root (contains `pyproject.toml` + `src/`).
+* **Build unit**: what `skfd verify` targets; named by `pyproject.toml` → `[project].name`.
+* **Package (Python)**: the import package under `src/<name>/` (often `<project-name>` with `-` → `_`).
 * **Driver**: resolves deps, builds packages, emits transient monolith `.mm`.
 * **LIR**: the builder’s intermediate representation emitted by packages.
 
@@ -101,9 +104,9 @@ For a larger proof that showcases lifting/distribution patterns and origin track
 
 Manages the build lifecycle of logic packages.
 
-* **Explicit dependencies**: packages declare deps in `build.py` (e.g. `prelude`, `logic`).
+* **Explicit dependencies**: packages declare deps in `build.py` (e.g. `metamath-prelude`, `metamath-logic`).
 * **No implicit globals**: dependencies are injected by the driver.
-* **Primary command**: `python -m skfd.cli verify <package>`
+* **Primary command**: `python -m skfd.cli verify <project-name>`
 
 #### 2) Builder API (`skfd.builder`)
 
@@ -137,7 +140,7 @@ active = ["metamath-exe"]
 
 [verifiers.metamath-exe]
 command = "metamath"
-args = ["target/logic_full.mm"]
+args = ["target/<project-name>_full.mm"]
 ```
 
 ### Advanced config (multiple verifiers + shims)
@@ -176,7 +179,7 @@ python -m skfd.cli doctor check
 
 * Dependencies are installed packages; no `PYTHONPATH` needed.
 * `.skfd` can be minimal and extended only if desired.
-* Typical usage: `python -m skfd.cli verify <package>`.
+* Typical usage: `python -m skfd.cli verify <project-name>`.
 
 **Dev mode (multi-repo / local path deps)**
 
@@ -189,6 +192,8 @@ python -m skfd.cli doctor check
 **Package mode:** creates `src/` + `pyproject.toml` + `.skfd`
 
 ```bash
+mkdir my-proofs
+cd my-proofs
 python -m skfd.cli init-pkg my-proofs
 ```
 
@@ -198,10 +203,10 @@ python -m skfd.cli init-pkg my-proofs
 python -m skfd.cli init-proof my_proof.py
 ```
 
-### Build & verify logic
+### Build & verify a project
 
 ```bash
-python -m skfd.cli verify logic
+python -m skfd.cli verify <project-name>
 ```
 
 ---

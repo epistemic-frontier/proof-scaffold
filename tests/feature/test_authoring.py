@@ -10,7 +10,7 @@ from skfd.authoring.emit import emit_axioms, emit_lemmas
 from skfd.authoring.formula import Wff, wff_atom, render
 from skfd.authoring.typing import Context, Hypothesis, PreludeTypingError, RuleApp, RuleSig
 from skfd.builder_v2 import MMBuilderV2
-from skfd.core.lir import Axiom, Theorem
+from skfd.core.lir import Axiom
 from skfd.core.origin import OriginTable
 from skfd.core.symbols import SymbolInterner
 from skfd.names import NameResolver

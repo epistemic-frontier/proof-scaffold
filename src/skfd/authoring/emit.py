@@ -207,10 +207,10 @@ def emit_lowered_lemmas(
     class _Bin(_Ast):
         __slots__ = ("op", "l", "r")
 
-        def __init__(self, op: int, l: _Ast, r: _Ast) -> None:
+        def __init__(self, op: int, left: _Ast, right: _Ast) -> None:
             self.op = op
-            self.l = l
-            self.r = r
+            self.l = left
+            self.r = right
 
         def __eq__(self, other: object) -> bool:
             return (
@@ -342,7 +342,7 @@ def emit_lowered_lemmas(
         finally:
             visiting.remove(label)
 
-    lemma_by_name: dict[str, LoweredLemmaLike] = {l.name: l for l in lemmas}
+    lemma_by_name: dict[str, LoweredLemmaLike] = {lemma.name: lemma for lemma in lemmas}
     allowed_ops_for_theorem: set[str] = {"hyp", "ref", "mp"}
     emit_as_axiom: set[str] = set()
     for lemma in lemmas:

@@ -35,6 +35,42 @@ def test_parser_parens_and_error() -> None:
         Parser("( ph", registry=reg).parse()
 
 
+def test_parser_unicode_aliases() -> None:
+    reg = dsl.RequireRegistry()
+    builders = dsl.BuilderRegistry()
+
+    @dsl.symbol(
+        "->",
+        2,
+        ("wff", "wff"),
+        "wff",
+        registry=reg,
+        builder_registry=builders,
+        precedence=20,
+        assoc="right",
+        aliases=("→",),
+    )
+    def _imp(_b, args):
+        return args[0]
+
+    @dsl.symbol(
+        "-.",
+        1,
+        ("wff",),
+        "wff",
+        registry=reg,
+        builder_registry=builders,
+        precedence=30,
+        assoc="right",
+        aliases=("¬",),
+    )
+    def _not(_b, args):
+        return args[0]
+
+    assert isinstance(wff("ph → ps", registry=reg), dsl.App)
+    assert isinstance(wff("¬ ph", registry=reg), dsl.App)
+
+
 def test_rules_catalog_and_get() -> None:
     def r1(x):
         return x

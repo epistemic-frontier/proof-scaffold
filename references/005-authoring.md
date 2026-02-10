@@ -56,15 +56,14 @@ from skfd.authoring.typing import WFF
 
 phi = Var("φ")
 psi = Var("ψ")
-
+@symbol("->", 2, (WFF, WFF), WFF, op="rshift", precedence=20, assoc="right", aliases=["→"])
 @symbol("→", 2, (WFF, WFF), WFF, op="rshift", precedence=20, assoc="right", aliases=["->"])
 def Imp(b, args):
     return b.imp(args[0], args[1])
-
+@symbol("-.", 1, (WFF,), WFF, op="invert", precedence=30, aliases=["¬"])
 @symbol("¬", 1, (WFF,), WFF, op="invert", precedence=30, aliases=["-."])
 def Not(b, args):
     return b.neg(args[0])
-```
 
 This is recorded as structure, not semantics.
 

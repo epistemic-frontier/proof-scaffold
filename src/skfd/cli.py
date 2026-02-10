@@ -20,6 +20,11 @@ from skfd.driver.runner import DriverRunner
 from skfd.verifier import verify
 from skfd.verifier.aggregate import VerifierResult, summarize
 from skfd.api_v2 import BuildConfig
+from skfd.web.theorem_browser import (
+    build_mm_context_bundle,
+    build_theorem_graph,
+    serve as serve_theorem_browser,
+)
 
 from .config import VerifierConfig, load_config, save_config
 from .doctor.alignment import check_alignment
@@ -44,7 +49,7 @@ def _write_text(path: Path, text: str) -> None:
 
 
 def _run_example_minimal_ok(verifier_cmd: list[str], *, write_mm: bool = True) -> None:
-    from examples.minimal_ok import run as run_example
+    from skfd.examples.minimal_ok import run as run_example
 
     mm_text = run_example()
     if write_mm:
@@ -60,7 +65,7 @@ def _run_example_minimal_ok(verifier_cmd: list[str], *, write_mm: bool = True) -
 
 
 def _run_example_minimal_diag(*, write_mm: bool = False) -> None:
-    from examples.minimal_diag import run as run_example
+    from skfd.examples.minimal_diag import run as run_example
 
     run_example()
     # minimal_diag is expected to fail before emission; keep side effects minimal.
@@ -538,6 +543,86 @@ def _cmd_verify(args: argparse.Namespace) -> int:
         return 1
 
 
+def _cmd_serve(args: argparse.Namespace) -> int:
+    root_dir = args.root or Path.cwd()
+    root = root_dir / "src"
+    target = root_dir / "target"
+
+    if not root.exists():
+        print(f"Error: Source directory not found: {root}", file=sys.stderr)
+        return 1
+
+    print(f"Initializing build driver (src={root}, target={target})...")
+    runner = DriverRunner(root, target)
+    level = getattr(args, "level", 0)
+    runner.cfg = BuildConfig(
+        auto_f=getattr(getattr(runner, "cfg", None), "auto_f", True),
+        warn_raw=True,
+        forbid_raw=level >= 1,
+    )
+
+    try:
+        print("Building all packages...")
+        runner.execute_all()
+
+        if not runner.lirs:
+            print(
+                f"Error: No build units discovered under {root} (expected build.py files).",
+                file=sys.stderr,
+            )
+            return 1
+
+        pkg = args.package
+        if pkg not in runner.lirs and "." in pkg:
+            root_pkg = pkg.split(".", 1)[0]
+            if root_pkg in runner.lirs:
+                print(
+                    f"Package '{pkg}' not found as a build unit; "
+                    f"falling back to top-level package '{root_pkg}'."
+                )
+                pkg = root_pkg
+
+        if pkg not in runner.lirs:
+            print(
+                f"Error: Build unit '{pkg}' not found (discovered: {sorted(runner.lirs.keys())}).",
+                file=sys.stderr,
+            )
+            return 1
+
+        chain = runner._get_transitive_deps(pkg)
+        chain.append(pkg)
+        units = [runner.lirs[n] for n in chain]
+        graph = build_theorem_graph(
+            units=units,
+            origin_table=runner.origin_table,
+            interner=runner.interner,
+            conformance_level=level,
+            project_root=root_dir,
+        )
+        mm = build_mm_context_bundle(
+            units=units,
+            origin_table=runner.origin_table,
+            interner=runner.interner,
+            conformance_level=level,
+        )
+
+        host = getattr(args, "host", "127.0.0.1")
+        port = int(getattr(args, "port", 8000))
+        print(f"Serving theorem browser for '{pkg}' on http://{host}:{port}/")
+        serve_theorem_browser(
+            graph=graph, mm=mm, host=host, port=port, project_root=root_dir
+        )
+        return 0
+    except KeyboardInterrupt:
+        print("\nStopped.")
+        return 0
+    except Exception as e:
+        print(f"Serve failed: {e}", file=sys.stderr)
+        _print_friendly_hint(e)
+        traceback.print_exc()
+        return 1
+
+
 def _cmd_debug(args: argparse.Namespace) -> int:
     """Build a package and print mm + source context for a specific label."""
     root = (args.root or Path.cwd()) / "src"
@@ -913,6 +998,35 @@ def main(argv: list[str] | None = None) -> int:
         help="Conformance level (0=Loose, 1=Strict Interface, 2=FOL)",
     )
     p_verify.set_defaults(func=_cmd_verify)
+
+    # --- serve (theorem browser) ---
+    p_serve = sub.add_parser(
+        "serve", help="Serve a local theorem dependency browser for a project"
+    )
+    p_serve.add_argument(
+        "package",
+        metavar="TARGET",
+        help="Project name from pyproject.toml ([project].name)",
+    )
+    p_serve.add_argument(
+        "--host",
+        default="127.0.0.1",
+        help="Bind address (default: 127.0.0.1)",
+    )
+    p_serve.add_argument(
+        "--port",
+        type=int,
+        default=8000,
+        help="Port (default: 8000)",
+    )
+    p_serve.add_argument(
+        "--level",
+        type=int,
+        default=0,
+        choices=[0, 1, 2],
+        help="Conformance level (0=Loose, 1=Strict Interface, 2=FOL)",
+    )
+    p_serve.set_defaults(func=_cmd_serve)
 
     # --- debug (mm slice) ---
     p_debug = sub.add_parser(

@@ -207,11 +207,17 @@ python -m skfd.cli init-proof my_proof.py
 
 ```bash
 python -m skfd.cli verify <project-name>
+
+### Browse theorem dependency chains (local web)
+```bash
+python -m skfd.cli serve <project-name> --port 8000
+```
+
+Then open http://127.0.0.1:8000/ and search/click assertions to inspect direct and reverse dependencies.
 ```
 
 ---
 
-## Development
 
 Run tests:
 

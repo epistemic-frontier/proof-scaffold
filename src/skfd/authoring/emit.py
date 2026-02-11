@@ -13,7 +13,9 @@ from .formula import Wff
 
 
 class AxiomProvider(Protocol):
-    interner: SymbolInterner
+    @property
+    def interner(self) -> SymbolInterner:
+        ...
 
     def compile_axioms(self) -> Mapping[str, Wff]:
         ...
@@ -46,13 +48,23 @@ def emit_axioms(
 
 
 class LemmaStepLike(Protocol):
-    wff: Wff
+    @property
+    def wff(self) -> Wff:
+        ...
 
 
 class LemmaLike(Protocol):
-    name: str
-    statement: Wff
-    steps: Sequence[LemmaStepLike]
+    @property
+    def name(self) -> str:
+        ...
+
+    @property
+    def statement(self) -> Wff:
+        ...
+
+    @property
+    def steps(self) -> Sequence[LemmaStepLike]:
+        ...
 
 
 def emit_lemmas(
@@ -84,26 +96,40 @@ def emit_lemmas(
 
 
 class LoweredStepLike(LemmaStepLike, Protocol):
-    label: str
-    op: str
-    args: Sequence[str]
-    ref: str | None
+    @property
+    def label(self) -> str:
+        ...
+
+    @property
+    def op(self) -> str:
+        ...
+
+    @property
+    def args(self) -> Sequence[str]:
+        ...
+
+    @property
+    def ref(self) -> str | None:
+        ...
 
 
 class LoweredLemmaLike(LemmaLike, Protocol):
-    steps: Sequence[LoweredStepLike]
+    @property
+    def steps(self) -> Sequence[LoweredStepLike]:
+        ...
 
 
 def emit_lowered_lemmas(
     mm: MMBuilderV2,
     provider: AxiomProvider,
-    lemmas: Sequence[LoweredLemmaLike],
+    lemmas: Sequence[LemmaLike],
     typecode: str | SymbolId = "wff",
     wff_typecode: str | SymbolId = "wff",
     *,
     label_ids: Mapping[str, SymbolId] | None = None,
     floating_by_var: Mapping[SymbolId, SymbolId] | None = None,
 ) -> None:
+    lemmas = cast(Sequence[LoweredLemmaLike], lemmas)
     if provider.interner is not mm.interner:
         raise LinkerDiagError(
             Diagnostic(

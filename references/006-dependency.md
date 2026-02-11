@@ -43,7 +43,7 @@ A `Ref` is a lightweight handle that points to a symbol defined elsewhere. It do
 class Ref:
     package: str       # e.g., "metamath-logic"
     module: str        # e.g., "logic.propositional"
-    name: str          # e.g., "L1_id"
+    name: str          # e.g., "id"
     kind: SymbolKind   # "Theorem" | "Axiom" | "Const"
 ```
 
@@ -56,7 +56,7 @@ Authors import these References as if they were the objects themselves.
 from skfd.core.refs import Ref
 
 # This is just a pointer, effectively zero-cost import
-L1_id = Ref("metamath-logic", "logic.prop", "L1_id", "Theorem")
+id_ = Ref("metamath-logic", "logic.prop", "id", "Theorem")
 ```
 
 When constructing a proof, the `ProofBuilder` accepts these Refs:
@@ -64,7 +64,7 @@ When constructing a proof, the `ProofBuilder` accepts these Refs:
 ```python
 def prove_my_lemma(sys):
     # sys.apply knows how to handle Ref objects
-    step1 = sys.apply(L1_id, subst={...})
+    step1 = sys.apply(id_, subst={...})
 ```
 
 ## 4. The Collector Mechanism
@@ -81,7 +81,7 @@ for lemma in lemmas:
     collector.scan(lemma)
     
 # Result: Set[Ref]
-# { Ref("metamath-logic", "logic.prop", "L1_id"), ... }
+# { Ref("metamath-logic", "logic.prop", "id"), ... }
 ```
 
 ### 4.2 Phase 2: Resolution & Auto-Import

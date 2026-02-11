@@ -421,7 +421,7 @@ def prove_example(sys: System) -> Proof:
     # This is just a dummy step, normally you use A1 properly
     # See logic.propositional.hilbert.lemmas for real examples
     
-    # Real L1_id proof for demonstration:
+    # Real id proof for demonstration:
     # 1. ph -> (ph -> ph) (A1)
     # 2. (ph -> ((ph -> ph) -> ph)) -> ((ph -> (ph -> ph)) -> (ph -> ph)) (A2)
     # ...
@@ -1036,7 +1036,7 @@ def main(argv: list[str] | None = None) -> int:
     p_debug.add_argument(
         "package", help="Name of the package to debug (e.g. 'logic')"
     )
-    p_debug.add_argument("label", help="Metamath label to inspect (e.g. 'L1_id')")
+    p_debug.add_argument("label", help="Metamath label to inspect (e.g. 'id')")
     p_debug.add_argument(
         "--level",
         type=int,

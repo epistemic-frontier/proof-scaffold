@@ -2,17 +2,18 @@ from __future__ import annotations
 
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
-from typing import Generic, Literal, Protocol, TypeVar
+from typing import Any, Generic, Literal, Protocol, TypeVar
 
 T = TypeVar("T")
+V_co = TypeVar("V_co", covariant=True)
 
 
-class TokenLike(Protocol):
+class TokenLike(Protocol[V_co]):
     @property
     def type(self) -> str: ...
 
     @property
-    def value(self) -> str: ...
+    def value(self) -> V_co: ...
 
     @property
     def pos(self) -> int: ...
@@ -31,10 +32,10 @@ class ParseError(Exception):
 @dataclass
 class TokenStream(Generic[T]):
     text: str
-    tokens: Sequence[TokenLike]
+    tokens: Sequence[TokenLike[Any]]
     _memo: dict[tuple[int, int], object] = field(default_factory=dict)
 
-    def peek(self, i: int) -> TokenLike:
+    def peek(self, i: int) -> TokenLike[Any]:
         if i < 0:
             return self.tokens[0]
         if i >= len(self.tokens):
@@ -92,7 +93,7 @@ class ExpressionRule(Generic[T]):
         self,
         *,
         atom: Callable[[TokenStream, int], ParseResult[T]],
-        infix_of: Callable[[TokenLike], InfixOp[T] | None],
+        infix_of: Callable[[TokenLike[Any]], InfixOp[T] | None],
     ):
         self._atom = atom
         self._infix_of = infix_of

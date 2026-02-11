@@ -253,7 +253,7 @@ By respecting the condensation phase, we gain:
 Early experiments with a Hilbert-style propositional system provide some concrete feedback on this architecture.
 
 - Hilbert as “assembly language”  
-  - Writing the identity law lemma `L1_id : φ → φ` directly against A1/A2 and `mp` confirmed that the authoring contract works as intended:  
+  - Writing the identity law lemma `id : φ → φ` directly against A1/A2 and `mp` confirmed that the authoring contract works as intended:
     - authoring stays in terms of `Var`, `Imp`, etc.,  
     - compilation is a single `compile(...)` call,  
     - and verification remains downstream in Metamath.  

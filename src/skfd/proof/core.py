@@ -13,7 +13,9 @@ TacticRegistry: TypeAlias = Mapping[str, Tactic]
 
 
 class SystemCore(Protocol):
-    interner: SymbolInterner
+    @property
+    def interner(self) -> SymbolInterner:
+        ...
 
     def compile(self, expr: Expr, *, ctx: str = "compile") -> Wff:
         ...

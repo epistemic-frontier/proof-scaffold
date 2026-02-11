@@ -50,9 +50,17 @@ class ProofBuilder:
         self._remember(label, stmt)
         return stmt
 
-    def ref(self, label: str, expr_str: str, *, ref: str, note: str = "") -> Wff:
+    def ref(self, label: str, expr_str: str, *hyp_args: Wff, ref: str, note: str = "") -> Wff:
         stmt = self._compile_str(label, expr_str)
-        self.steps.append(Step(label, stmt, note, op="ref", ref=ref))
+        arg_labels: list[str] = []
+        for w in hyp_args:
+            w_label = self._wff_to_label.get(id(w))
+            if w_label is None:
+                raise ValueError(f"{label}: ref args must be steps created by this ProofBuilder")
+            arg_labels.append(w_label)
+        self.steps.append(
+            Step(label, stmt, note, op="ref", ref=ref, args=tuple(arg_labels))
+        )
         self._remember(label, stmt)
         return stmt
 

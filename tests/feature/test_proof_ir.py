@@ -67,3 +67,28 @@ def test_proof_builder_mp_is_apply_mp() -> None:
 
     assert pb.steps[-1].op == "apply"
     assert pb.steps[-1].ref == "mp"
+
+
+def test_proof_builder_ref_hyp_args_are_recorded() -> None:
+    sys = _DummySystem(interner=SymbolInterner())
+    pb = ProofBuilder(sys, "demo")
+    h = pb.hyp("h", "ph")
+    _ = pb.ref("s", "ps", h, ref="T", note="t")
+
+    assert pb.steps[-1].op == "ref"
+    assert pb.steps[-1].ref == "T"
+    assert pb.steps[-1].args == ("h",)
+
+
+def test_proof_builder_ref_rejects_foreign_args() -> None:
+    sys = _DummySystem(interner=SymbolInterner())
+    pb1 = ProofBuilder(sys, "p1")
+    pb2 = ProofBuilder(sys, "p2")
+    foreign = pb2.hyp("h", "ph")
+
+    try:
+        pb1.ref("s", "ps", foreign, ref="T")
+    except ValueError as e:
+        assert "ref args must be steps created by this ProofBuilder" in str(e)
+    else:
+        raise AssertionError("expected ValueError")

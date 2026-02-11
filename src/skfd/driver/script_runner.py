@@ -10,7 +10,7 @@ from pathlib import Path
 from types import ModuleType
 from typing import Any, cast
 
-from skfd.authoring.emit import emit_axioms, emit_lemmas, emit_lowered_lemmas
+from skfd.authoring.emit import emit_axioms, emit_lowered_lemmas
 from skfd.authoring.parsing import wff
 from skfd.builder_v2 import MMBuilderV2
 from skfd.config import load_config
@@ -177,32 +177,54 @@ def verify_script(script_path: Path, project_root: Path | None = None) -> int:
 
         _emit_rule_skeleton()
 
-        referenced: set[str] = set()
-        for p in proofs:
+        compiled_axioms = hs.compile_axioms()
+        reserved = {"wi", "wn", "wa", "mp"}
+
+        def _refs(p: Any) -> set[str]:
+            refs: set[str] = set()
             for st in getattr(p, "steps", ()):
-                if getattr(st, "op", None) == "ref":
-                    ref = getattr(st, "ref", None)
-                    if isinstance(ref, str) and ref:
-                        referenced.add(ref)
+                if getattr(st, "op", None) != "ref":
+                    continue
+                ref = getattr(st, "ref", None)
+                if isinstance(ref, str) and ref:
+                    refs.add(ref)
+            return refs
 
-        missing_refs = {ref for ref in referenced if ref not in hs.compile_axioms()}
-        missing_refs -= {"wi", "wn", "wa", "mp"}
+        try:
+            mod = importlib.import_module("logic.propositional.hilbert.theorems")
+            cat = getattr(mod, "SETMM_TO_HILBERT_LEMMAS", {})
+        except Exception:
+            cat = {}
 
-        if missing_refs:
-            try:
-                dep_proofs = []
-                mod = importlib.import_module("logic.propositional.hilbert.theorems")
-                cat = getattr(mod, "SETMM_TO_HILBERT_LEMMAS", {})
-                for ref_label in sorted(missing_refs):
-                    ctor = cat.get(ref_label)
-                    if ctor is not None:
-                        dep_proofs.append(ctor(hs))
-                if dep_proofs:
-                    emit_lemmas(mm, hs, dep_proofs)
-            except Exception:
-                pass
+        queue: list[Any] = list(proofs)
+        lemma_by_name: dict[str, Any] = {}
+        while queue:
+            p = queue.pop(0)
+            lemma_name = getattr(p, "name", None)
+            if not isinstance(lemma_name, str) or not lemma_name:
+                continue
+            if lemma_name in lemma_by_name:
+                continue
+            lemma_by_name[lemma_name] = p
+            for ref in _refs(p):
+                if ref in compiled_axioms or ref in reserved:
+                    continue
+                if ref in lemma_by_name:
+                    continue
+                ctor = cat.get(ref)
+                if ctor is not None:
+                    queue.append(ctor(hs))
 
-        emit_lowered_lemmas(mm, hs, proofs, label_ids=None)
+        unresolved: set[str] = set()
+        for p in lemma_by_name.values():
+            for ref in _refs(p):
+                if ref in compiled_axioms or ref in reserved or ref in lemma_by_name:
+                    continue
+                unresolved.add(ref)
+        if unresolved:
+            raise RuntimeError(f"unresolved lemma references: {sorted(unresolved)}")
+
+        emit_lowered_lemmas(mm, hs, list(lemma_by_name.values()), label_ids=None)
         unit = mm.finish()
         res = LinkerV1.link(
             units=[unit],

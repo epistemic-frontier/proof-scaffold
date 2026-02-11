@@ -138,8 +138,15 @@ def emit_lowered_lemmas(
     stmt_by_label: dict[str, tuple[int, ...]] = {
         k: tuple(v.tokens) for k, v in provider.compile_axioms().items()
     }
+    hyps_by_label: dict[str, tuple[tuple[int, ...], ...]] = {}
     for lemma in lemmas:
         stmt_by_label[lemma.name] = tuple(lemma.statement.tokens)
+        hyps: list[tuple[int, ...]] = []
+        for st in lemma.steps:
+            if getattr(st, "op", None) == "hyp":
+                hyps.append(tuple(st.wff.tokens))
+        if hyps:
+            hyps_by_label[lemma.name] = tuple(hyps)
     ph_tpl = mm.interner.intern(
         origin_module_id="__tpl__",
         local_name="__ph",
@@ -292,6 +299,15 @@ def emit_lowered_lemmas(
                 return (lp, *_to_tokens(ast.l), b2.and_, *_to_tokens(ast.r), rp)
         raise ValueError("to_tokens: unsupported ast")
 
+    def _apply_subst(ast: _Ast, subst: Mapping[int, _Ast]) -> _Ast:
+        if isinstance(ast, _Atom) and symtab[ast.tok].kind == "Var":
+            return subst.get(ast.tok, ast)
+        if isinstance(ast, _Not):
+            return _Not(_apply_subst(ast.x, subst))
+        if isinstance(ast, _Bin):
+            return _Bin(ast.op, _apply_subst(ast.l, subst), _apply_subst(ast.r, subst))
+        return ast
+
     def _unify(template: _Ast, target: _Ast, subst: dict[int, _Ast]) -> None:
         if isinstance(template, _Atom) and symtab[template.tok].kind == "Var":
             existing = subst.get(template.tok)
@@ -348,12 +364,59 @@ def emit_lowered_lemmas(
                             details={"label": step.ref},
                         )
                     )
+                hyp_templates = hyps_by_label.get(step.ref, ())
                 subst: dict[int, _Ast] = {}
-                _unify(_parse(tmpl_tokens), _parse(step.wff.tokens), subst)
-                mandatory_vars = mm.auto.vars_in(tmpl_tokens)
+                try:
+                    _unify(_parse(tmpl_tokens), _parse(step.wff.tokens), subst)
+                except ValueError as e:
+                    raise ValueError(
+                        f"step {label!r}: ref unify failed for {step.ref!r}: {e}"
+                    ) from e
+
+                if step.args:
+                    if len(step.args) != len(hyp_templates):
+                        raise ValueError(
+                            f"step {label!r}: ref to {step.ref!r} expects {len(hyp_templates)} hyp args, got {len(step.args)}"
+                        )
+                    for arg_label, hyp_toks in zip(step.args, hyp_templates, strict=True):
+                        arg_step = steps.get(arg_label)
+                        if arg_step is None:
+                            raise ValueError(
+                                f"step {label!r}: unknown ref arg step label {arg_label!r}"
+                            )
+                        try:
+                            _unify(_parse(hyp_toks), _parse(arg_step.wff.tokens), subst)
+                        except ValueError as e:
+                            raise ValueError(
+                                f"step {label!r}: ref hyp unify failed for {step.ref!r}: {e}"
+                            ) from e
+                elif hyp_templates:
+                    raise ValueError(
+                        f"step {label!r}: ref to {step.ref!r} requires {len(hyp_templates)} hyp arg(s)"
+                    )
+
+                mandatory_vars_set: set[SymbolId] = set(mm.auto.vars_in(tmpl_tokens))
+                for ht in hyp_templates:
+                    mandatory_vars_set |= set(mm.auto.vars_in(ht))
+                mandatory_vars = sorted(mandatory_vars_set)
                 proof: list[SymbolId] = []
                 for v in mandatory_vars:
                     proof.extend(v2_wff_proof(_to_tokens(subst.get(v, _Atom(v)))))
+
+                if step.args:
+                    for arg_label, hyp_toks in zip(step.args, hyp_templates, strict=True):
+                        instantiated = _to_tokens(_apply_subst(_parse(hyp_toks), subst))
+                        arg_step = steps.get(arg_label)
+                        if arg_step is None:
+                            raise ValueError(
+                                f"step {label!r}: unknown ref arg step label {arg_label!r}"
+                            )
+                        if tuple(arg_step.wff.tokens) != instantiated:
+                            raise ValueError(
+                                f"step {label!r}: ref hyp mismatch for {step.ref!r}"
+                            )
+                        proof.extend(v2_emit_step(arg_label, visiting=visiting, steps=steps))
+
                 proof.append(v2_resolve_label(step.ref))
                 return proof
 
@@ -483,6 +546,15 @@ def emit_lowered_lemmas(
             continue
         with mm.block():
             step_by_label_v2: dict[str, LoweredStepLike] = {s.label: s for s in lemma.steps}
+
+            vars_needed: set[SymbolId] = set(mm.auto.vars_in(lemma.statement.tokens))
+            for step in lemma.steps:
+                if step.op == "hyp":
+                    vars_needed |= set(mm.auto.vars_in(step.wff.tokens))
+            for v in sorted(vars_needed):
+                if floating_by_var is not None and v in floating_by_var:
+                    continue
+                mm.auto.floating(v, tc=wff_tc)
 
             for step in lemma.steps:
                 if step.op == "hyp":

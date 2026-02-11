@@ -20,7 +20,7 @@ from skfd.linker.api import LinkerV1
 from skfd.names import NameResolver
 from skfd.verifier.aggregate import run_all, summarize
 
-HilbertSystem = Any
+System = Any
 
 def _discover_proof_functions(module: ModuleType) -> list[tuple[str, Callable[..., Any]]]:
     """Find all functions starting with 'prove_' in the module."""
@@ -34,7 +34,7 @@ def _discover_proof_functions(module: ModuleType) -> list[tuple[str, Callable[..
 
 def _get_or_create_system(module: ModuleType) -> Any:
     """
-    Get HilbertSystem instance.
+    Get System instance.
     Strategy:
     1. Look for 'system' or 'sys' variable in module.
     2. Look for 'build()' or 'get_system()' function.
@@ -55,14 +55,14 @@ def _get_or_create_system(module: ModuleType) -> Any:
     # 3. Fallback
     try:
         mod = importlib.import_module("logic.propositional.hilbert")
-        return mod.HilbertSystem.make(interner=SymbolInterner())
+        return mod.System.make(interner=SymbolInterner(), names=NameResolver())
     except Exception as err:
         # If logic package is missing, fallback to a minimal dummy system or raise clear error
-        # Actually, for minimal scripts, we can construct a minimal HilbertSystem locally if needed
+        # Actually, for minimal scripts, we can construct a minimal System locally if needed
         # But usually this means PYTHONPATH is wrong or user didn't install logic package.
         # However, to be nice to standalone usage without the full logic repo:
         raise RuntimeError(
-            "Could not auto-create HilbertSystem (metamath-logic module not found). "
+            "Could not auto-create System (metamath-logic module not found). "
             "Please ensure PYTHONPATH includes the logic package or define 'sys' in your script."
         ) from err
 
@@ -150,9 +150,11 @@ def verify_script(script_path: Path, project_root: Path | None = None) -> int:
             if "mp" in axioms:
                 return
 
-            compile_fn = getattr(hs, "_compile", None)
+            compile_fn = getattr(hs, "compile", None)
             if compile_fn is None:
-                compile_fn = hs.compile
+                compile_fn = getattr(hs, "_compile", None)
+            if compile_fn is None:
+                raise RuntimeError("System is missing compile()")
 
             wi_wff = compile_fn(wff("ph -> ps"), ctx="rule[wi]")
             wn_wff = compile_fn(wff("-. ph"), ctx="rule[wn]")

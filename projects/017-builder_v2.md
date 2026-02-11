@@ -35,7 +35,7 @@
 
 ### C. 公式/语法对象（Wff tokens）与 Builder 的 “string token DSL” 不同构
 
-`HilbertSystem.compile()` 产出的 `Wff.tokens` 是 `SymbolId` 序列；但 `MMBuilder.a/e/p` 目前主要接受的是字符串 token 串，需要先“把 SymbolId 映射成某种局部 token 名”。
+`System.compile()` 产出的 `Wff.tokens` 是 `SymbolId` 序列；但 `MMBuilder.a/e/p` 目前主要接受的是字符串 token 串，需要先“把 SymbolId 映射成某种局部 token 名”。
 
 于是出现了现在这种“中间层搬运”：
 
@@ -52,7 +52,7 @@
 我建议你把整个系统明确切成三层（你现有的代码已经大体如此，只是接口处漏风）：
 
 ```
-[Author Library Layer]  只关心：公式/规则/证明对象（Wff、LemmaProof、HilbertSystem…）
+[Author Library Layer]  只关心：公式/规则/证明对象（Wff、Proof、System…）
         |
         |  (Build API: 极薄的一层胶水)
         v
@@ -206,17 +206,17 @@ toolchain 侧统一用 `mm.exports()` 收集，不需要 build 返回 dict，也
 如果有了 `a_id/e_id/f_id/ensure_floating`，逻辑会变成：
 
 ```python
-from skfd.api import BuildContext
+from skfd.api_v2 import BuildContextV2
 from skfd.authoring.emit2 import emit_axioms_id, emit_lowered_lemmas_id  # 假设我们提供新版
-from logic.propositional.hilbert import HilbertSystem
+from logic.propositional.hilbert import System
 
-def build(ctx: BuildContext) -> None:
+def build(ctx: BuildContextV2) -> None:
     mm = ctx.mm
     prelude = ctx.deps.prelude   # 或 ctx.deps["metamath-prelude"]
 
     wff = prelude["wff"]         # SymbolId
 
-    sys = HilbertSystem.make(interner=mm.interner)  # interner 作为正式 public 属性暴露
+    sys = System.make(interner=mm.interner, names=ctx.names)  # interner 作为正式 public 属性暴露
 
     axioms = sys.compile_axioms()                   # Mapping[str, Wff]
     emit_axioms_id(mm, axioms=axioms, typecode=wff)
@@ -655,7 +655,7 @@ def build(ctx: BuildContextV2) -> None:
 
 ```python
 from skfd.api_v2 import BuildContextV2
-from logic.propositional.hilbert import HilbertSystem
+from logic.propositional.hilbert import System
 
 def build(ctx: BuildContextV2) -> None:
     mm = ctx.mm
@@ -663,7 +663,7 @@ def build(ctx: BuildContextV2) -> None:
 
     wff = prelude["wff"]     # SymbolId
 
-    system = HilbertSystem.make(interner=mm.interner, names=ctx.names)  # interner/public
+    system = System.make(interner=mm.interner, names=ctx.names)  # interner/public
     axioms = system.compile_axioms()  # Wff.tokens: SymbolId[]
 
     for name, w in axioms.items():

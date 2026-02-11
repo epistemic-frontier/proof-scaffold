@@ -62,7 +62,7 @@ This supplement does *not* discard these strengths. Instead, it **upgrades them 
   - Reject declaration-order errors, scope errors, illegal references, and obvious contract violations as early as possible.
 
 - **G3: Diagnosability**
-  - Every Statement and ProofStep carries `origin` metadata (module + file:line + optional call-stack summary), enabling SourceMap to provide an *unmangled* view.
+  - Every Statement and Step carries `origin` metadata (module + file:line + optional call-stack summary), enabling SourceMap to provide an *unmangled* view.
 
 - **G4: Incremental adoption**
   - Support an explicit COMPAT transition period, default-off, with a clear migration plan.
@@ -425,5 +425,4 @@ it exports a theorem API without emitting a verifiable `$p`.
 
 Such builds are intended for dependency wiring and API stabilization,
 and are explicitly excluded from CI verification paths.
-
 

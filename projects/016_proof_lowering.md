@@ -6,7 +6,7 @@
 
 ## 1. Problem Statement
 
-Currently, the `skfd` scripting workflow (used for `init-proof` and `proof-lab/`) employs a "trust-based" emission strategy. When a user defines a `LemmaProof` in Python, the emitter:
+Currently, the `skfd` scripting workflow (used for `init-proof` and `proof-lab/`) employs a "trust-based" emission strategy. When a user defines a `Proof` in Python, the emitter:
 1. Generates a temporary axiom (`$a`) matching the lemma's conclusion.
 2. Generates a proof (`$p`) that trivially applies this axiom.
 
@@ -15,14 +15,14 @@ The external verifiers (mmverify, metamath-exe, knife) only verify that the temp
 
 ## 2. Goal
 
-Implement a true **Proof Lowering** pipeline that translates the Python `LemmaProof` object into a standard Metamath RPN (Reverse Polish Notation) proof string. This ensures that `skfd verify script.py` provides genuine cryptographic verification of the user's logic.
+Implement a true **Proof Lowering** pipeline that translates the Python `Proof` object into a standard Metamath RPN (Reverse Polish Notation) proof string. This ensures that `skfd verify script.py` provides genuine cryptographic verification of the user's logic.
 
 ## 3. Technical Approach
 
 ### 3.1 Phase 1: Enhanced IR (Intermediate Representation)
-Modify `skfd.authoring.lemmas` and `LemmaBuilder` to capture strict dependency references.
+Modify `skfd.authoring.lemmas` and `ProofBuilder` to capture strict dependency references.
 
-*   **Current State:** `ProofStep` only holds `label` and `wff`. `mp()` calls return a result but don't record *which* previous steps were used.
+*   **Current State:** `Step` only holds `label` and `wff`. `mp()` calls return a result but don't record *which* previous steps were used.
 *   **New State:** Introduce `ProofOp`:
     ```python
     @dataclass
@@ -30,7 +30,7 @@ Modify `skfd.authoring.lemmas` and `LemmaBuilder` to capture strict dependency r
         rule: str  # e.g., "mp", "ax-1"
         args: list[str]  # labels of previous steps or hypotheses
     ```
-    `LemmaProof` will hold a sequence of these operations alongside the step definitions.
+    `Proof` will hold a sequence of these operations alongside the step definitions.
 
 ### 3.2 Phase 2: RPN Emitter
 Implement a new emission function `emit_rpn_proof(lemma) -> list[str]` in `skfd.authoring.emit`.
@@ -44,7 +44,7 @@ Implement a new emission function `emit_rpn_proof(lemma) -> list[str]` in `skfd.
             *   Emit rule label `ax-mp`.
         *   **Substitution Handling (The Hard Part):**
             *   For axiom references (e.g., `ax-1`), we must determine the substitution $\sigma$ that maps axiom variables to current step expressions.
-            *   **Simplified MVP:** Require `LemmaBuilder` to explicitly provide the substitution, OR implement a simple Unification matcher for standard axioms.
+            *   **Simplified MVP:** Require `ProofBuilder` to explicitly provide the substitution, OR implement a simple Unification matcher for standard axioms.
 
 ### 3.3 Phase 3: Integration
 Update `emit_lemmas` to use the new RPN emitter instead of the `_ax` hack.
@@ -52,8 +52,8 @@ Update `emit_lemmas` to use the new RPN emitter instead of the `_ax` hack.
 ## 4. Roadmap & Milestones
 
 ### M1: IR Enhancement
-*   **Deliverable:** `LemmaBuilder` records `args` for `mp` and `step` calls.
-*   **Test:** A unit test can inspect a `LemmaProof` and reconstruct the dependency graph.
+*   **Deliverable:** `ProofBuilder` records `args` for `mp` and `step` calls.
+*   **Test:** A unit test can inspect a `Proof` and reconstruct the dependency graph.
 
 ### M2: MVP Emitter (MP-only)
 *   **Scope:** Support only `ax-mp` (Modus Ponens) without substitution (assuming strictly matching hypotheses).

@@ -270,13 +270,14 @@ def _cmd_init_pkg(args: argparse.Namespace) -> int:
     # build.py
     build_py = pkg_dir / "build.py"
     build_py.write_text("""
-from logic.propositional.hilbert import HilbertSystem
+from logic.propositional.hilbert import System
 from skfd.core.symbols import SymbolInterner
+from skfd.names import NameResolver
 
 def build():
     interner = SymbolInterner()
     # Create your system here
-    sys = HilbertSystem.make(interner=interner)
+    sys = System.make(interner=interner, names=NameResolver())
     return sys
 """.strip() + "\n", encoding="utf-8")
 
@@ -354,10 +355,10 @@ from skfd.verifier.aggregate import run_all, summarize
 from skfd.core.origin import OriginTable
 from skfd.config import load_config
 
-from logic.propositional.hilbert import HilbertSystem
-from logic.propositional.hilbert.lemmas import LemmaBuilder, LemmaProof
+from logic.propositional.hilbert import System
+from logic.propositional.hilbert.lemmas import Proof, ProofBuilder
 
-def verify_proofs(hs: HilbertSystem, proofs: list[LemmaProof]) -> None:
+def verify_proofs(hs: System, proofs: list[Proof]) -> None:
     print(f"\\nVerifying {len(proofs)} proofs...")
     
     with tempfile.NamedTemporaryFile(suffix=".mm", delete=False, mode="w") as tmp:
@@ -413,8 +414,8 @@ def verify_proofs(hs: HilbertSystem, proofs: list[LemmaProof]) -> None:
         # os.unlink(mm_path)
         print(f"(Temporary file kept at {mm_path})")
 
-def prove_example(sys: HilbertSystem) -> LemmaProof:
-    lb = LemmaBuilder(sys, "example_lemma")
+def prove_example(sys: System) -> Proof:
+    lb = ProofBuilder(sys, "example_lemma")
     # A simple proof: ph -> ph
     h1 = lb.step("s1", "ph -> ph", "A1 with (phi, psi)=(ph, ph)") 
     # This is just a dummy step, normally you use A1 properly
@@ -434,7 +435,7 @@ def prove_example(sys: HilbertSystem) -> LemmaProof:
 
 def run():
     interner = SymbolInterner()
-    sys = HilbertSystem.make(interner=interner)
+    sys = System.make(interner=interner, names=NameResolver())
     
     print("Constructing proofs...")
     # proof = prove_example(sys)

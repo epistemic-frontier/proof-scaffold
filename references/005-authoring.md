@@ -166,18 +166,18 @@ Authoring produces token-level `Wff` values (a sequence of `SymbolId`). BuilderV
 ```python
 from skfd.api_v2 import BuildContextV2
 from skfd.authoring.emit import emit_axioms, emit_lemmas
-from logic.propositional.hilbert import HilbertSystem
-from logic.propositional.hilbert.lemmas import LemmaProof
+from logic.propositional.hilbert import System
+from logic.propositional.hilbert.lemmas import Proof
 
 def build(ctx: BuildContextV2) -> None:
     mm = ctx.mm
     prelude = ctx.deps.prelude
 
     wff_tc = prelude["wff"]
-    sys = HilbertSystem.make(interner=mm.interner, names=ctx.names)
+    sys = System.make(interner=mm.interner, names=ctx.names)
 
     emit_axioms(mm, sys, typecode=wff_tc)
-    proofs: list[LemmaProof] = []
+    proofs: list[Proof] = []
     emit_lemmas(mm, sys, proofs, typecode=wff_tc)
 
     mm.export(wff_tc)
@@ -265,11 +265,11 @@ Early experiments with a Hilbert-style propositional system provide some concret
   - Managing intermediate labels and `Hypothesis` objects is precise but laborious; small edits can require rechecking multiple downstream references.
 
 - Toolchain vs. authoring effort  
-  - Once a lemma is correctly expressed in the authoring layer, lowering to Metamath via `LemmaProof` and `emit_lemmas` is smooth.  
+  - Once a lemma is correctly expressed in the authoring layer, lowering to Metamath via `Proof` and `emit_lemmas` is smooth.  
   - Recent fixes around stack underflow and token mapping show that most remaining friction is in proof authoring, not in emission or verification.  
   - This is a good sign: the backend is stable enough that iteration cost is dominated by how we write proofs, not by how we compile them.
 
 - Design implications for the authoring layer  
   - These experiments reinforce the idea that **Hilbert should be treated as a backend target**, not as the primary authoring language.  
   - A more ergonomic, assumption-aware proof DSL on top of the current authoring layer would let authors write natural-deduction style arguments, which could then be compiled down to Hilbert proofs using the Deduction Theorem as a specification.  
-  - In this view, the existing authoring constructs (`Expr`, `CompileEnv`, `LemmaProof`) are the right place to attach such a compiler, keeping the Hilbert layer thin and mechanical while preserving a mathematically natural authoring experience.
+  - In this view, the existing authoring constructs (`Expr`, `CompileEnv`, `Proof`) are the right place to attach such a compiler, keeping the Hilbert layer thin and mechanical while preserving a mathematically natural authoring experience.

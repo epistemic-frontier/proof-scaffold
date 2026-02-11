@@ -61,12 +61,12 @@ This will:
 ## Example: a tiny proof script
 
 ```python
-from logic.propositional.hilbert import HilbertSystem
-from logic.propositional.hilbert.lemmas import LemmaBuilder, LemmaProof
+from logic.propositional.hilbert import System
+from logic.propositional.hilbert.lemmas import Proof, ProofBuilder
 
-def prove_modus_tollens(sys: HilbertSystem) -> LemmaProof:
+def prove_modus_tollens(sys: System) -> Proof:
     """Modus Tollens: φ → ψ, ¬ψ ⊢ ¬φ."""
-    lb = LemmaBuilder(sys, "modus_tollens")
+    lb = ProofBuilder(sys, "modus_tollens")
 
     h1 = lb.hyp("h1", "φ → ψ")
     h2 = lb.hyp("h2", "¬ψ")

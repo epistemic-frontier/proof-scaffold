@@ -315,7 +315,15 @@ def emit_lowered_lemmas(
                 proof.append(v2_resolve_label(step.ref))
                 return proof
 
-            if step.op == "mp":
+            if step.op in {"mp", "apply"}:
+                if step.op == "apply":
+                    if step.ref is None:
+                        raise ValueError(f"step {label!r}: apply is missing rule label")
+                    if step.ref != "mp":
+                        raise ValueError(
+                            f"step {label!r}: unsupported apply rule {step.ref!r} for lowering"
+                        )
+
                 if len(step.args) != 2:
                     raise ValueError(f"step {label!r}: mp expects 2 args, got {len(step.args)}")
                 maj, minor = step.args[0], step.args[1]
@@ -343,7 +351,7 @@ def emit_lowered_lemmas(
             visiting.remove(label)
 
     lemma_by_name: dict[str, LoweredLemmaLike] = {lemma.name: lemma for lemma in lemmas}
-    allowed_ops_for_theorem: set[str] = {"hyp", "ref", "mp"}
+    allowed_ops_for_theorem: set[str] = {"hyp", "ref", "mp", "apply"}
     emit_as_axiom: set[str] = set()
     for lemma in lemmas:
         unsupported: list[dict[str, Any]] = []

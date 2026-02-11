@@ -59,7 +59,7 @@ from skfd.core.refs import Ref
 L1_id = Ref("metamath-logic", "logic.prop", "L1_id", "Theorem")
 ```
 
-When constructing a proof, the `LemmaBuilder` accepts these Refs:
+When constructing a proof, the `ProofBuilder` accepts these Refs:
 
 ```python
 def prove_my_lemma(sys):

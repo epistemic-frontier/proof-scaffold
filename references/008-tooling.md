@@ -43,7 +43,7 @@ my-logic-project/
 └── src/
     └── logic/
         ├── __init__.py
-        └── build.py   # Entry point exporting the HilbertSystem
+        └── build.py   # Entry point exporting the System
 ```
 
 ### Configuration (`.skfd`)
@@ -107,7 +107,7 @@ This command detects that the target is a file (not a package) and executes it. 
 
 ### Helper Pattern
 The generated script uses a helper pattern that:
-1. Takes a `HilbertSystem` and a list of `LemmaProof` objects.
+1. Takes a `System` and a list of `Proof` objects.
 2. Uses `MMBuilderV2` to emit a unit IR, then `LinkerV1` to produce a `.mm` monolith.
 3. Invokes `skfd.verifier.aggregate.run_all` to check the monolith.
 

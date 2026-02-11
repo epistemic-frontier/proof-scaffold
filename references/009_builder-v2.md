@@ -191,14 +191,14 @@ def build(ctx: BuildContextV2) -> None:
 
 ```python
 from skfd.api_v2 import BuildContextV2
-from logic.propositional.hilbert import HilbertSystem
+from logic.propositional.hilbert import System
 
 def build(ctx: BuildContextV2) -> None:
     mm = ctx.mm
     prelude = ctx.deps.prelude
 
     wff = prelude["wff"]
-    system = HilbertSystem.make(interner=mm.interner, names=ctx.names)
+    system = System.make(interner=mm.interner, names=ctx.names)
 
     for name, w in system.compile_axioms().items():
         mm.a(mm.sym.label(name), tc=wff, expr=w.tokens)

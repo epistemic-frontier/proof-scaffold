@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from typing import NamedTuple
 
+from skfd.core.peg import Assoc, ExpressionRule, InfixOp, ParseError, TokenStream
+
 from .dsl import DEFAULT_REQUIRE, Expr, RequireRegistry, Var
 from .typing import PreludeTypingError
 
@@ -70,103 +72,81 @@ class Tokenizer:
 
 class Parser:
     def __init__(self, text: str, registry: RequireRegistry = DEFAULT_REQUIRE):
-        self.tokenizer = Tokenizer(text)
+        self.text = text
         self.registry = registry
-        self.current = self.tokenizer.next_token()
+        tok = Tokenizer(text)
+        tokens: list[Token] = []
+        while True:
+            t = tok.next_token()
+            tokens.append(t)
+            if t.type == "EOF":
+                break
+        self.stream: TokenStream = TokenStream(text=text, tokens=tokens)
 
-    def consume(self) -> Token:
-        tok = self.current
-        self.current = self.tokenizer.next_token()
-        return tok
+        def infix_of(t: Token) -> InfixOp[Expr] | None:
+            if t.type != "NAME":
+                return None
+            spec = self.registry._by_name.get(t.value)
+            if spec is None or spec.ctor.arity != 2:
+                return None
+            assoc: Assoc = spec.assoc
+            return InfixOp(
+                precedence=spec.precedence,
+                assoc=assoc,
+                build=lambda left, right, ctor=spec.ctor: ctor(left, right),
+            )
+
+        self._expr = ExpressionRule(atom=self._atom, infix_of=infix_of)
 
     def parse(self) -> Expr:
-        expr = self.parse_expr(0)
-        if self.current.type != "EOF":
-            raise PreludeTypingError(
-                _format_parse_error(
-                    self.tokenizer.text,
-                    self.current.pos,
-                    f"Unexpected token at end: {self.current.value!r}",
+        try:
+            out = self._expr.parse(self.stream, 0)
+            if out is None:
+                raise ParseError(self.text, 0, "Expected expression")
+            expr, i = out
+            tail = self.stream.peek(i)
+            if tail.type != "EOF":
+                raise ParseError(
+                    self.text, tail.pos, f"Unexpected token at end: {tail.value!r}"
                 )
-            )
-        return expr
-
-    def parse_expr(self, min_prec: int) -> Expr:
-        left = self.parse_atom()
-
-        while True:
-            if self.current.type != "NAME":
-                break
-            
-            op_name = self.current.value
-            spec = self.registry._by_name.get(op_name)
-            
-            # If not a registered symbol, it's not an operator here (unless we support juxtaposition)
-            if spec is None:
-                break
-            
-            # Only infix operators (arity 2) handled here for now
-            if spec.ctor.arity != 2:
-                break
-                
-            prec = spec.precedence
-            if prec < min_prec:
-                break
-            
-            # Consume operator
-            self.consume()
-            
-            # Associativity
-            next_min = prec + 1 if spec.assoc == "left" else prec
-            
-            right = self.parse_expr(next_min)
-            left = spec.ctor(left, right)
-            
-        return left
-
-    def parse_atom(self) -> Expr:
-        tok = self.consume()
-        
-        if tok.type == "LPAREN":
-            expr = self.parse_expr(0)
-            if self.current.type != "RPAREN":
-                raise PreludeTypingError(
-                    _format_parse_error(
-                        self.tokenizer.text,
-                        self.current.pos,
-                        "Expected ')'",
-                    )
-                )
-            self.consume()
             return expr
-        
-        if tok.type == "NAME":
-            name = tok.value
-            spec = self.registry._by_name.get(name)
-            
-            # Variable or 0-arity const
-            if not spec:
-                return Var(name)
-            
-            if spec.ctor.arity == 0:
-                return spec.ctor()
+        except ParseError as e:
+            raise PreludeTypingError(_format_parse_error(e.text, e.pos, e.message)) from e
 
-            # Prefix operator (or function call style)
-            # We treat any arity > 0 appearing in atom position as a prefix operator
-            # consuming 'arity' arguments.
-            prec = spec.precedence or 100
-            args = []
+    def _atom(self, s: TokenStream, i: int) -> tuple[Expr, int] | None:
+        tok = s.peek(i)
+        if tok.type == "LPAREN":
+            inner = self._expr.parse(s, i + 1)
+            if inner is None:
+                raise ParseError(self.text, tok.pos, "Expected expression")
+            expr, j = inner
+            close = s.peek(j)
+            if close.type != "RPAREN":
+                raise ParseError(self.text, close.pos, "Expected ')'")
+            return expr, j + 1
+
+        if tok.type == "NAME":
+            spec = self.registry._by_name.get(tok.value)
+            if spec is None:
+                return Var(tok.value), i + 1
+            if spec.ctor.arity == 0:
+                return spec.ctor(), i + 1
+            prec = spec.precedence if spec.precedence > 0 else 100
+            args: list[Expr] = []
+            j = i + 1
             for _ in range(spec.ctor.arity):
-                args.append(self.parse_expr(prec))
-            return spec.ctor(*args)
-            
-        raise PreludeTypingError(
-            _format_parse_error(
-                self.tokenizer.text,
-                tok.pos,
-                f"Unexpected token: {tok.value!r}",
-            )
-        )
+                arg_out = self._expr._parse_min(s, j, prec)
+                if arg_out is None:
+                    bad = s.peek(j)
+                    raise ParseError(self.text, bad.pos, "Expected expression")
+                arg, j = arg_out
+                args.append(arg)
+            return spec.ctor(*args), j
+
+        if tok.type == "EOF":
+            return None
+
+        raise ParseError(self.text, tok.pos, f"Unexpected token: {tok.value!r}")
 
 def wff(text: str, registry: RequireRegistry = DEFAULT_REQUIRE) -> Expr:
     """Parse a wff string into an Expr."""

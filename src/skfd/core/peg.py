@@ -8,9 +8,14 @@ T = TypeVar("T")
 
 
 class TokenLike(Protocol):
-    type: str
-    value: str
-    pos: int
+    @property
+    def type(self) -> str: ...
+
+    @property
+    def value(self) -> str: ...
+
+    @property
+    def pos(self) -> int: ...
 
 
 Assoc = Literal["left", "right", "none"]
@@ -128,4 +133,3 @@ class ExpressionRule(Generic[T]):
         out: ParseResult[T] = (left, j)
         self._memo[key] = out
         return out
-

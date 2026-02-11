@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import NamedTuple
 
-from skfd.core.peg import Assoc, ExpressionRule, InfixOp, ParseError, TokenStream
+from skfd.core.peg import Assoc, ExpressionRule, InfixOp, ParseError, TokenLike, TokenStream
 
 from .dsl import DEFAULT_REQUIRE, Expr, RequireRegistry, Var
 from .typing import PreludeTypingError
@@ -75,7 +75,7 @@ class Parser:
         self.text = text
         self.registry = registry
         tok = Tokenizer(text)
-        tokens: list[Token] = []
+        tokens: list[TokenLike] = []
         while True:
             t = tok.next_token()
             tokens.append(t)
@@ -83,17 +83,22 @@ class Parser:
                 break
         self.stream: TokenStream = TokenStream(text=text, tokens=tokens)
 
-        def infix_of(t: Token) -> InfixOp[Expr] | None:
+        def infix_of(t: TokenLike) -> InfixOp[Expr] | None:
             if t.type != "NAME":
                 return None
             spec = self.registry._by_name.get(t.value)
             if spec is None or spec.ctor.arity != 2:
                 return None
             assoc: Assoc = spec.assoc
+            ctor = spec.ctor
+
+            def build(left: Expr, right: Expr) -> Expr:
+                return ctor(left, right)
+
             return InfixOp(
                 precedence=spec.precedence,
                 assoc=assoc,
-                build=lambda left, right, ctor=spec.ctor: ctor(left, right),
+                build=build,
             )
 
         self._expr = ExpressionRule(atom=self._atom, infix_of=infix_of)

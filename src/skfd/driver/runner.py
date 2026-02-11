@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import logging
 import inspect
+import importlib.metadata
+import re
 from pathlib import Path
 from typing import Any
 
@@ -20,6 +22,37 @@ from .discover import find_packages, get_package_deps, load_build_module
 from .graph import sort_packages
 
 logger = logging.getLogger(__name__)
+
+
+def _norm_dist_name(name: str) -> str:
+    return re.sub(r"[-_.]+", "-", name).lower()
+
+
+def _parse_requirement_name(req: str) -> str:
+    return (
+        req.split(">", 1)[0]
+        .split("<", 1)[0]
+        .split("=", 1)[0]
+        .split(";", 1)[0]
+        .strip()
+    )
+
+
+def _external_requires(dist_name: str) -> list[str]:
+    try:
+        dist = importlib.metadata.distribution(dist_name)
+    except importlib.metadata.PackageNotFoundError:
+        return []
+
+    deps: list[str] = []
+    for req in dist.requires or []:
+        name = _parse_requirement_name(req)
+        if not name:
+            continue
+        if _norm_dist_name(name) == _norm_dist_name("proof-scaffold"):
+            continue
+        deps.append(name)
+    return deps
 
 
 class DriverRunner:
@@ -124,8 +157,14 @@ class DriverRunner:
         if not hasattr(self, "_external_modules"):
             self._external_modules = {}
         self._external_modules[name] = mod
-        self.metas[name] = UnitMeta(dist_name=name, module_name=name, build_path=None)
-        self.deps_graph[name] = []
+
+        module_name = getattr(mod, "__name__", name).split(".", 1)[0]
+        self.metas[name] = UnitMeta(dist_name=name, module_name=module_name, build_path=None)
+
+        deps = _external_requires(name)
+        self.deps_graph[name] = deps
+        for dep in deps:
+            self._resolve_dependency(dep)
 
     def execute_all(self) -> None:
         """Build all packages in order."""

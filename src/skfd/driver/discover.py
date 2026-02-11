@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import importlib
 import importlib.util
+import importlib.metadata
+import re
 import sys
 from collections.abc import Iterator
 from pathlib import Path
@@ -52,11 +54,57 @@ def load_build_module(path: Path) -> PackageModule:
 
 def load_external_build_module(package_name: str) -> PackageModule | None:
     """Attempt to load a build module from an installed package."""
+    candidates: list[str] = []
+
+    def _add(name: str) -> None:
+        name = name.strip()
+        if not name:
+            return
+        if name not in candidates:
+            candidates.append(name)
+
+    _add(package_name)
+    _add(package_name.replace("-", "_"))
+
+    if package_name.startswith("metamath-"):
+        suffix = package_name.removeprefix("metamath-")
+        _add(suffix)
+        _add(suffix.replace("-", "_"))
+
+    def _norm_dist(name: str) -> str:
+        return re.sub(r"[-_.]+", "-", name).lower()
+
     try:
-        module = importlib.import_module(f"{package_name}.build")
-        return cast(PackageModule, module)
-    except ImportError:
-        return None
+        dist = importlib.metadata.distribution(package_name)
+        top_level = dist.read_text("top_level.txt")
+        if top_level:
+            for line in top_level.splitlines():
+                _add(line)
+    except importlib.metadata.PackageNotFoundError:
+        dist = None
+
+    if dist is None:
+        for cand in list(candidates):
+            if _norm_dist(cand) == _norm_dist(package_name):
+                continue
+            try:
+                dist = importlib.metadata.distribution(cand)
+                top_level = dist.read_text("top_level.txt")
+                if top_level:
+                    for line in top_level.splitlines():
+                        _add(line)
+                break
+            except importlib.metadata.PackageNotFoundError:
+                continue
+
+    for base in candidates:
+        try:
+            module = importlib.import_module(f"{base}.build")
+            return cast(PackageModule, module)
+        except ImportError:
+            continue
+
+    return None
 
 
 def get_package_deps(build_path: Path) -> list[str]:

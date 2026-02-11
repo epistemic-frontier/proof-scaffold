@@ -355,10 +355,10 @@ from skfd.verifier.aggregate import run_all, summarize
 from skfd.core.origin import OriginTable
 from skfd.config import load_config
 
-from logic.propositional.hilbert import System
-from logic.propositional.hilbert.lemmas import Proof, ProofBuilder
+from logic.propositional.hilbert import HilbertSystem
+from logic.propositional.hilbert.lemmas import LemmaBuilder, LemmaProof
 
-def verify_proofs(hs: System, proofs: list[Proof]) -> None:
+def verify_proofs(hs: HilbertSystem, proofs: list[LemmaProof]) -> None:
     print(f"\\nVerifying {len(proofs)} proofs...")
     
     with tempfile.NamedTemporaryFile(suffix=".mm", delete=False, mode="w") as tmp:
@@ -414,14 +414,14 @@ def verify_proofs(hs: System, proofs: list[Proof]) -> None:
         # os.unlink(mm_path)
         print(f"(Temporary file kept at {mm_path})")
 
-def prove_example(sys: System) -> Proof:
-    lb = ProofBuilder(sys, "example_lemma")
+def prove_example(sys: HilbertSystem) -> LemmaProof:
+    lb = LemmaBuilder(sys, "example_lemma")
     # A simple proof: ph -> ph
     h1 = lb.step("s1", "ph -> ph", "A1 with (phi, psi)=(ph, ph)") 
     # This is just a dummy step, normally you use A1 properly
     # See logic.propositional.hilbert.lemmas for real examples
     
-    # Real id proof for demonstration:
+    # Real L1_id proof for demonstration:
     # 1. ph -> (ph -> ph) (A1)
     # 2. (ph -> ((ph -> ph) -> ph)) -> ((ph -> (ph -> ph)) -> (ph -> ph)) (A2)
     # ...
@@ -435,7 +435,7 @@ def prove_example(sys: System) -> Proof:
 
 def run():
     interner = SymbolInterner()
-    sys = System.make(interner=interner, names=NameResolver())
+    sys = HilbertSystem.make(interner=interner)
     
     print("Constructing proofs...")
     # proof = prove_example(sys)
@@ -1036,7 +1036,7 @@ def main(argv: list[str] | None = None) -> int:
     p_debug.add_argument(
         "package", help="Name of the package to debug (e.g. 'logic')"
     )
-    p_debug.add_argument("label", help="Metamath label to inspect (e.g. 'id')")
+    p_debug.add_argument("label", help="Metamath label to inspect (e.g. 'L1_id')")
     p_debug.add_argument(
         "--level",
         type=int,

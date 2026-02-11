@@ -91,6 +91,6 @@ def test_emit_lowered_lemmas_v2_builds_theorem_proof_tokens() -> None:
     )
 
     provider = _Provider(interner=interner, builtins=b)
-    emit_lowered_lemmas(mm, provider, [lemma_ref, lemma_mp], typecode="wff")
+    emit_lowered_lemmas(mm, provider, [lemma_ref, lemma_mp], typecode="wff", label_ids=None)
     unit = mm.finish()
     assert any(isinstance(s, Theorem) for s in unit.lir_stmts)

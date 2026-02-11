@@ -202,7 +202,7 @@ def verify_script(script_path: Path, project_root: Path | None = None) -> int:
             except Exception:
                 pass
 
-        emit_lowered_lemmas(mm, hs, proofs)
+        emit_lowered_lemmas(mm, hs, proofs, label_ids=None)
         unit = mm.finish()
         res = LinkerV1.link(
             units=[unit],

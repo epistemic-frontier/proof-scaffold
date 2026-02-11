@@ -356,7 +356,10 @@ class MMBuilderV2:
         self._scope.register_local_label_name(label_name)
 
         if self.cfg.auto_f:
-            self.auto.mandatory_f(expr, tc=tc)
+            symtab = self.interner.symbol_table()
+            tc_def = symtab.get(tc)
+            if tc_def is not None and tc_def.kind == "Const" and tc_def.local_name == "wff":
+                self.auto.mandatory_f(expr, tc=tc)
 
         o = self._origin.here_ref()
         self._lir.axiom(label_name, "", ["" for _ in expr], label, tc, list(expr), o)
@@ -392,7 +395,10 @@ class MMBuilderV2:
         self._scope.register_local_label_name(label_name)
 
         if self.cfg.auto_f:
-            self.auto.mandatory_f(expr, tc=tc)
+            symtab = self.interner.symbol_table()
+            tc_def = symtab.get(tc)
+            if tc_def is not None and tc_def.kind == "Const" and tc_def.local_name == "wff":
+                self.auto.mandatory_f(expr, tc=tc)
 
         o = self._origin.here_ref()
         self._lir.theorem(

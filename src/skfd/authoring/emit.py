@@ -23,6 +23,8 @@ def emit_axioms(
     mm: MMBuilderV2,
     provider: AxiomProvider,
     typecode: str | SymbolId = "wff",
+    *,
+    label_ids: Mapping[str, SymbolId] | None = None,
 ) -> None:
     if provider.interner is not mm.interner:
         raise LinkerDiagError(
@@ -37,7 +39,10 @@ def emit_axioms(
         )
     tc = typecode if isinstance(typecode, int) else mm.sym.const(typecode)
     for label, wff in provider.compile_axioms().items():
-        mm.a(mm.sym.label(label), tc=tc, expr=wff.tokens)
+        label_id = mm.sym.label(label)
+        if label_ids is not None:
+            label_id = label_ids.get(label, label_id)
+        mm.a(label_id, tc=tc, expr=wff.tokens)
 
 
 class LemmaStepLike(Protocol):
@@ -94,6 +99,10 @@ def emit_lowered_lemmas(
     provider: AxiomProvider,
     lemmas: Sequence[LoweredLemmaLike],
     typecode: str | SymbolId = "wff",
+    wff_typecode: str | SymbolId = "wff",
+    *,
+    label_ids: Mapping[str, SymbolId] | None = None,
+    floating_by_var: Mapping[SymbolId, SymbolId] | None = None,
 ) -> None:
     if provider.interner is not mm.interner:
         raise LinkerDiagError(
@@ -107,9 +116,14 @@ def emit_lowered_lemmas(
             )
         )
 
-    tc = typecode if isinstance(typecode, int) else mm.sym.const(typecode)
+    theorem_tc = typecode if isinstance(typecode, int) else mm.sym.const(typecode)
+    wff_tc = wff_typecode if isinstance(wff_typecode, int) else mm.sym.const(wff_typecode)
 
     def v2_resolve_label(name: str) -> SymbolId:
+        if label_ids is not None:
+            sid = label_ids.get(name)
+            if sid is not None:
+                return sid
         return mm.sym.label(name)
 
     b = getattr(provider, "builtins", None)
@@ -126,8 +140,18 @@ def emit_lowered_lemmas(
     }
     for lemma in lemmas:
         stmt_by_label[lemma.name] = tuple(lemma.statement.tokens)
-    ph_tpl = mm.sym.var("ph")
-    ps_tpl = mm.sym.var("ps")
+    ph_tpl = mm.interner.intern(
+        origin_module_id="__tpl__",
+        local_name="__ph",
+        kind="Var",
+        origin_ref=0,
+    )
+    ps_tpl = mm.interner.intern(
+        origin_module_id="__tpl__",
+        local_name="__ps",
+        kind="Var",
+        origin_ref=0,
+    )
     stmt_by_label.setdefault("wi", (lp, ph_tpl, b2.imp, ps_tpl, rp))
     stmt_by_label.setdefault("wn", (b2.neg, ph_tpl))
     stmt_by_label.setdefault("wa", (lp, ph_tpl, b2.and_, ps_tpl, rp))
@@ -166,7 +190,25 @@ def emit_lowered_lemmas(
             raise ValueError("wff proof: empty token seq")
 
         if len(toks) == 1 and symtab[toks[0]].kind == "Var":
-            return [mm.auto.floating(toks[0], tc=tc)]
+            if floating_by_var is not None:
+                f = floating_by_var.get(toks[0])
+                if f is None:
+                    d = symtab.get(toks[0])
+                    raise LinkerDiagError(
+                        Diagnostic(
+                            error_code="E_MISSING_FLOATING_HYP",
+                            message="missing floating hypothesis for Var symbol",
+                            primary_origin_ref=-1,
+                            related_origin_refs=(),
+                            origin_chain=(),
+                            details={
+                                "var_id": toks[0],
+                                "var_local_name": None if d is None else d.local_name,
+                            },
+                        )
+                    )
+                return [f]
+            return [mm.auto.floating(toks[0], tc=wff_tc)]
 
         if toks[0] == b2.neg:
             return [*v2_wff_proof(toks[1:]), v2_resolve_label("wn")]
@@ -437,14 +479,14 @@ def emit_lowered_lemmas(
 
     for lemma in ordered:
         if lemma.name in emit_as_axiom:
-            mm.a(mm.sym.label(lemma.name), tc=tc, expr=lemma.statement.tokens)
+            mm.a(mm.sym.label(lemma.name), tc=theorem_tc, expr=lemma.statement.tokens)
             continue
         with mm.block():
             step_by_label_v2: dict[str, LoweredStepLike] = {s.label: s for s in lemma.steps}
 
             for step in lemma.steps:
                 if step.op == "hyp":
-                    mm.e(mm.sym.label(step.label), tc=tc, expr=step.wff.tokens)
+                    mm.e(mm.sym.label(step.label), tc=theorem_tc, expr=step.wff.tokens)
 
             if not lemma.steps:
                 raise ValueError(f"lemma {lemma.name!r}: has no steps")
@@ -452,7 +494,7 @@ def emit_lowered_lemmas(
             last = lemma.steps[-1].label
             mm.p(
                 mm.sym.label(lemma.name),
-                tc=tc,
+                tc=theorem_tc,
                 expr=lemma.statement.tokens,
                 proof=v2_emit_step(last, visiting=set(), steps=step_by_label_v2),
             )

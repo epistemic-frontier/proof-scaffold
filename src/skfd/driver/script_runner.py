@@ -125,10 +125,10 @@ def verify_script(script_path: Path, project_root: Path | None = None) -> int:
         print("No proof objects returned to verify.")
         return 1
         
-    # Verify
-    import tempfile
-    with tempfile.NamedTemporaryFile(suffix=".mm", delete=False, mode="w") as tmp:
-        mm_path = Path(tmp.name)
+    root_dir = project_root or Path.cwd()
+    target_dir = root_dir / "target"
+    target_dir.mkdir(parents=True, exist_ok=True)
+    mm_path = target_dir / f"{script_path.stem}_script.mm"
         
     try:
         print(f"Emitting {len(proofs)} proofs to Metamath...", end=" ", flush=True)
@@ -236,7 +236,7 @@ def verify_script(script_path: Path, project_root: Path | None = None) -> int:
         print("OK")
         
         # Run Verifiers
-        cfg = load_config(project_root)
+        cfg = load_config(root_dir)
         active_cmds = cfg.get_active_commands()
         if not active_cmds:
             print("Warning: No active verifiers configured.")

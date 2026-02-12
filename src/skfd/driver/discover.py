@@ -19,14 +19,15 @@ def load_build_module(path: Path) -> PackageModule:
     """Load a build.py file as a Python module."""
     # 1. Try to import as a standard module (supports relative imports)
     try:
+        src_root = str(path.parent.parent.resolve())
+        if src_root not in sys.path:
+            sys.path.insert(0, src_root)
         pkg_name = path.parent.name
         target_mod = f"{pkg_name}.build"
         mod = importlib.import_module(target_mod)
         # Verify it loaded the correct file
         if mod.__file__ and Path(mod.__file__).resolve() == path.resolve():
             return cast(PackageModule, mod)
-        else:
-             print(f"DEBUG: Path mismatch for {target_mod}: loaded {mod.__file__}, expected {path.resolve()}")
     except ImportError as e:
         # If the error is strictly about finding the module itself, fall back.
         # Otherwise (e.g. syntax error or import error INSIDE the module), re-raise.

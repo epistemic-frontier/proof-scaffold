@@ -281,7 +281,7 @@ _INDEX_HTML = """<!doctype html>
         const container = document.getElementById("list");
         let html = '<div class="muted">results: ' + results.length + '</div>';
         for (const n of results) {
-          const s = (n._snippet || '').replace(new RegExp('(' + q.replace(/[.*+?^${}()|[\\]\\]/g, '\\$&') + ')', 'gi'), '<mark>$1</mark>');
+          const lower = (n._snippet || '').toLowerCase(); const idx = lower.indexOf(q); let s = (n._snippet || '').substring(0, 400); if (idx >= 0) { s = s.substring(0, idx) + '<mark>' + s.substring(idx, idx + q.length) + '</mark>' + s.substring(idx + q.length); }
           html += '<div class="row" style="padding:4px 0"><span class="lbl link" data-sid="' + n.sid + '">' + esc(n.label) + '</span><span class="tag">' + esc(n.kind) + '</span><span class="muted" style="font-size:0.85em;display:block">' + s + '</span></div>';
         }
         container.innerHTML = html;

@@ -28,6 +28,7 @@ class AssertionNode:
     kind: AssertionKind
     origin_module_id: str
     origin: OriginRecord | None
+    docstring: str = ""
     wiki: str = ""
 
 
@@ -159,6 +160,30 @@ def build_theorem_graph(
                     wiki=wiki_map[n.label],
                 )
                 nodes_by_id[n.sid] = nodes[i]
+    # Extract docstrings from Python source files
+    _loaded_files: dict[str, _ast.Module] = {}
+    for i, n in enumerate(nodes):
+        if n.origin is None or not n.origin.file.endswith(".py"):
+            continue
+        try:
+            if n.origin.file not in _loaded_files:
+                with open(n.origin.file, encoding="utf-8") as fh:
+                    _loaded_files[n.origin.file] = _ast.parse(fh.read())
+            tree = _loaded_files[n.origin.file]
+            for node in _ast.walk(tree):
+                if isinstance(node, (_ast.FunctionDef, _ast.AsyncFunctionDef)):
+                    if node.name == f"prove_{n.label.replace('.', '_')}":
+                        doc = _ast.get_docstring(node)
+                        if doc:
+                            nodes[i] = AssertionNode(
+                                sid=n.sid, label=n.label, kind=n.kind,
+                                origin_module_id=n.origin_module_id, origin=n.origin,
+                                docstring=doc, wiki=n.wiki,
+                            )
+                            nodes_by_id[n.sid] = nodes[i]
+                        break
+        except Exception:
+            pass
     return TheoremGraph(nodes=nodes, edges=edges, reverse_edges=reverse_edges)
 
 
@@ -220,6 +245,7 @@ _INDEX_HTML = """<!doctype html>
       h2, h3 { margin: 10px 0 6px; }
       ul { margin: 6px 0 12px 18px; }
       pre { background: #f7f7f8; border-radius: 8px; padding: 10px; overflow: auto; }
+      .docstring { background: #f0f7ff; border: 1px solid #c8e1ff; border-radius: 8px; padding: 12px; margin: 10px 0; white-space: pre-wrap; font-size: 0.9em; line-height: 1.6; }
       .wiki { background: #fafbfc; border: 1px solid #e1e4e8; border-radius: 8px; padding: 12px; margin: 10px 0; max-height: 400px; overflow: auto; white-space: pre-wrap; font-size: 0.9em; line-height: 1.6; }
       mark { background: #fff3cd; padding: 0 2px; }
       #mode { margin-left: 6px; padding: 4px; }
@@ -473,7 +499,8 @@ class _TheoremBrowserHandler(BaseHTTPRequestHandler):
                     },
                     "deps": self.graph.edges.get(sid, []),
                     "reverse_deps": self.graph.reverse_edges.get(sid, []),
-                    "wiki": node.wiki,
+                    "docstring": node.docstring,
+                        "wiki": node.wiki,
                 }
             )
             return

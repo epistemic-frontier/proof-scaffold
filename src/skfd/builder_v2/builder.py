@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import re
+import warnings
 from collections.abc import Sequence
 from dataclasses import dataclass
 from types import TracebackType
@@ -193,7 +195,7 @@ class MMBuilderV2:
         self._lir = LIRVisitor()
         self._scope = _ScopeStackV2()
         self._exports: set[SymbolId] = set()
-        self._labels_used: set[str] = set()
+        self._labels_used: dict[str, int] = {}
 
         self.sym = SymFacade(
             interner=self.interner,
@@ -218,6 +220,37 @@ class MMBuilderV2:
 
     def _label_name_used(self, local_name: str) -> bool:
         return local_name in self._labels_used
+
+    def _first_label_origin(self, local_name: str) -> int:
+        return self._labels_used.get(local_name, -1)
+
+    @staticmethod
+    def _suspect_label_name(label_name: str) -> bool:
+        """Return True for generic label names likely to collide across functions."""
+        _SUSPECT = frozenset({"hyp", "h1", "h2", "h3"})
+        if label_name in _SUSPECT:
+            return True
+        # Single-word labels without theorem-scoping delimiter
+        if not re.search(r"[._]", label_name):
+            return True
+        return False
+
+    def _duplicate_label_error(self, label_name: str) -> LinkerDiagError:
+        first_origin = self._first_label_origin(label_name)
+        current_origin = self._origin.here_ref()
+        return LinkerDiagError(
+            Diagnostic(
+                error_code="E_DUPLICATE_LABEL",
+                message=f'duplicate label "{label_name}" in unit',
+                primary_origin_ref=first_origin,
+                related_origin_refs=(current_origin,) if current_origin != -1 else (),
+                origin_chain=(
+                    {"label": label_name, "origin_ref": first_origin, "role": "first_definition"},
+                    {"label": label_name, "origin_ref": current_origin, "role": "duplicate"},
+                ) if first_origin != -1 else (),
+                details={"label": label_name, "first_origin_ref": first_origin},
+            )
+        )
 
     def _require_kind(self, sid: SymbolId, kind: SymbolKind) -> SymbolDef:
         symtab = self.interner.symbol_table()
@@ -292,18 +325,8 @@ class MMBuilderV2:
         self._require_kind(var, "Var")
 
         if self._label_name_used(label_name):
-            raise LinkerDiagError(
-                Diagnostic(
-                    error_code="E_DUPLICATE_LABEL",
-                    message="duplicate label in unit",
-                    primary_origin_ref=-1,
-                    related_origin_refs=(),
-                    origin_chain=(),
-                    details={"label": label_name},
-                )
-            )
-
-        self._labels_used.add(label_name)
+            raise self._duplicate_label_error(label_name)
+        self._labels_used[label_name] = self._origin.here_ref()
         self._scope.register_local_label_name(label_name)
         self._scope.activate_f(var, label)
 
@@ -318,17 +341,17 @@ class MMBuilderV2:
             self._require_kind(t, "Const" if self._is_const(t) else "Var")
 
         if self._label_name_used(label_name):
-            raise LinkerDiagError(
-                Diagnostic(
-                    error_code="E_DUPLICATE_LABEL",
-                    message="duplicate label in unit",
-                    primary_origin_ref=-1,
-                    related_origin_refs=(),
-                    origin_chain=(),
-                    details={"label": label_name},
-                )
+            raise self._duplicate_label_error(label_name)
+        if self._suspect_label_name(label_name):
+            warnings.warn(
+                f'label "{label_name}" in hypothesis is generic and will collide '
+                f"across prove_* functions during multi-proof emit. "
+                f"This is not a framework error, but consider using a scoped label: "
+                "lb.hyp('<theorem>.1', ...) instead.",
+                RuntimeWarning,
+                stacklevel=3,
             )
-        self._labels_used.add(label_name)
+        self._labels_used[label_name] = self._origin.here_ref()
         self._scope.register_local_label_name(label_name)
 
         o = self._origin.here_ref()
@@ -342,17 +365,8 @@ class MMBuilderV2:
             self._require_token(t)
 
         if self._label_name_used(label_name):
-            raise LinkerDiagError(
-                Diagnostic(
-                    error_code="E_DUPLICATE_LABEL",
-                    message="duplicate label in unit",
-                    primary_origin_ref=-1,
-                    related_origin_refs=(),
-                    origin_chain=(),
-                    details={"label": label_name},
-                )
-            )
-        self._labels_used.add(label_name)
+            raise self._duplicate_label_error(label_name)
+        self._labels_used[label_name] = self._origin.here_ref()
         self._scope.register_local_label_name(label_name)
 
         if self.cfg.auto_f:
@@ -381,17 +395,8 @@ class MMBuilderV2:
             self._require_kind(step, "Label")
 
         if self._label_name_used(label_name):
-            raise LinkerDiagError(
-                Diagnostic(
-                    error_code="E_DUPLICATE_LABEL",
-                    message="duplicate label in unit",
-                    primary_origin_ref=-1,
-                    related_origin_refs=(),
-                    origin_chain=(),
-                    details={"label": label_name},
-                )
-            )
-        self._labels_used.add(label_name)
+            raise self._duplicate_label_error(label_name)
+        self._labels_used[label_name] = self._origin.here_ref()
         self._scope.register_local_label_name(label_name)
 
         if self.cfg.auto_f:

@@ -155,8 +155,11 @@ def build_theorem_graph(
         for i, n in enumerate(nodes):
             if n.label in wiki_map:
                 nodes[i] = AssertionNode(
-                    sid=n.sid, label=n.label, kind=n.kind,
-                    origin_module_id=n.origin_module_id, origin=n.origin,
+                    sid=n.sid,
+                    label=n.label,
+                    kind=n.kind,
+                    origin_module_id=n.origin_module_id,
+                    origin=n.origin,
                     wiki=wiki_map[n.label],
                 )
                 nodes_by_id[n.sid] = nodes[i]
@@ -176,9 +179,13 @@ def build_theorem_graph(
                         doc = _ast.get_docstring(node)
                         if doc:
                             nodes[i] = AssertionNode(
-                                sid=n.sid, label=n.label, kind=n.kind,
-                                origin_module_id=n.origin_module_id, origin=n.origin,
-                                docstring=doc, wiki=n.wiki,
+                                sid=n.sid,
+                                label=n.label,
+                                kind=n.kind,
+                                origin_module_id=n.origin_module_id,
+                                origin=n.origin,
+                                docstring=doc,
+                                wiki=n.wiki,
                             )
                             nodes_by_id[n.sid] = nodes[i]
                         break
@@ -461,8 +468,16 @@ class _TheoremBrowserHandler(BaseHTTPRequestHandler):
                 if n.wiki and query and query in n.wiki.lower():
                     score += 5
                 if score > 0:
-                    results.append({"sid": n.sid, "label": n.label, "kind": n.kind, "score": score, "snippet": (n.wiki or "")[:300]})
-            results.sort(key=lambda x: x["score"], reverse=True)
+                    results.append(
+                        {
+                            "sid": n.sid,
+                            "label": n.label,
+                            "kind": n.kind,
+                            "score": score,
+                            "snippet": (n.wiki or "")[:300],
+                        }
+                    )
+            results.sort(key=lambda x: x["score"], reverse=True)  # type: ignore[arg-type,return-value]
             self._send_json({"results": results[:50]})
             return
 
@@ -500,7 +515,7 @@ class _TheoremBrowserHandler(BaseHTTPRequestHandler):
                     "deps": self.graph.edges.get(sid, []),
                     "reverse_deps": self.graph.reverse_edges.get(sid, []),
                     "docstring": node.docstring,
-                        "wiki": node.wiki,
+                    "wiki": node.wiki,
                 }
             )
             return

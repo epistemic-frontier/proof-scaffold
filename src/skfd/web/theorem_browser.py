@@ -272,6 +272,7 @@ _INDEX_HTML = """<!doctype html>
     <script>
       let graph = null;
       let nodeBySid = new Map();
+      let nodeByLabel = new Map();
 
       function esc(s) {
         return (s ?? "").toString().replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
@@ -282,10 +283,10 @@ _INDEX_HTML = """<!doctype html>
         let html = '<div class="muted">results: ' + results.length + '</div>';
         for (const n of results) {
           const lower = (n._snippet || '').toLowerCase(); const idx = lower.indexOf(q); let s = (n._snippet || '').substring(0, 400); if (idx >= 0) { s = s.substring(0, idx) + '<mark>' + s.substring(idx, idx + q.length) + '</mark>' + s.substring(idx + q.length); }
-          html += '<div class="row" style="padding:4px 0"><span class="lbl link" data-sid="' + n.sid + '">' + esc(n.label) + '</span><span class="tag">' + esc(n.kind) + '</span><span class="muted" style="font-size:0.85em;display:block">' + s + '</span></div>';
+          html += '<div class="row" style="padding:4px 0"><span class="lbl link" data-sid="' + n.sid + '" data-label="' + esc(n.label) + '">' + esc(n.label) + '</span><span class="tag">' + esc(n.kind) + '</span><span class="muted" style="font-size:0.85em;display:block">' + s + '</span></div>';
         }
         container.innerHTML = html;
-        container.querySelectorAll('[data-sid]').forEach(el => el.addEventListener('click', () => showDetails(parseInt(el.getAttribute('data-sid'), 10))));
+        container.querySelectorAll('[data-sid]').forEach(el => el.addEventListener('click', () => showDetails(el.getAttribute("data-label"))));
       }
 
       function setStatus(msg) {
@@ -324,14 +325,14 @@ _INDEX_HTML = """<!doctype html>
         for (const n of nodes) {
           const origin = n.origin ? `${n.origin.file}:${n.origin.line}` : '';
           html += '<div class="row">';
-          html += `<span class="lbl link" data-sid="${n.sid}">${esc(n.label)}</span>`;
+          html += `<span class="lbl link" data-sid="${n.sid}" data-label="${esc(n.label)}">${esc(n.label)}</span>`;
           html += `<span class="tag">${esc(n.kind)}</span>`;
           if (origin) html += `<span class="muted">${esc(origin)}</span>`;
           html += '</div>';
         }
         container.innerHTML = html;
         container.querySelectorAll('[data-sid]').forEach(el => {
-          el.addEventListener('click', () => showDetails(parseInt(el.getAttribute('data-sid'), 10)));
+          el.addEventListener('click', () => showDetails(el.getAttribute('data-label')));
         });
       }
 
@@ -341,8 +342,9 @@ _INDEX_HTML = """<!doctype html>
         return n.label;
       }
 
-      function showDetails(sid) {
-        const n = nodeBySid.get(sid);
+      function showDetails(sidOrLabel) {
+        const n = nodeBySid.get(parseInt(sidOrLabel, 10)) || nodeByLabel.get(sidOrLabel);
+        const sid = n ? n.sid : sidOrLabel;
         const container = document.getElementById("details");
         if (!n) {
           container.innerHTML = '<div class="muted">unknown node</div>';
@@ -361,7 +363,7 @@ _INDEX_HTML = """<!doctype html>
         } else {
           html += '<ul>';
           for (const d of deps) {
-            html += `<li><span class="lbl link" data-sid="${d}">${esc(formatNode(d))}</span></li>`;
+            html += `<li><span class="lbl link" data-sid="${d}" data-label="${esc(formatNode(d))}">${esc(formatNode(d))}</span></li>`;
           }
           html += '</ul>';
         }
@@ -371,7 +373,7 @@ _INDEX_HTML = """<!doctype html>
         } else {
           html += '<ul>';
           for (const d of rdeps) {
-            html += `<li><span class="lbl link" data-sid="${d}">${esc(formatNode(d))}</span></li>`;
+            html += `<li><span class="lbl link" data-sid="${d}" data-label="${esc(formatNode(d))}">${esc(formatNode(d))}</span></li>`;
           }
           html += '</ul>';
         }
@@ -381,9 +383,9 @@ _INDEX_HTML = """<!doctype html>
 
         container.innerHTML = html;
         container.querySelectorAll('[data-sid]').forEach(el => {
-          el.addEventListener('click', () => showDetails(parseInt(el.getAttribute('data-sid'), 10)));
+          el.addEventListener('click', () => showDetails(el.getAttribute('data-label')));
         });
-        history.replaceState(null, "", `#${sid}`);
+        history.replaceState(null, "", '#' + encodeURIComponent(n.label));
 
         fetch(`/api/mm_context?sid=${sid}&context=6`).then(r => r.json()).then(data => {
           const slot = document.getElementById("mmctx");
@@ -407,12 +409,12 @@ _INDEX_HTML = """<!doctype html>
         if (!res.ok) throw new Error(`GET /api/graph failed: ${res.status}`);
         graph = await res.json();
         nodeBySid = new Map(graph.nodes.map(n => [n.sid, n]));
+        nodeByLabel = new Map(graph.nodes.map(n => [n.label, n]));
         setStatus(`loaded ${graph.nodes.length} nodes`);
         renderList();
         const hash = (location.hash || "").slice(1);
         if (hash) {
-          const sid = parseInt(hash, 10);
-          if (!Number.isNaN(sid)) showDetails(sid);
+          showDetails(decodeURIComponent(hash));
         }
       }
 

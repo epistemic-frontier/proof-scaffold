@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ast as _ast
 import json
 from dataclasses import dataclass
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -27,6 +28,7 @@ class AssertionNode:
     kind: AssertionKind
     origin_module_id: str
     origin: OriginRecord | None
+    wiki: str = ""
 
 
 @dataclass(frozen=True)
@@ -78,6 +80,7 @@ def build_theorem_graph(
     interner: SymbolInterner,
     conformance_level: int = 0,
     project_root: Path | None = None,
+    wiki_dir: Path | None = None,
 ) -> TheoremGraph:
     ctx = Context(
         origin_table=origin_table, interner=interner, symtab=interner.symbol_table()
@@ -137,6 +140,25 @@ def build_theorem_graph(
     edges = {k: v for k, v in edges.items() if k in nodes_by_id}
     reverse_edges = {k: v for k, v in reverse_edges.items() if k in nodes_by_id}
 
+    # Load wiki entries
+    if wiki_dir is not None and wiki_dir.exists():
+        wiki_map: dict[str, str] = {}
+        for f in sorted(wiki_dir.glob("*.md")):
+            if f.name == "README.md":
+                continue
+            try:
+                wiki_map[f.stem] = f.read_text(encoding="utf-8")
+            except Exception:
+                pass
+        # Enrich nodes with wiki content
+        for i, n in enumerate(nodes):
+            if n.label in wiki_map:
+                nodes[i] = AssertionNode(
+                    sid=n.sid, label=n.label, kind=n.kind,
+                    origin_module_id=n.origin_module_id, origin=n.origin,
+                    wiki=wiki_map[n.label],
+                )
+                nodes_by_id[n.sid] = nodes[i]
     return TheoremGraph(nodes=nodes, edges=edges, reverse_edges=reverse_edges)
 
 
@@ -198,12 +220,15 @@ _INDEX_HTML = """<!doctype html>
       h2, h3 { margin: 10px 0 6px; }
       ul { margin: 6px 0 12px 18px; }
       pre { background: #f7f7f8; border-radius: 8px; padding: 10px; overflow: auto; }
+      .wiki { background: #fafbfc; border: 1px solid #e1e4e8; border-radius: 8px; padding: 12px; margin: 10px 0; max-height: 400px; overflow: auto; white-space: pre-wrap; font-size: 0.9em; line-height: 1.6; }
+      mark { background: #fff3cd; padding: 0 2px; }
+      #mode { margin-left: 6px; padding: 4px; }
     </style>
   </head>
   <body>
     <div id="top">
       <div><strong>skfd theorem browser</strong></div>
-      <input id="q" placeholder="filter label (substring)" />
+      <input id="q" placeholder="filter label (substring)" /><select id="mode"><option value="label">label</option><option value="fulltext">wiki</option></select>
       <button id="reload">reload</button>
       <div id="status" class="muted"></div>
     </div>
@@ -219,6 +244,17 @@ _INDEX_HTML = """<!doctype html>
         return (s ?? "").toString().replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
       }
 
+      function renderSearchResults(results, q) {
+        const container = document.getElementById("list");
+        let html = '<div class="muted">results: ' + results.length + '</div>';
+        for (const n of results) {
+          const s = (n._snippet || '').replace(new RegExp('(' + q.replace(/[.*+?^${}()|[\\]\\]/g, '\\$&') + ')', 'gi'), '<mark>$1</mark>');
+          html += '<div class="row" style="padding:4px 0"><span class="lbl link" data-sid="' + n.sid + '">' + esc(n.label) + '</span><span class="tag">' + esc(n.kind) + '</span><span class="muted" style="font-size:0.85em;display:block">' + s + '</span></div>';
+        }
+        container.innerHTML = html;
+        container.querySelectorAll('[data-sid]').forEach(el => el.addEventListener('click', () => showDetails(parseInt(el.getAttribute('data-sid'), 10))));
+      }
+
       function setStatus(msg) {
         document.getElementById("status").textContent = msg;
       }
@@ -230,7 +266,23 @@ _INDEX_HTML = """<!doctype html>
           container.innerHTML = '<div class="muted">loading...</div>';
           return;
         }
-        const nodes = graph.nodes
+        const mode = (document.getElementById('mode')?.value) || 'label';
+        let nodes;
+        if (mode === 'fulltext' && q) {
+          fetch('/api/search?q=' + encodeURIComponent(q))
+            .then(r => r.json())
+            .then(data => {
+              const sids = new Set(data.results.map(r => r.sid));
+              nodes = graph.nodes.filter(n => sids.has(n.sid));
+              const sorted = data.results.map(r => graph.nodes.find(x => x.sid === r.sid)).filter(Boolean);
+              for (let i = 0; i < sorted.length; i++) {
+                sorted[i]._snippet = data.results[i]?.snippet || '';
+              }
+              renderSearchResults(sorted, q);
+            });
+          return;
+        }
+        nodes = graph.nodes
           .filter(n => n.label.toLowerCase().includes(q))
           .sort((a, b) => a.label.localeCompare(b.label));
 
@@ -372,6 +424,22 @@ class _TheoremBrowserHandler(BaseHTTPRequestHandler):
             self._send_json(self.graph.to_jsonable(project_root=self.project_root))
             return
 
+        if u.path == "/api/search":
+            q = parse_qs(u.query)
+            query = (q.get("q") or [""])[0].lower()
+            results = []
+            for n in self.graph.nodes:
+                score = 0
+                if query and query in n.label.lower():
+                    score += 10
+                if n.wiki and query and query in n.wiki.lower():
+                    score += 5
+                if score > 0:
+                    results.append({"sid": n.sid, "label": n.label, "kind": n.kind, "score": score, "snippet": (n.wiki or "")[:300]})
+            results.sort(key=lambda x: x["score"], reverse=True)
+            self._send_json({"results": results[:50]})
+            return
+
         if u.path == "/api/ping":
             self._send_json({"ok": True})
             return
@@ -405,6 +473,7 @@ class _TheoremBrowserHandler(BaseHTTPRequestHandler):
                     },
                     "deps": self.graph.edges.get(sid, []),
                     "reverse_deps": self.graph.reverse_edges.get(sid, []),
+                    "wiki": node.wiki,
                 }
             )
             return

@@ -593,12 +593,14 @@ def _cmd_serve(args: argparse.Namespace) -> int:
         chain = runner._get_transitive_deps(pkg)
         chain.append(pkg)
         units = [runner.lirs[n] for n in chain]
+        wiki_dir = getattr(args, "wiki_dir", None)
         graph = build_theorem_graph(
             units=units,
             origin_table=runner.origin_table,
             interner=runner.interner,
             conformance_level=level,
             project_root=root_dir,
+            wiki_dir=wiki_dir,
         )
         mm = build_mm_context_bundle(
             units=units,
@@ -1026,6 +1028,12 @@ def main(argv: list[str] | None = None) -> int:
         default=0,
         choices=[0, 1, 2],
         help="Conformance level (0=Loose, 1=Strict Interface, 2=FOL)",
+    )
+    p_serve.add_argument(
+        "--wiki-dir",
+        type=Path,
+        default=None,
+        help="Path to wiki/*.md encyclopedia directory",
     )
     p_serve.set_defaults(func=_cmd_serve)
 

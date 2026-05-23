@@ -67,6 +67,17 @@ class _ScopeStackV2:
                 return found
         return None
 
+    def active_floating_vars(self) -> list[SymbolId]:
+        vars_: list[SymbolId] = []
+        seen: set[SymbolId] = set()
+        for scope in self._scopes:
+            for var in scope.active_f:
+                if var in seen:
+                    continue
+                vars_.append(var)
+                seen.add(var)
+        return vars_
+
     def activate_f(self, var: SymbolId, floating_label: SymbolId) -> None:
         self._scopes[-1].active_f[var] = floating_label
 
@@ -318,6 +329,9 @@ class MMBuilderV2:
 
     def exports(self) -> set[SymbolId]:
         return set(self._exports)
+
+    def active_floating_vars(self) -> list[SymbolId]:
+        return self._scope.active_floating_vars()
 
     def f(self, label: SymbolId, *, tc: SymbolId, var: SymbolId) -> SymbolId:
         label_name = self._require_local_label(label)

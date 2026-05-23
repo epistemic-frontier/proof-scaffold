@@ -190,6 +190,38 @@ def emit_lowered_lemmas(
     stmt_by_label.setdefault("wa", (lp, ph_tpl, b2.and_, ps_tpl, rp))
     symtab = provider.interner.symbol_table()
 
+    def floating_var_order() -> list[SymbolId]:
+        if floating_by_var is not None:
+            return list(floating_by_var)
+        return mm.active_floating_vars()
+
+    def mandatory_vars_for_templates(
+        templates: Sequence[Sequence[SymbolId]],
+    ) -> list[SymbolId]:
+        needed: set[SymbolId] = set()
+        for template in templates:
+            needed |= set(mm.auto.vars_in(template))
+
+        ordered: list[SymbolId] = []
+        for var in floating_var_order():
+            if var in needed:
+                ordered.append(var)
+                needed.remove(var)
+        ordered.extend(sorted(needed))
+        return ordered
+
+    def ph_ps_mandatory_substs(
+        ph_subst: tuple[int, ...],
+        ps_subst: tuple[int, ...],
+    ) -> list[tuple[int, ...]]:
+        order = floating_var_order()
+        names = {var: symtab[var].local_name for var in order if var in symtab}
+        ph_idx = next((i for i, var in enumerate(order) if names.get(var) == "ph"), None)
+        ps_idx = next((i for i, var in enumerate(order) if names.get(var) == "ps"), None)
+        if ph_idx is not None and ps_idx is not None and ps_idx < ph_idx:
+            return [ps_subst, ph_subst]
+        return [ph_subst, ps_subst]
+
     def v2_split_binary(
         tokens: Sequence[int], op_token: int, *, lp: int, rp: int
     ) -> tuple[tuple[int, ...], tuple[int, ...]] | None:
@@ -249,12 +281,20 @@ def emit_lowered_lemmas(
         imp_parts = v2_split_binary(toks, b2.imp, lp=b2.lp, rp=b2.rp)
         if imp_parts is not None:
             left, right = imp_parts
-            return [*v2_wff_proof(left), *v2_wff_proof(right), v2_resolve_label("wi")]
+            imp_proof: list[SymbolId] = []
+            for subst_tokens in ph_ps_mandatory_substs(left, right):
+                imp_proof.extend(v2_wff_proof(subst_tokens))
+            imp_proof.append(v2_resolve_label("wi"))
+            return imp_proof
 
         and_parts = v2_split_binary(toks, b2.and_, lp=b2.lp, rp=b2.rp)
         if and_parts is not None:
             left, right = and_parts
-            return [*v2_wff_proof(left), *v2_wff_proof(right), v2_resolve_label("wa")]
+            and_proof: list[SymbolId] = []
+            for subst_tokens in ph_ps_mandatory_substs(left, right):
+                and_proof.extend(v2_wff_proof(subst_tokens))
+            and_proof.append(v2_resolve_label("wa"))
+            return and_proof
 
         raise ValueError(f"wff proof: unsupported token shape (len={len(toks)})")
 
@@ -421,10 +461,7 @@ def emit_lowered_lemmas(
                         f"step {label!r}: ref to {step.ref!r} requires {len(hyp_templates)} hyp arg(s)"
                     )
 
-                mandatory_vars_set: set[SymbolId] = set(mm.auto.vars_in(tmpl_tokens))
-                for ht in hyp_templates:
-                    mandatory_vars_set |= set(mm.auto.vars_in(ht))
-                mandatory_vars = sorted(mandatory_vars_set)
+                mandatory_vars = mandatory_vars_for_templates((tmpl_tokens, *hyp_templates))
                 proof: list[SymbolId] = []
                 for v in mandatory_vars:
                     proof.extend(v2_wff_proof(_to_tokens(subst.get(v, _Atom(v)))))
@@ -469,9 +506,11 @@ def emit_lowered_lemmas(
                 antecedent, consequent = minor_parts
                 if tuple(maj_step.wff.tokens) != antecedent:
                     raise ValueError(f"step {label!r}: mp antecedent mismatch")
+                mandatory_proofs: list[SymbolId] = []
+                for subst_tokens in ph_ps_mandatory_substs(antecedent, consequent):
+                    mandatory_proofs.extend(v2_wff_proof(subst_tokens))
                 return [
-                    *v2_wff_proof(antecedent),
-                    *v2_wff_proof(consequent),
+                    *mandatory_proofs,
                     *v2_emit_step(maj, visiting=visiting, steps=steps),
                     *v2_emit_step(minor, visiting=visiting, steps=steps),
                     v2_resolve_label("mp"),

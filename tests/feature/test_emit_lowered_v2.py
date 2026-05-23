@@ -9,7 +9,9 @@ from skfd.builder_v2 import MMBuilderV2
 from skfd.core.lir import Theorem
 from skfd.core.origin import OriginTable
 from skfd.core.symbols import SymbolId, SymbolInterner
+from skfd.linker.api import LinkerV1
 from skfd.names import NameResolver
+from tests._sanity_utils import verify_expect_ok
 
 
 @dataclass(frozen=True)
@@ -47,6 +49,235 @@ class _Provider:
 
     def compile_axioms(self) -> dict[str, Wff]:
         return dict(self._axioms)
+
+
+def _write_linked_mm(tmp_path: Any, mm: MMBuilderV2, origin_table: OriginTable) -> Any:
+    unit = mm.finish()
+    res = LinkerV1.link(
+        units=[unit],
+        origin_table=origin_table,
+        interner=mm.interner,
+        conformance_level=1,
+    )
+    out = tmp_path / "out.mm"
+    out.write_text(res.mm_text, encoding="utf-8")
+    return out
+
+
+def _setup_hilbert_core(
+    *, floating_order: tuple[str, ...] = ("ph", "ps", "ch")
+) -> tuple[
+    MMBuilderV2,
+    OriginTable,
+    _Provider,
+    dict[str, SymbolId],
+    dict[SymbolId, SymbolId],
+    dict[str, Wff],
+]:
+    interner = SymbolInterner()
+    origin_table = OriginTable()
+    mm = MMBuilderV2(
+        interner=interner,
+        origin_table=origin_table,
+        names=NameResolver(),
+        unit_id="u",
+        origin_module_id="m",
+    )
+
+    wff = mm.sym.const("wff")
+    provable = mm.sym.const("|-")
+
+    lp = interner.intern(origin_module_id="__b__", local_name="(", kind="Const", origin_ref=0)
+    rp = interner.intern(origin_module_id="__b__", local_name=")", kind="Const", origin_ref=0)
+    imp = interner.intern(origin_module_id="__b__", local_name="->", kind="Const", origin_ref=0)
+    neg = interner.intern(origin_module_id="__b__", local_name="-.", kind="Const", origin_ref=0)
+    and_ = interner.intern(origin_module_id="__b__", local_name="/\\", kind="Const", origin_ref=0)
+    b = _Builtins(lp=lp, rp=rp, imp=imp, neg=neg, and_=and_)
+
+    ph = mm.sym.var("ph")
+    ps = mm.sym.var("ps")
+    ch = mm.sym.var("ch")
+    vars_by_name = {"ph": ph, "ps": ps, "ch": ch}
+    floating_by_var: dict[SymbolId, SymbolId] = {}
+    for name in floating_order:
+        var = vars_by_name[name]
+        floating_by_var[var] = mm.f(mm.sym.label(f"w{name}"), tc=wff, var=var)
+
+    wi = mm.a(mm.sym.label("wi"), tc=wff, expr=[lp, ph, imp, ps, rp])
+    wn = mm.a(mm.sym.label("wn"), tc=wff, expr=[neg, ph])
+    wa = mm.a(mm.sym.label("wa"), tc=wff, expr=[lp, ph, and_, ps, rp])
+
+    a1 = Wff("wff", (lp, ph, imp, lp, ps, imp, ph, rp, rp))
+    ph_imp_ps = Wff("wff", (lp, ph, imp, ps, rp))
+    ph_imp_ch = Wff("wff", (lp, ph, imp, ch, rp))
+    ph_imp_ph = Wff("wff", (lp, ph, imp, ph, rp))
+    ps_imp_ph = Wff("wff", (lp, ps, imp, ph, rp))
+    ph_imp_ph_imp_ph = Wff("wff", (lp, ph, imp, lp, *ph_imp_ph.tokens, imp, ph, rp, rp))
+    a2 = Wff(
+        "wff",
+        (
+            lp,
+            lp,
+            ph,
+            imp,
+            lp,
+            ps,
+            imp,
+            ch,
+            rp,
+            rp,
+            imp,
+            lp,
+            *ph_imp_ps.tokens,
+            imp,
+            *ph_imp_ch.tokens,
+            rp,
+            rp,
+        ),
+    )
+
+    ax1 = mm.a(mm.sym.label("A1"), tc=provable, expr=a1.tokens)
+    ax2 = mm.a(mm.sym.label("A2"), tc=provable, expr=a2.tokens)
+
+    with mm.block():
+        mm.e(mm.sym.label("ax-mp.1"), tc=provable, expr=[ph])
+        mm.e(mm.sym.label("ax-mp.2"), tc=provable, expr=ph_imp_ps.tokens)
+        ax_mp = mm.a(mm.sym.label("mp"), tc=provable, expr=[ps])
+
+    label_ids = {
+        "wi": wi,
+        "wn": wn,
+        "wa": wa,
+        "mp": ax_mp,
+        "A1": ax1,
+        "A2": ax2,
+    }
+    wffs = {
+        "ph": Wff("wff", (ph,)),
+        "ps": Wff("wff", (ps,)),
+        "ch": Wff("wff", (ch,)),
+        "a1": a1,
+        "a2": a2,
+        "ph_imp_ps": ph_imp_ps,
+        "ph_imp_ch": ph_imp_ch,
+        "ph_imp_ph": ph_imp_ph,
+        "ps_imp_ph": ps_imp_ph,
+        "ph_imp_ph_imp_ph": ph_imp_ph_imp_ph,
+    }
+    provider = _Provider(interner=interner, builtins=b, axioms={"A1": a1, "A2": a2})
+    return mm, origin_table, provider, label_ids, floating_by_var, wffs
+
+
+def test_emit_lowered_lemmas_v2_mp_proofs_verify_with_mmverify(tmp_path: Any) -> None:
+    mm, origin_table, provider, _, _, w = _setup_hilbert_core(
+        floating_order=("ps", "ph", "ch")
+    )
+    b = provider.builtins
+    ph = w["ph"].tokens[0]
+
+    ph_imp_ph = w["ph_imp_ph"]
+    a1_self = Wff("wff", (b.lp, ph, b.imp, *ph_imp_ph.tokens, b.rp))
+    id_a2 = Wff(
+        "wff",
+        (
+            b.lp,
+            *w["ph_imp_ph_imp_ph"].tokens,
+            b.imp,
+            b.lp,
+            *a1_self.tokens,
+            b.imp,
+            *ph_imp_ph.tokens,
+            b.rp,
+            b.rp,
+        ),
+    )
+
+    a1i = _Lemma(
+        name="a1i",
+        statement=w["ps_imp_ph"],
+        steps=(
+            _Step(label="a1i.1", op="hyp", args=(), ref=None, wff=w["ph"]),
+            _Step(label="s1", op="ref", args=(), ref="A1", wff=w["a1"]),
+            _Step(label="res", op="mp", args=("a1i.1", "s1"), ref=None, wff=w["ps_imp_ph"]),
+        ),
+    )
+    identity = _Lemma(
+        name="id",
+        statement=ph_imp_ph,
+        steps=(
+            _Step(label="id.s1", op="ref", args=(), ref="A1", wff=a1_self),
+            _Step(label="id.s2", op="ref", args=(), ref="A2", wff=id_a2),
+            _Step(
+                label="id.s3",
+                op="ref",
+                args=(),
+                ref="A1",
+                wff=w["ph_imp_ph_imp_ph"],
+            ),
+            _Step(
+                label="id.s4",
+                op="mp",
+                args=("id.s3", "id.s2"),
+                ref=None,
+                wff=Wff("wff", (b.lp, *a1_self.tokens, b.imp, *ph_imp_ph.tokens, b.rp)),
+            ),
+            _Step(label="id.res", op="mp", args=("id.s1", "id.s4"), ref=None, wff=ph_imp_ph),
+        ),
+    )
+
+    emit_lowered_lemmas(
+        mm,
+        provider,
+        [a1i, identity],
+        typecode="|-",
+        wff_typecode="wff",
+        label_ids=None,
+        floating_by_var=None,
+    )
+
+    verify_expect_ok(_write_linked_mm(tmp_path, mm, origin_table))
+
+
+def test_emit_lowered_lemmas_v2_ref_with_hyp_args_verifies_with_mmverify(
+    tmp_path: Any,
+) -> None:
+    mm, origin_table, provider, _, _, w = _setup_hilbert_core(
+        floating_order=("ps", "ph", "ch")
+    )
+    mm.a(mm.sym.label("id"), tc=mm.sym.const("|-"), expr=w["ph_imp_ph"].tokens)
+    provider = _Provider(
+        interner=mm.interner,
+        builtins=provider.builtins,
+        axioms={**provider.compile_axioms(), "id": w["ph_imp_ph"]},
+    )
+    t2 = _Lemma(
+        name="T2",
+        statement=w["ph_imp_ph"],
+        steps=(
+            _Step(label="T2.1", op="hyp", args=(), ref=None, wff=w["ph_imp_ps"]),
+            _Step(label="T2.res", op="ref", args=(), ref="id", wff=w["ph_imp_ph"]),
+        ),
+    )
+    u = _Lemma(
+        name="U",
+        statement=w["ph_imp_ph"],
+        steps=(
+            _Step(label="U.1", op="hyp", args=(), ref=None, wff=w["ph_imp_ch"]),
+            _Step(label="U.res", op="ref", args=("U.1",), ref="T2", wff=w["ph_imp_ph"]),
+        ),
+    )
+
+    emit_lowered_lemmas(
+        mm,
+        provider,
+        [t2, u],
+        typecode="|-",
+        wff_typecode="wff",
+        label_ids=None,
+        floating_by_var=None,
+    )
+
+    verify_expect_ok(_write_linked_mm(tmp_path, mm, origin_table))
 
 
 def test_emit_lowered_lemmas_v2_builds_theorem_proof_tokens() -> None:

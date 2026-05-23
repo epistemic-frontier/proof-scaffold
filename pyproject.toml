@@ -43,3 +43,6 @@ dev = [
 [tool.setuptools.packages.find]
 where = ["src"]
 include = ["skfd*"]
+
+[tool.setuptools.package-data]
+skfd = ["py.typed"]

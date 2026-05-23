@@ -1,3 +1,5 @@
 recursive-include verifier *.py
 prune src/proof_scaffold.egg-info
 recursive-exclude src/proof_scaffold.egg-info *
+global-exclude __pycache__/*
+global-exclude *.py[cod]

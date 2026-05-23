@@ -46,3 +46,6 @@ include = ["skfd*"]
 
 [tool.setuptools.package-data]
 skfd = ["py.typed"]
+
+[tool.setuptools.exclude-package-data]
+"*" = ["__pycache__/*", "*.pyc", "*.pyo"]

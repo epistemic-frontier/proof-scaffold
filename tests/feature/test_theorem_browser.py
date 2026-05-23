@@ -3,11 +3,13 @@ from __future__ import annotations
 import tempfile
 from pathlib import Path
 
+import pytest
+
 from skfd.builder_v2 import MMBuilderV2
-from skfd.core.origin import OriginTable
+from skfd.core.origin import OriginRecord, OriginTable
 from skfd.core.symbols import SymbolInterner
 from skfd.names import NameResolver
-from skfd.web.theorem_browser import build_theorem_graph
+from skfd.web.theorem_browser import AssertionNode, TheoremGraph, build_theorem_graph
 
 
 def test_theorem_browser_builds_dependency_graph() -> None:
@@ -151,3 +153,87 @@ def test_assertion_node_has_docstring_and_wiki_fields() -> None:
     )
     assert n.docstring == ""
     assert n.wiki == ""
+
+
+def test_theorem_graph_to_jsonable_relativizes_origins(tmp_path: Path) -> None:
+    source = tmp_path / "pkg" / "proofs.py"
+    source.parent.mkdir()
+    source.write_text("def prove_ax1(): pass\n", encoding="utf-8")
+    graph = TheoremGraph(
+        nodes=[
+            AssertionNode(
+                sid=1,
+                label="ax1",
+                kind="axiom",
+                origin_module_id="m",
+                origin=OriginRecord("m", str(source), 7),
+            )
+        ],
+        edges={1: []},
+        reverse_edges={1: []},
+    )
+
+    data = graph.to_jsonable(project_root=tmp_path)
+    assert data["nodes"][0]["origin"] == {
+        "module": "m",
+        "file": str(Path("pkg") / "proofs.py"),
+        "line": 7,
+    }
+
+
+def test_theorem_graph_to_jsonable_keeps_unrelativizable_origin(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    graph = TheoremGraph(
+        nodes=[
+            AssertionNode(
+                sid=1,
+                label="ax1",
+                kind="axiom",
+                origin_module_id="m",
+                origin=OriginRecord("m", "/outside/proofs.py", 7),
+            )
+        ],
+        edges={},
+        reverse_edges={},
+    )
+
+    monkeypatch.setattr(
+        "skfd.web.theorem_browser.Path.relative_to",
+        lambda self, *other: (_ for _ in ()).throw(ValueError("outside")),
+    )
+    data = graph.to_jsonable(project_root=tmp_path)
+    assert data["nodes"][0]["origin"]["file"] == "/outside/proofs.py"
+
+
+def test_build_theorem_graph_reads_docstring_from_origin_file(tmp_path: Path) -> None:
+    source = tmp_path / "proofs.py"
+    source.write_text(
+        'def prove_ax1():\n    """Axiom documentation."""\n    return None\n',
+        encoding="utf-8",
+    )
+
+    ot = OriginTable()
+    interner = SymbolInterner()
+    mm = MMBuilderV2(
+        interner=interner,
+        origin_table=ot,
+        names=NameResolver(),
+        unit_id="u",
+        origin_module_id="m",
+    )
+    tc = mm.sym.const("|-")
+    ph = mm.sym.var("ph")
+    label = interner.intern(
+        origin_module_id="m",
+        local_name="ax1",
+        kind="Label",
+        origin_ref=ot.intern(OriginRecord("m", str(source), 1)),
+    )
+    mm.f(mm.sym.label("wph"), tc=tc, var=ph)
+    mm.a(label, tc=tc, expr=[ph])
+    unit = mm.finish()
+
+    graph = build_theorem_graph(units=[unit], origin_table=ot, interner=interner)
+    ax = next(n for n in graph.nodes if n.label == "ax1")
+    assert ax.docstring == "Axiom documentation."

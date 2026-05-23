@@ -3,9 +3,13 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+import pytest
+
 from skfd.authoring.emit import emit_lowered_lemmas
 from skfd.authoring.formula import Wff
+from skfd.builder_v2 import BuildConfig
 from skfd.builder_v2 import MMBuilderV2
+from skfd.core.diag import LinkerDiagError
 from skfd.core.lir import Theorem
 from skfd.core.origin import OriginTable
 from skfd.core.symbols import SymbolId, SymbolInterner
@@ -429,3 +433,138 @@ def test_emit_lowered_lemmas_v2_declares_floating_for_hyp_only_vars() -> None:
     emit_lowered_lemmas(mm, provider, [lemma], typecode="wff", label_ids=None)
     unit = mm.finish()
     assert any(isinstance(s, FloatingHyp) and s.var == th for s in unit.lir_stmts)
+
+
+def test_emit_lowered_lemmas_requires_provider_builtins() -> None:
+    mm, _, provider, _, _, w = _setup_hilbert_core()
+
+    class ProviderWithoutBuiltins:
+        interner = provider.interner
+
+        def compile_axioms(self) -> dict[str, Wff]:
+            return {}
+
+    lemma = _Lemma(
+        name="L",
+        statement=w["ph"],
+        steps=(_Step(label="res", op="ref", args=(), ref="A1", wff=w["a1"]),),
+    )
+
+    with pytest.raises(ValueError, match="missing .builtins"):
+        emit_lowered_lemmas(mm, ProviderWithoutBuiltins(), [lemma], typecode="|-")
+
+
+def test_emit_lowered_lemmas_rejects_interner_mismatch() -> None:
+    mm, _, provider, _, _, w = _setup_hilbert_core()
+    other = _Provider(interner=SymbolInterner(), builtins=provider.builtins)
+    lemma = _Lemma(name="L", statement=w["ph"], steps=())
+
+    with pytest.raises(LinkerDiagError) as excinfo:
+        emit_lowered_lemmas(mm, other, [lemma], typecode="|-")
+    assert excinfo.value.diag.error_code == "E_INTERNER_MISMATCH"
+
+
+def test_emit_lowered_lemmas_warns_and_emits_axiom_for_raw_steps() -> None:
+    mm, _, provider, _, _, w = _setup_hilbert_core()
+    lemma = _Lemma(
+        name="rawLemma",
+        statement=w["ph"],
+        steps=(_Step(label="raw", op="raw", args=(), ref=None, wff=w["ph"]),),
+    )
+
+    with pytest.warns(RuntimeWarning, match="emitting it as an axiom"):
+        emit_lowered_lemmas(mm, provider, [lemma], typecode="|-")
+
+    unit = mm.finish()
+    labels = {mm.interner.symbol_table()[s.label].local_name for s in unit.lir_stmts if hasattr(s, "label")}
+    assert "rawLemma" in labels
+
+
+def test_emit_lowered_lemmas_forbids_raw_steps_at_strict_level() -> None:
+    mm, _, provider, _, _, w = _setup_hilbert_core()
+    mm.cfg = BuildConfig(forbid_raw=True)
+    lemma = _Lemma(
+        name="rawLemma",
+        statement=w["ph"],
+        steps=(_Step(label="raw", op="raw", args=(), ref=None, wff=w["ph"]),),
+    )
+
+    with pytest.raises(LinkerDiagError) as excinfo:
+        emit_lowered_lemmas(mm, provider, [lemma], typecode="|-")
+    assert excinfo.value.diag.error_code == "E_RAW_NOT_ALLOWED"
+
+
+def test_emit_lowered_lemmas_rejects_self_and_circular_references() -> None:
+    mm, _, provider, _, _, w = _setup_hilbert_core()
+    self_ref = _Lemma(
+        name="L",
+        statement=w["ph"],
+        steps=(_Step(label="s", op="ref", args=(), ref="L", wff=w["ph"]),),
+    )
+    with pytest.raises(LinkerDiagError) as excinfo:
+        emit_lowered_lemmas(mm, provider, [self_ref], typecode="|-")
+    assert excinfo.value.diag.error_code == "E_SELF_REFERENCE"
+
+    mm2, _, provider2, _, _, w2 = _setup_hilbert_core()
+    a = _Lemma(
+        name="A",
+        statement=w2["ph"],
+        steps=(_Step(label="a", op="ref", args=(), ref="B", wff=w2["ph"]),),
+    )
+    b = _Lemma(
+        name="B",
+        statement=w2["ph"],
+        steps=(_Step(label="b", op="ref", args=(), ref="A", wff=w2["ph"]),),
+    )
+    with pytest.raises(LinkerDiagError) as excinfo2:
+        emit_lowered_lemmas(mm2, provider2, [a, b], typecode="|-")
+    assert excinfo2.value.diag.error_code == "E_CIRCULAR_DEPENDENCY"
+
+
+def test_emit_lowered_lemmas_rejects_empty_unknown_and_bad_mp_steps() -> None:
+    mm, _, provider, _, _, w = _setup_hilbert_core()
+    empty = _Lemma(name="empty", statement=w["ph"], steps=())
+    with pytest.raises(ValueError, match="has no steps"):
+        emit_lowered_lemmas(mm, provider, [empty], typecode="|-")
+
+    mm2, _, provider2, _, _, w2 = _setup_hilbert_core()
+    unknown = _Lemma(
+        name="unknown",
+        statement=w2["ph"],
+        steps=(_Step(label="s", op="ref", args=(), ref="missing", wff=w2["ph"]),),
+    )
+    with pytest.raises(LinkerDiagError) as excinfo:
+        emit_lowered_lemmas(mm2, provider2, [unknown], typecode="|-")
+    assert excinfo.value.diag.error_code == "E_UNKNOWN_LABEL_NAME"
+
+    mm3, _, provider3, _, _, w3 = _setup_hilbert_core()
+    bad_mp = _Lemma(
+        name="badmp",
+        statement=w3["ph"],
+        steps=(
+            _Step(label="h", op="hyp", args=(), ref=None, wff=w3["ph"]),
+            _Step(label="res", op="mp", args=("h",), ref=None, wff=w3["ph"]),
+        ),
+    )
+    with pytest.raises(ValueError, match="mp expects 2 args"):
+        emit_lowered_lemmas(mm3, provider3, [bad_mp], typecode="|-")
+
+
+def test_emit_lowered_lemmas_reports_missing_explicit_floating_hyp() -> None:
+    mm, _, provider, _, _, w = _setup_hilbert_core()
+    lemma = _Lemma(
+        name="L",
+        statement=w["ph_imp_ph"],
+        steps=(_Step(label="s", op="ref", args=(), ref="wi", wff=w["ph_imp_ph"]),),
+    )
+
+    with pytest.raises(LinkerDiagError) as excinfo:
+        emit_lowered_lemmas(
+            mm,
+            provider,
+            [lemma],
+            typecode="|-",
+            wff_typecode="wff",
+            floating_by_var={},
+        )
+    assert excinfo.value.diag.error_code == "E_MISSING_FLOATING_HYP"

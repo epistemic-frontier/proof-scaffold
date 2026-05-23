@@ -10,6 +10,7 @@ from skfd.authoring.emit import emit_axioms, emit_lemmas
 from skfd.authoring.formula import Wff, wff_atom, render
 from skfd.authoring.typing import Context, Hypothesis, PreludeTypingError, RuleApp, RuleSig
 from skfd.builder_v2 import MMBuilderV2
+from skfd.core.diag import LinkerDiagError
 from skfd.core.lir import Axiom
 from skfd.core.origin import OriginTable
 from skfd.core.symbols import SymbolInterner
@@ -169,6 +170,38 @@ def test_emit_lemmas_basic() -> None:
     emit_lemmas(mm, Provider(interner), [Lemma("L1", wff, [Step(wff)])])
     unit = mm.finish()
     assert any(isinstance(s, Axiom) for s in unit.lir_stmts)
+
+
+def test_emit_axioms_and_lemmas_reject_interner_mismatch() -> None:
+    interner = SymbolInterner()
+    other = SymbolInterner()
+    v = interner.intern(origin_module_id="t", local_name="v", kind="Var", origin_ref=None)
+    wff = Wff("wff", (v,))
+
+    class Provider:
+        def __init__(self, interner: SymbolInterner) -> None:
+            self.interner = interner
+
+        def compile_axioms(self) -> dict[str, Wff]:
+            return {"ax": wff}
+
+    class Lemma:
+        name = "L"
+        statement = wff
+        steps = []
+
+    mm = MMBuilderV2(
+        interner=interner,
+        origin_table=OriginTable(),
+        names=NameResolver(),
+        unit_id="t",
+        origin_module_id="t",
+    )
+
+    with pytest.raises(LinkerDiagError):
+        emit_axioms(mm, Provider(other))
+    with pytest.raises(LinkerDiagError):
+        emit_lemmas(mm, Provider(other), [Lemma()])
 
 
 def test_export_axioms_and_symbol_aliases() -> None:

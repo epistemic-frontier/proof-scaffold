@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import textwrap
 from pathlib import Path
+from types import ModuleType, SimpleNamespace
+from typing import Any
 
 import pytest
 
@@ -145,3 +147,135 @@ def test_verify_script_success(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) 
     monkeypatch.setattr(script_runner, 'run_all', _fake_run_all)
 
     assert script_runner.verify_script(script, project_root=tmp_path) == 0
+
+
+def test_discover_proof_functions_returns_definition_order() -> None:
+    module = ModuleType("m")
+    exec(
+        textwrap.dedent(
+            """
+            def prove_b():
+                return "b"
+
+            def helper():
+                return None
+
+            def prove_a():
+                return "a"
+            """
+        ),
+        module.__dict__,
+    )
+
+    assert [name for name, _ in script_runner._discover_proof_functions(module)] == [
+        "prove_b",
+        "prove_a",
+    ]
+
+
+def test_get_or_create_system_prefers_module_hooks() -> None:
+    module = ModuleType("m")
+    module.system = object()
+    assert script_runner._get_or_create_system(module) is module.system
+
+    module2 = ModuleType("m2")
+    module2.sys = SimpleNamespace(name="system")
+    assert script_runner._get_or_create_system(module2) is module2.sys
+
+    module3 = ModuleType("m3")
+    module3.sys = script_runner.sys
+    module3.build = lambda: "built"
+    assert script_runner._get_or_create_system(module3) == "built"
+
+    module4 = ModuleType("m4")
+    module4.get_system = lambda: "got"
+    assert script_runner._get_or_create_system(module4) == "got"
+
+
+def test_verify_script_handles_loader_creation_failure(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setattr(script_runner.importlib.util, "spec_from_file_location", lambda *_a, **_k: None)
+    assert script_runner.verify_script(tmp_path / "no_suffix", project_root=tmp_path) == 1
+
+
+def test_verify_script_reports_proof_function_failures(tmp_path: Path) -> None:
+    script = tmp_path / "s.py"
+    _write(
+        script,
+        """
+        system = object()
+
+        def prove_x():
+            raise RuntimeError("proof exploded")
+        """,
+    )
+
+    assert script_runner.verify_script(script, project_root=tmp_path) == 1
+
+
+def test_verify_script_requires_returned_proof_objects(tmp_path: Path) -> None:
+    script = tmp_path / "s.py"
+    _write(
+        script,
+        """
+        system = object()
+
+        def prove_x():
+            return None
+        """,
+    )
+
+    assert script_runner.verify_script(script, project_root=tmp_path) == 1
+
+
+def test_verify_script_returns_failure_when_verifier_fails(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    script = tmp_path / "s.py"
+    _write(
+        script,
+        """
+        from types import SimpleNamespace
+
+        system = SimpleNamespace(
+            interner=None,
+            compile_axioms=lambda: {"mp": object()},
+        )
+
+        def prove_x():
+            return SimpleNamespace(name="th1", statement=None, steps=())
+        """,
+    )
+
+    from skfd.core.symbols import SymbolInterner
+
+    class DummySystem:
+        def __init__(self) -> None:
+            self.interner = SymbolInterner()
+
+        def compile_axioms(self) -> dict[str, object]:
+            return {"mp": object()}
+
+    monkeypatch.setattr(script_runner, "_get_or_create_system", lambda _module: DummySystem())
+    monkeypatch.setattr(script_runner, "emit_axioms", lambda *_a, **_k: None)
+    monkeypatch.setattr(script_runner, "emit_lowered_lemmas", lambda *_a, **_k: None)
+    monkeypatch.setattr(
+        script_runner.LinkerV1,
+        "link",
+        lambda **_kwargs: SimpleNamespace(mm_text="$c wff $."),
+    )
+    monkeypatch.setattr(
+        script_runner,
+        "load_config",
+        lambda _root: SimpleNamespace(get_active_commands=lambda: ["false"]),
+    )
+
+    def failed_run_all(_mm_path: Path, _cmds: list[str]) -> list[Any]:
+        from skfd.verifier.aggregate import VerifierResult
+
+        return [VerifierResult(name="dummy", passed=False, returncode=1, output="no")]
+
+    monkeypatch.setattr(script_runner, "run_all", failed_run_all)
+
+    assert script_runner.verify_script(script, project_root=tmp_path) == 1

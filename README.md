@@ -213,6 +213,47 @@ python -m skfd.cli init-proof my_proof.py
 python -m skfd.cli verify <project-name>
 ```
 
+`verify` checks the generated transient monolith. If a package exposes a
+larger authoring-facing theorem registry than it emits in `build(ctx)`, validate
+that registry in the package's own tests:
+
+```python
+from skfd.proof import assert_valid_proof_registry
+
+
+def test_public_proof_registry() -> None:
+    system = System.make(interner=interner, names=names)
+
+    assert_valid_proof_registry(
+        system=system,
+        constructors=SETMM_TO_HILBERT_LEMMAS,
+        axioms=system.compile_axioms(),
+        reserved={"wi", "wn", "wa", "mp"},
+    )
+```
+
+This catches dangling `lb.ref(..., ref="...")` labels, constructor-time proof
+errors, self-references, and dependency cycles before verifier invocation.
+
+Packages can also declare their intended proof surface during `build(ctx)`:
+
+```python
+def build(ctx: BuildContextV2) -> None:
+    ...
+    ctx.coverage.declare_registry("hilbert", SETMM_TO_HILBERT_LEMMAS)
+    ctx.coverage.require_all_declared_verified()
+```
+
+Then run:
+
+```bash
+python -m skfd.cli verify --coverage declared <project-name>
+```
+
+`--coverage declared` fails if any declared label is missing from the emitted
+verification monolith. Packages without coverage declarations keep the existing
+behavior and report that coverage is limited to the emitted monolith.
+
 ### Browse theorem dependency chains (local web)
 ```bash
 python -m skfd.cli serve <project-name> --port 8000

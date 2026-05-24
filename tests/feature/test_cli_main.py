@@ -7,6 +7,7 @@ import pytest
 
 from skfd import cli
 from skfd.core.diag import Diagnostic, LinkerDiagError
+from skfd.proof import ProofCoverageDeclaration, ProofCoverageReport
 
 
 class _DummyCfg:
@@ -62,6 +63,16 @@ def test_cmd_verify_package(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> 
         def verify_package(self, *_args, **_kwargs):
             return None
 
+        def coverage_report(self, _pkg):
+            return ProofCoverageReport(
+                unit_id="pkg",
+                declarations=(),
+                emitted_labels=("th-1",),
+                declared_labels=(),
+                declared_but_unemitted=(),
+                missing_required_labels=(),
+            )
+
     monkeypatch.setattr(cli, "DriverRunner", DummyRunner)
     monkeypatch.setattr(cli, "load_config", lambda _root: _DummyCfg([("v", ["cmd"]) ]))
     monkeypatch.setattr(cli, "verify", lambda *_a, **_k: None)
@@ -70,8 +81,52 @@ def test_cmd_verify_package(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> 
     target.mkdir()
     (target / "pkg_full.mm").write_text("$c wff $.", encoding="utf-8")
 
-    rc = cli._cmd_verify(argparse.Namespace(package="pkg", root=root, level=0))
+    rc = cli._cmd_verify(
+        argparse.Namespace(package="pkg", root=root, level=0, coverage="emitted")
+    )
     assert rc == 0
+
+
+def test_cmd_verify_declared_coverage_failure(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    root = tmp_path
+    src = root / "src"
+    src.mkdir()
+
+    class DummyRunner:
+        def __init__(self, _root, _target):
+            self.lirs = {"pkg": object()}
+
+        def execute_all(self):
+            return None
+
+        def verify_package(self, *_args, **_kwargs):
+            return None
+
+        def coverage_report(self, _pkg):
+            return ProofCoverageReport(
+                unit_id="pkg",
+                declarations=(
+                    ProofCoverageDeclaration(
+                        name="public",
+                        labels=("missing", "th-1"),
+                        require_verified=False,
+                        source="labels",
+                    ),
+                ),
+                emitted_labels=("th-1",),
+                declared_labels=("missing", "th-1"),
+                declared_but_unemitted=("missing",),
+                missing_required_labels=(),
+            )
+
+    monkeypatch.setattr(cli, "DriverRunner", DummyRunner)
+
+    rc = cli._cmd_verify(
+        argparse.Namespace(package="pkg", root=root, level=0, coverage="declared")
+    )
+    assert rc == 1
 
 
 def test_main_handles_linker_diag(monkeypatch: pytest.MonkeyPatch) -> None:

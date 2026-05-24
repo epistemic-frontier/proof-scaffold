@@ -8,6 +8,7 @@ from pathlib import Path
 from skfd.builder_v2 import BuildConfig, MMBuilderV2
 from skfd.core.symbols import SymbolId
 from skfd.names import NameResolver
+from skfd.proof.coverage import ProofCoverage
 
 
 @dataclass(frozen=True)
@@ -65,7 +66,14 @@ class BuildContextV2:
     names: NameResolver
     cfg: BuildConfig
     log: logging.Logger
+    coverage: ProofCoverage
 
 
-__all__ = ["BuildConfig", "BuildContextV2", "DepsView", "ExportsView", "UnitMeta"]
-
+__all__ = [
+    "BuildConfig",
+    "BuildContextV2",
+    "DepsView",
+    "ExportsView",
+    "ProofCoverage",
+    "UnitMeta",
+]

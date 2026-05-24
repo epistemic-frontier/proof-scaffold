@@ -17,6 +17,12 @@ from skfd.core.symbols import SymbolInterner
 from skfd.core.unit import ProofUnitIR
 from skfd.linker.api import LinkerV1
 from skfd.names import NameResolver
+from skfd.proof.coverage import (
+    ProofCoverage,
+    ProofCoverageError,
+    ProofCoverageReport,
+    build_proof_coverage_report,
+)
 
 from .discover import find_packages, get_package_deps, load_build_module
 from .graph import sort_packages
@@ -67,6 +73,7 @@ class DriverRunner:
         # Build artifacts
         self.exports_by_pkg: dict[str, dict[str, int]] = {}
         self.lirs: dict[str, ProofUnitIR] = {}
+        self.coverage_by_pkg: dict[str, ProofCoverageReport] = {}
 
         # Discovered info
         self.build_paths: dict[str, Path] = {}
@@ -223,6 +230,7 @@ class DriverRunner:
             dep_metas[dep] = self.metas[dep]
 
         deps_view = DepsView(deps=dep_exports, metas=dep_metas)
+        coverage = ProofCoverage()
         mm = MMBuilderV2(
             interner=self.interner,
             origin_table=self.origin_table,
@@ -238,11 +246,21 @@ class DriverRunner:
             names=self.names,
             cfg=self.cfg,
             log=logger,
+            coverage=coverage,
         )
         mod.build(ctx)
         unit = mm.finish()
 
         symtab = self.interner.symbol_table()
+        coverage_report = build_proof_coverage_report(
+            unit=unit,
+            symtab=symtab,
+            coverage=coverage,
+        )
+        self.coverage_by_pkg[name] = coverage_report
+        if not coverage_report.ok:
+            raise ProofCoverageError(coverage_report)
+
         exports_dict: dict[str, int] = {}
         for sid in unit.exports:
             sym = symtab.get(sid)
@@ -301,6 +319,9 @@ class DriverRunner:
             json.dump(self.names.used_mappings(), f, indent=2, sort_keys=True)
 
         logger.info(f"Generated verification monolith: {outfile} (Map: {mapfile})")
+
+    def coverage_report(self, name: str) -> ProofCoverageReport | None:
+        return self.coverage_by_pkg.get(name)
 
     def _get_transitive_deps(self, root: str) -> list[str]:
         """Return list of dependencies in topological order (deps only)."""

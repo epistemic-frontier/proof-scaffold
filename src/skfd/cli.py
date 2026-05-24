@@ -499,6 +499,21 @@ def _cmd_verify(args: argparse.Namespace) -> int:
                 pkg = root_pkg
         print(f"Verifying package '{pkg}' (Level {level})...")
         runner.verify_package(pkg, conformance_level=level)
+        coverage_report = runner.coverage_report(pkg)
+        if coverage_report is not None:
+            print(coverage_report.render())
+            coverage_mode = getattr(args, "coverage", "emitted")
+            if (
+                coverage_mode == "declared"
+                and coverage_report.has_declarations
+                and not coverage_report.all_declared_emitted
+            ):
+                print(
+                    "Declared proof coverage FAILED: some declared labels were "
+                    "not emitted into the verification monolith.",
+                    file=sys.stderr,
+                )
+                return 1
 
         # Now run configured verifiers
         outfile = target / f"{pkg}_full.mm"
@@ -999,6 +1014,15 @@ def main(argv: list[str] | None = None) -> int:
         default=0,
         choices=[0, 1, 2],
         help="Conformance level (0=Loose, 1=Strict Interface, 2=FOL)",
+    )
+    p_verify.add_argument(
+        "--coverage",
+        choices=["emitted", "declared"],
+        default="emitted",
+        help=(
+            "Coverage policy: 'emitted' verifies only the generated monolith; "
+            "'declared' also requires declared proof-surface labels to be emitted."
+        ),
     )
     p_verify.set_defaults(func=_cmd_verify)
 

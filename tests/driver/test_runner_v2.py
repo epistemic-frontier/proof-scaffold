@@ -2,6 +2,7 @@ from pathlib import Path
 
 import pytest
 from skfd.driver.runner import DriverRunner
+from skfd.proof import ProofCoverageError
 
 
 @pytest.fixture
@@ -84,3 +85,67 @@ def build(ctx: BuildContextV2) -> None:
     assert "ax-1" in mm_text
     assert "th-1" in mm_text
 
+
+def test_runner_records_declared_proof_coverage(workspace) -> None:
+    src, target = workspace
+
+    _create_pkg(
+        src,
+        module="pkg",
+        dist="pkg",
+        deps=[],
+        build_code="""
+from skfd.api_v2 import BuildContextV2
+
+def build(ctx: BuildContextV2) -> None:
+    mm = ctx.mm
+    wff = mm.sym.const("wff")
+    ph = mm.sym.var("ph")
+    mm.auto.floating(ph, tc=wff)
+    th1 = mm.sym.label("th-1")
+    mm.a(th1, tc=wff, expr=[ph])
+    mm.export(th1)
+    ctx.coverage.declare_labels("public", ["missing", "th-1"])
+""",
+    )
+
+    runner = DriverRunner(src, target)
+    runner.execute_all()
+
+    report = runner.coverage_report("pkg")
+    assert report is not None
+    assert report.has_declarations
+    assert report.declared_labels == ("missing", "th-1")
+    assert report.declared_but_unemitted == ("missing",)
+    assert report.ok
+
+
+def test_runner_fails_when_required_declared_labels_are_unemitted(workspace) -> None:
+    src, target = workspace
+
+    _create_pkg(
+        src,
+        module="pkg",
+        dist="pkg",
+        deps=[],
+        build_code="""
+from skfd.api_v2 import BuildContextV2
+
+def build(ctx: BuildContextV2) -> None:
+    mm = ctx.mm
+    wff = mm.sym.const("wff")
+    ph = mm.sym.var("ph")
+    mm.auto.floating(ph, tc=wff)
+    th1 = mm.sym.label("th-1")
+    mm.a(th1, tc=wff, expr=[ph])
+    mm.export(th1)
+    ctx.coverage.declare_labels("public", ["missing", "th-1"])
+    ctx.coverage.require_all_declared_verified()
+""",
+    )
+
+    runner = DriverRunner(src, target)
+    with pytest.raises(ProofCoverageError) as exc_info:
+        runner.execute_all()
+
+    assert "missing required labels: missing" in str(exc_info.value)

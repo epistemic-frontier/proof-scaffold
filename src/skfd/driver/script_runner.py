@@ -18,11 +18,16 @@ from skfd.core.origin import OriginTable
 from skfd.core.symbols import SymbolInterner
 from skfd.linker.api import LinkerV1
 from skfd.names import NameResolver
+from skfd.proof.ir import ProofBuilder
+from skfd.proof.signature import SignatureCache
 from skfd.verifier.aggregate import run_all, summarize
 
 System = Any
 
-def _discover_proof_functions(module: ModuleType) -> list[tuple[str, Callable[..., Any]]]:
+
+def _discover_proof_functions(
+    module: ModuleType,
+) -> list[tuple[str, Callable[..., Any]]]:
     """Find all functions starting with 'prove_' in the module."""
     proofs = []
     for name, obj in inspect.getmembers(module):
@@ -31,6 +36,7 @@ def _discover_proof_functions(module: ModuleType) -> list[tuple[str, Callable[..
     # Sort by line number to run in definition order
     proofs.sort(key=lambda x: x[1].__code__.co_firstlineno)
     return proofs
+
 
 def _get_or_create_system(module: ModuleType) -> Any:
     """
@@ -43,15 +49,17 @@ def _get_or_create_system(module: ModuleType) -> Any:
     # 1. Variable
     if hasattr(module, "system"):
         return module.system
-    if hasattr(module, "sys") and not isinstance(module.sys, ModuleType): # sys module check
+    if hasattr(module, "sys") and not isinstance(
+        module.sys, ModuleType
+    ):  # sys module check
         return module.sys
-        
+
     # 2. Function
     if hasattr(module, "build") and callable(module.build):
         return module.build()
     if hasattr(module, "get_system") and callable(module.get_system):
         return module.get_system()
-        
+
     # 3. Fallback
     try:
         mod = importlib.import_module("logic.propositional.hilbert")
@@ -66,6 +74,7 @@ def _get_or_create_system(module: ModuleType) -> Any:
             "Please ensure PYTHONPATH includes the logic package or define 'sys' in your script."
         ) from err
 
+
 def verify_script(script_path: Path, project_root: Path | None = None) -> int:
     """
     Load a script, run proof functions, and verify results.
@@ -74,31 +83,43 @@ def verify_script(script_path: Path, project_root: Path | None = None) -> int:
     if spec is None or spec.loader is None:
         print(f"Error: Could not load script {script_path}", file=sys.stderr)
         return 1
-        
+
     module = importlib.util.module_from_spec(spec)
     sys.modules["user_script"] = module
-    
+
     try:
         spec.loader.exec_module(module)
     except Exception as e:
         print(f"Error executing script {script_path}: {e}", file=sys.stderr)
         return 1
-        
+
     # Discover proofs
     proof_funcs = _discover_proof_functions(module)
     if not proof_funcs:
         print(f"No 'prove_*' functions found in {script_path}")
         return 0
-        
+
     print(f"Found {len(proof_funcs)} proof(s): {', '.join(n for n, _ in proof_funcs)}")
-    
+
     # Setup System
     try:
         hs = _get_or_create_system(module)
     except Exception as e:
         print(f"Error initializing system: {e}", file=sys.stderr)
         return 1
-        
+
+    # ── Preload signature cache ──
+    sig_cache = SignatureCache()
+    try:
+        mod = importlib.import_module("logic.propositional.hilbert.theorems")
+        catalog = getattr(mod, "SETMM_TO_HILBERT_LEMMAS", {})
+        if catalog:
+            sig_cache.preload(catalog, hs)
+            ProofBuilder._default_signature_cache = sig_cache
+            print(f"Preloaded {len(sig_cache)} lemma signatures into cache")
+    except Exception:
+        pass  # Catalog not available; auto-matching disabled
+
     # Run Proofs
     proofs = []
     for name, func in proof_funcs:
@@ -110,7 +131,7 @@ def verify_script(script_path: Path, project_root: Path | None = None) -> int:
                 p = func(hs)
             else:
                 p = func()
-            
+
             if p:
                 proofs.append(p)
                 print(f"OK ({p.name})")
@@ -120,16 +141,16 @@ def verify_script(script_path: Path, project_root: Path | None = None) -> int:
             print("FAIL")
             print(f"Error in {name}: {e}", file=sys.stderr)
             return 1
-            
+
     if not proofs:
         print("No proof objects returned to verify.")
         return 1
-        
+
     root_dir = project_root or Path.cwd()
     target_dir = root_dir / "target"
     target_dir.mkdir(parents=True, exist_ok=True)
     mm_path = target_dir / f"{script_path.stem}_script.mm"
-        
+
     try:
         print(f"Emitting {len(proofs)} proofs to Metamath...", end=" ", flush=True)
         origin_table = OriginTable()
@@ -145,6 +166,7 @@ def verify_script(script_path: Path, project_root: Path | None = None) -> int:
         wff_tc = mm.sym.const("wff")
 
         emit_axioms(mm, hs)
+
         def _emit_rule_skeleton() -> None:
             axioms = hs.compile_axioms()
             if "mp" in axioms:
@@ -234,29 +256,30 @@ def verify_script(script_path: Path, project_root: Path | None = None) -> int:
         )
         mm_path.write_text(res.mm_text, encoding="utf-8")
         print("OK")
-        
+
         # Run Verifiers
         cfg = load_config(root_dir)
         active_cmds = cfg.get_active_commands()
         if not active_cmds:
             print("Warning: No active verifiers configured.")
-            
+
         results = run_all(mm_path, active_cmds)
-        print("\n" + "="*20 + " VERIFICATION SUMMARY " + "="*20)
+        print("\n" + "=" * 20 + " VERIFICATION SUMMARY " + "=" * 20)
         print(summarize(results))
-        
+
         failed = any(not r.passed for r in results)
         if failed:
             for r in results:
                 if not r.passed:
                     print(f"\n❌ {r.name} FAILED:\n{r.output.strip()}")
             return 1
-            
+
         return 0
-        
+
     except Exception as e:
         print(f"\nVerification process failed: {e}", file=sys.stderr)
         import traceback
+
         traceback.print_exc()
         return 1
     finally:

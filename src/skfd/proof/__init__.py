@@ -7,6 +7,7 @@ from .coverage import (
     build_proof_coverage_report,
 )
 from .ir import Proof, ProofBuilder, Step
+from .signature import LemmaSignature, SignatureCache, extract_signature
 from .validate import (
     ProofConstructor,
     ProofLike,
@@ -21,6 +22,7 @@ from .validate import (
 
 __all__ = [
     "HasTactics",
+    "LemmaSignature",
     "Proof",
     "ProofCoverage",
     "ProofCoverageDeclaration",
@@ -32,6 +34,7 @@ __all__ = [
     "ProofRegistryIssue",
     "ProofRegistryValidationError",
     "ProofRegistryValidationResult",
+    "SignatureCache",
     "Step",
     "StepLike",
     "SystemCore",
@@ -39,6 +42,7 @@ __all__ = [
     "TacticRegistry",
     "assert_valid_proof_registry",
     "build_proof_coverage_report",
+    "extract_signature",
     "format_proof_registry_issues",
     "validate_proof_registry",
 ]

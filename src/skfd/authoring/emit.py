@@ -11,14 +11,24 @@ from skfd.core.symbols import SymbolInterner
 
 from .formula import Wff
 
+# ── Reusable unification logic ────────────────────────────────
+from skfd.proof.unify import (
+    UnifyCtx,
+    _Ast,
+    _Atom,
+    parse as _parse_raw,
+    unify as _unify_raw,
+    to_tokens as _to_tokens_raw,
+    apply_subst as _apply_subst_raw,
+    split_binary,
+)
+
 
 class AxiomProvider(Protocol):
     @property
-    def interner(self) -> SymbolInterner:
-        ...
+    def interner(self) -> SymbolInterner: ...
 
-    def compile_axioms(self) -> Mapping[str, Wff]:
-        ...
+    def compile_axioms(self) -> Mapping[str, Wff]: ...
 
 
 def emit_axioms(
@@ -49,22 +59,18 @@ def emit_axioms(
 
 class LemmaStepLike(Protocol):
     @property
-    def wff(self) -> Wff:
-        ...
+    def wff(self) -> Wff: ...
 
 
 class LemmaLike(Protocol):
     @property
-    def name(self) -> str:
-        ...
+    def name(self) -> str: ...
 
     @property
-    def statement(self) -> Wff:
-        ...
+    def statement(self) -> Wff: ...
 
     @property
-    def steps(self) -> Sequence[LemmaStepLike]:
-        ...
+    def steps(self) -> Sequence[LemmaStepLike]: ...
 
 
 def emit_lemmas(
@@ -87,7 +93,12 @@ def emit_lemmas(
     if lemmas:
         steps0 = getattr(lemmas[0], "steps", ())
         if steps0 and getattr(steps0[0], "op", None) is not None:
-            emit_lowered_lemmas(mm, provider, cast(Sequence[LoweredLemmaLike], lemmas), typecode=typecode)
+            emit_lowered_lemmas(
+                mm,
+                provider,
+                cast(Sequence[LoweredLemmaLike], lemmas),
+                typecode=typecode,
+            )
             return
 
     tc = typecode if isinstance(typecode, int) else mm.sym.const(typecode)
@@ -97,26 +108,21 @@ def emit_lemmas(
 
 class LoweredStepLike(LemmaStepLike, Protocol):
     @property
-    def label(self) -> str:
-        ...
+    def label(self) -> str: ...
 
     @property
-    def op(self) -> str:
-        ...
+    def op(self) -> str: ...
 
     @property
-    def args(self) -> Sequence[str]:
-        ...
+    def args(self) -> Sequence[str]: ...
 
     @property
-    def ref(self) -> str | None:
-        ...
+    def ref(self) -> str | None: ...
 
 
 class LoweredLemmaLike(LemmaLike, Protocol):
     @property
-    def steps(self) -> Sequence[LoweredStepLike]:
-        ...
+    def steps(self) -> Sequence[LoweredStepLike]: ...
 
 
 def emit_lowered_lemmas(
@@ -143,7 +149,9 @@ def emit_lowered_lemmas(
         )
 
     theorem_tc = typecode if isinstance(typecode, int) else mm.sym.const(typecode)
-    wff_tc = wff_typecode if isinstance(wff_typecode, int) else mm.sym.const(wff_typecode)
+    wff_tc = (
+        wff_typecode if isinstance(wff_typecode, int) else mm.sym.const(wff_typecode)
+    )
 
     def v2_resolve_label(name: str) -> SymbolId:
         if label_ids is not None:
@@ -189,6 +197,14 @@ def emit_lowered_lemmas(
     stmt_by_label.setdefault("wn", (b2.neg, ph_tpl))
     stmt_by_label.setdefault("wa", (lp, ph_tpl, b2.and_, ps_tpl, rp))
     symtab = provider.interner.symbol_table()
+    uctx = UnifyCtx(
+        symtab=symtab,
+        neg=b2.neg,
+        imp=b2.imp,
+        and_=b2.and_,
+        lp=lp,
+        rp=rp,
+    )
 
     def floating_var_order() -> list[SymbolId]:
         if floating_by_var is not None:
@@ -216,8 +232,12 @@ def emit_lowered_lemmas(
     ) -> list[tuple[int, ...]]:
         order = floating_var_order()
         names = {var: symtab[var].local_name for var in order if var in symtab}
-        ph_idx = next((i for i, var in enumerate(order) if names.get(var) == "ph"), None)
-        ps_idx = next((i for i, var in enumerate(order) if names.get(var) == "ps"), None)
+        ph_idx = next(
+            (i for i, var in enumerate(order) if names.get(var) == "ph"), None
+        )
+        ps_idx = next(
+            (i for i, var in enumerate(order) if names.get(var) == "ps"), None
+        )
         if ph_idx is not None and ps_idx is not None and ps_idx < ph_idx:
             return [ps_subst, ph_subst]
         return [ph_subst, ps_subst]
@@ -225,29 +245,7 @@ def emit_lowered_lemmas(
     def v2_split_binary(
         tokens: Sequence[int], op_token: int, *, lp: int, rp: int
     ) -> tuple[tuple[int, ...], tuple[int, ...]] | None:
-        toks = tuple(tokens)
-        if len(toks) < 5 or toks[0] != lp or toks[-1] != rp:
-            return None
-        inner = toks[1:-1]
-        depth = 0
-        split_at: int | None = None
-        for i, t in enumerate(inner):
-            if t == lp:
-                depth += 1
-            elif t == rp:
-                depth -= 1
-                if depth < 0:
-                    return None
-            elif t == op_token and depth == 0:
-                split_at = i
-                break
-        if depth != 0 or split_at is None:
-            return None
-        left = inner[:split_at]
-        right = inner[split_at + 1 :]
-        if not left or not right:
-            return None
-        return tuple(left), tuple(right)
+        return split_binary(tokens, op_token, lp=lp, rp=rp)
 
     def v2_wff_proof(tokens: Sequence[int]) -> list[SymbolId]:
         toks = tuple(tokens)
@@ -298,108 +296,20 @@ def emit_lowered_lemmas(
 
         raise ValueError(f"wff proof: unsupported token shape (len={len(toks)})")
 
-    class _Ast:
-        __slots__ = ()
-
-    class _Atom(_Ast):
-        __slots__ = ("tok",)
-
-        def __init__(self, tok: int) -> None:
-            self.tok = tok
-
-        def __eq__(self, other: object) -> bool:
-            return isinstance(other, _Atom) and self.tok == other.tok
-
-    class _Not(_Ast):
-        __slots__ = ("x",)
-
-        def __init__(self, x: _Ast) -> None:
-            self.x = x
-
-        def __eq__(self, other: object) -> bool:
-            return isinstance(other, _Not) and self.x == other.x
-
-    class _Bin(_Ast):
-        __slots__ = ("op", "l", "r")
-
-        def __init__(self, op: int, left: _Ast, right: _Ast) -> None:
-            self.op = op
-            self.l = left
-            self.r = right
-
-        def __eq__(self, other: object) -> bool:
-            return (
-                isinstance(other, _Bin)
-                and self.op == other.op
-                and self.l == other.l
-                and self.r == other.r
-            )
+    # ── Thin wrappers delegating to skfd.proof.unify ──
+    # AST classes (_Ast, _Atom, _Not, _Bin) are imported above.
 
     def _parse(tokens: Sequence[int]) -> _Ast:
-        toks = tuple(tokens)
-        if not toks:
-            raise ValueError("parse: empty tokens")
-        if len(toks) == 1:
-            return _Atom(toks[0])
-        if toks[0] == b2.neg:
-            return _Not(_parse(toks[1:]))
-        imp_parts = v2_split_binary(toks, b2.imp, lp=lp, rp=rp)
-        if imp_parts is not None:
-            left, right = imp_parts
-            return _Bin(b2.imp, _parse(left), _parse(right))
-        and_parts = v2_split_binary(toks, b2.and_, lp=lp, rp=rp)
-        if and_parts is not None:
-            left, right = and_parts
-            return _Bin(b2.and_, _parse(left), _parse(right))
-        raise ValueError("parse: unsupported token shape")
+        return _parse_raw(uctx, tokens)
 
     def _to_tokens(ast: _Ast) -> tuple[int, ...]:
-        if isinstance(ast, _Atom):
-            return (ast.tok,)
-        if isinstance(ast, _Not):
-            return (b2.neg, *_to_tokens(ast.x))
-        if isinstance(ast, _Bin):
-            if ast.op == b2.imp:
-                return (lp, *_to_tokens(ast.l), b2.imp, *_to_tokens(ast.r), rp)
-            if ast.op == b2.and_:
-                return (lp, *_to_tokens(ast.l), b2.and_, *_to_tokens(ast.r), rp)
-        raise ValueError("to_tokens: unsupported ast")
+        return _to_tokens_raw(uctx, ast)
 
     def _apply_subst(ast: _Ast, subst: Mapping[int, _Ast]) -> _Ast:
-        if isinstance(ast, _Atom) and symtab[ast.tok].kind == "Var":
-            return subst.get(ast.tok, ast)
-        if isinstance(ast, _Not):
-            return _Not(_apply_subst(ast.x, subst))
-        if isinstance(ast, _Bin):
-            return _Bin(ast.op, _apply_subst(ast.l, subst), _apply_subst(ast.r, subst))
-        return ast
+        return _apply_subst_raw(uctx, ast, subst)
 
     def _unify(template: _Ast, target: _Ast, subst: dict[int, _Ast]) -> None:
-        if isinstance(template, _Atom) and symtab[template.tok].kind == "Var":
-            existing = subst.get(template.tok)
-            if existing is None:
-                subst[template.tok] = target
-                return
-            if existing != target:
-                raise ValueError("unify: inconsistent substitution")
-            return
-        if type(template) is not type(target):
-            raise ValueError("unify: node kind mismatch")
-        if isinstance(template, _Atom):
-            if template.tok != cast(_Atom, target).tok:
-                raise ValueError("unify: atom mismatch")
-            return
-        if isinstance(template, _Not):
-            _unify(template.x, cast(_Not, target).x, subst)
-            return
-        if isinstance(template, _Bin):
-            t = cast(_Bin, target)
-            if template.op != t.op:
-                raise ValueError("unify: op mismatch")
-            _unify(template.l, t.l, subst)
-            _unify(template.r, t.r, subst)
-            return
-        raise ValueError("unify: unsupported ast")
+        _unify_raw(uctx, template, target, subst)
 
     def v2_emit_step(
         label: str, *, visiting: set[str], steps: Mapping[str, LoweredStepLike]
@@ -444,7 +354,9 @@ def emit_lowered_lemmas(
                         raise ValueError(
                             f"step {label!r}: ref to {step.ref!r} expects {len(hyp_templates)} hyp args, got {len(step.args)}"
                         )
-                    for arg_label, hyp_toks in zip(step.args, hyp_templates, strict=True):
+                    for arg_label, hyp_toks in zip(
+                        step.args, hyp_templates, strict=True
+                    ):
                         arg_step = steps.get(arg_label)
                         if arg_step is None:
                             raise ValueError(
@@ -461,13 +373,17 @@ def emit_lowered_lemmas(
                         f"step {label!r}: ref to {step.ref!r} requires {len(hyp_templates)} hyp arg(s)"
                     )
 
-                mandatory_vars = mandatory_vars_for_templates((tmpl_tokens, *hyp_templates))
+                mandatory_vars = mandatory_vars_for_templates(
+                    (tmpl_tokens, *hyp_templates)
+                )
                 proof: list[SymbolId] = []
                 for v in mandatory_vars:
                     proof.extend(v2_wff_proof(_to_tokens(subst.get(v, _Atom(v)))))
 
                 if step.args:
-                    for arg_label, hyp_toks in zip(step.args, hyp_templates, strict=True):
+                    for arg_label, hyp_toks in zip(
+                        step.args, hyp_templates, strict=True
+                    ):
                         instantiated = _to_tokens(_apply_subst(_parse(hyp_toks), subst))
                         arg_step = steps.get(arg_label)
                         if arg_step is None:
@@ -478,7 +394,9 @@ def emit_lowered_lemmas(
                             raise ValueError(
                                 f"step {label!r}: ref hyp mismatch for {step.ref!r}"
                             )
-                        proof.extend(v2_emit_step(arg_label, visiting=visiting, steps=steps))
+                        proof.extend(
+                            v2_emit_step(arg_label, visiting=visiting, steps=steps)
+                        )
 
                 proof.append(v2_resolve_label(step.ref))
                 return proof
@@ -493,14 +411,20 @@ def emit_lowered_lemmas(
                         )
 
                 if len(step.args) != 2:
-                    raise ValueError(f"step {label!r}: mp expects 2 args, got {len(step.args)}")
+                    raise ValueError(
+                        f"step {label!r}: mp expects 2 args, got {len(step.args)}"
+                    )
                 maj, minor = step.args[0], step.args[1]
                 maj_step = steps.get(maj)
                 minor_step = steps.get(minor)
                 if maj_step is None or minor_step is None:
-                    raise ValueError(f"step {label!r}: mp args must reference prior steps")
+                    raise ValueError(
+                        f"step {label!r}: mp args must reference prior steps"
+                    )
 
-                minor_parts = v2_split_binary(minor_step.wff.tokens, imp_tok, lp=lp, rp=rp)
+                minor_parts = v2_split_binary(
+                    minor_step.wff.tokens, imp_tok, lp=lp, rp=rp
+                )
                 if minor_parts is None:
                     raise ValueError(f"step {label!r}: mp minor is not an implication")
                 antecedent, consequent = minor_parts
@@ -610,7 +534,9 @@ def emit_lowered_lemmas(
             mm.a(mm.sym.label(lemma.name), tc=theorem_tc, expr=lemma.statement.tokens)
             continue
         with mm.block():
-            step_by_label_v2: dict[str, LoweredStepLike] = {s.label: s for s in lemma.steps}
+            step_by_label_v2: dict[str, LoweredStepLike] = {
+                s.label: s for s in lemma.steps
+            }
 
             vars_needed: set[SymbolId] = set(mm.auto.vars_in(lemma.statement.tokens))
             for step in lemma.steps:

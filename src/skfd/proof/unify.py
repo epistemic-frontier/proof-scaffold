@@ -80,7 +80,7 @@ class _Bin(_Ast):
 class UnifyCtx:
     """Bundle of token ids needed for parsing and unification."""
 
-    __slots__ = ("symtab", "neg", "imp", "and_", "lp", "rp")
+    __slots__ = ("symtab", "neg", "imp", "and_", "lp", "rp", "binops")
 
     def __init__(
         self,
@@ -90,6 +90,7 @@ class UnifyCtx:
         and_: int,
         lp: int,
         rp: int,
+        binops: Sequence[int] | None = None,
     ) -> None:
         self.symtab = symtab
         self.neg = neg
@@ -97,6 +98,15 @@ class UnifyCtx:
         self.and_ = and_
         self.lp = lp
         self.rp = rp
+        # Infix binary operators recognised by the parser, in the order they
+        # are tried. Because every compound wff is fully parenthesised as
+        # ``( left OP right )`` there is exactly one depth-0 operator, so the
+        # order only affects which candidate matches first. Defaults to the
+        # historical ``imp``/``and_`` pair; callers may pass extra connectives
+        # (e.g. disjunction) that their logic exposes.
+        self.binops: tuple[int, ...] = (
+            tuple(binops) if binops is not None else (imp, and_)
+        )
 
 
 # ── Binary split ───────────────────────────────────────────
@@ -143,14 +153,11 @@ def parse(ctx: UnifyCtx, tokens: Sequence[int]) -> _Ast:
         return _Atom(toks[0])
     if toks[0] == ctx.neg:
         return _Not(parse(ctx, toks[1:]))
-    imp_parts = split_binary(toks, ctx.imp, lp=ctx.lp, rp=ctx.rp)
-    if imp_parts is not None:
-        left, right = imp_parts
-        return _Bin(ctx.imp, parse(ctx, left), parse(ctx, right))
-    and_parts = split_binary(toks, ctx.and_, lp=ctx.lp, rp=ctx.rp)
-    if and_parts is not None:
-        left, right = and_parts
-        return _Bin(ctx.and_, parse(ctx, left), parse(ctx, right))
+    for op in ctx.binops:
+        parts = split_binary(toks, op, lp=ctx.lp, rp=ctx.rp)
+        if parts is not None:
+            left, right = parts
+            return _Bin(op, parse(ctx, left), parse(ctx, right))
     raise ValueError("parse: unsupported token shape")
 
 
@@ -164,22 +171,13 @@ def to_tokens(ctx: UnifyCtx, ast: _Ast) -> tuple[int, ...]:
     if isinstance(ast, _Not):
         return (ctx.neg, *to_tokens(ctx, ast.x))
     if isinstance(ast, _Bin):
-        if ast.op == ctx.imp:
-            return (
-                ctx.lp,
-                *to_tokens(ctx, ast.l),
-                ctx.imp,
-                *to_tokens(ctx, ast.r),
-                ctx.rp,
-            )
-        if ast.op == ctx.and_:
-            return (
-                ctx.lp,
-                *to_tokens(ctx, ast.l),
-                ctx.and_,
-                *to_tokens(ctx, ast.r),
-                ctx.rp,
-            )
+        return (
+            ctx.lp,
+            *to_tokens(ctx, ast.l),
+            ast.op,
+            *to_tokens(ctx, ast.r),
+            ctx.rp,
+        )
     raise ValueError("to_tokens: unsupported ast")
 
 

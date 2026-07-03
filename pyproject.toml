@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "proof-scaffold"
-version = "0.0.6"
+version = "0.0.7"
 description = "A layered, sanity-checked scaffold for building modular Metamath artifacts."
 readme = "README.md"
 license = "GPL-2.0-only"

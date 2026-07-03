@@ -193,9 +193,29 @@ def emit_lowered_lemmas(
         kind="Var",
         origin_ref=0,
     )
+    # Optional connectives/constants that a logic may expose beyond the
+    # implicational core (¬, →, ∧). Absent attributes simply stay unsupported.
+    or_tok = getattr(b2, "or_", None)
+    tru_tok = getattr(b2, "tru", None)
+    fal_tok = getattr(b2, "fal", None)
+
+    # Infix binary operator token -> syntax-axiom label used to build wff
+    # construction proofs.
+    binop_label: dict[int, str] = {b2.imp: "wi", b2.and_: "wa"}
+    if or_tok is not None:
+        binop_label[or_tok] = "wo"
+    # Nullary constant token -> syntax-axiom label (e.g. verum/falsum).
+    nullary_label: dict[int, str] = {}
+    if tru_tok is not None:
+        nullary_label[tru_tok] = "wtru"
+    if fal_tok is not None:
+        nullary_label[fal_tok] = "wfal"
+
     stmt_by_label.setdefault("wi", (lp, ph_tpl, b2.imp, ps_tpl, rp))
     stmt_by_label.setdefault("wn", (b2.neg, ph_tpl))
     stmt_by_label.setdefault("wa", (lp, ph_tpl, b2.and_, ps_tpl, rp))
+    if or_tok is not None:
+        stmt_by_label.setdefault("wo", (lp, ph_tpl, or_tok, ps_tpl, rp))
     symtab = provider.interner.symbol_table()
     uctx = UnifyCtx(
         symtab=symtab,
@@ -204,6 +224,7 @@ def emit_lowered_lemmas(
         and_=b2.and_,
         lp=lp,
         rp=rp,
+        binops=list(binop_label),
     )
 
     def floating_var_order() -> list[SymbolId]:
@@ -273,26 +294,21 @@ def emit_lowered_lemmas(
                 return [f]
             return [mm.auto.floating(toks[0], tc=wff_tc)]
 
+        if len(toks) == 1 and toks[0] in nullary_label:
+            return [v2_resolve_label(nullary_label[toks[0]])]
+
         if toks[0] == b2.neg:
             return [*v2_wff_proof(toks[1:]), v2_resolve_label("wn")]
 
-        imp_parts = v2_split_binary(toks, b2.imp, lp=b2.lp, rp=b2.rp)
-        if imp_parts is not None:
-            left, right = imp_parts
-            imp_proof: list[SymbolId] = []
-            for subst_tokens in ph_ps_mandatory_substs(left, right):
-                imp_proof.extend(v2_wff_proof(subst_tokens))
-            imp_proof.append(v2_resolve_label("wi"))
-            return imp_proof
-
-        and_parts = v2_split_binary(toks, b2.and_, lp=b2.lp, rp=b2.rp)
-        if and_parts is not None:
-            left, right = and_parts
-            and_proof: list[SymbolId] = []
-            for subst_tokens in ph_ps_mandatory_substs(left, right):
-                and_proof.extend(v2_wff_proof(subst_tokens))
-            and_proof.append(v2_resolve_label("wa"))
-            return and_proof
+        for op, label in binop_label.items():
+            parts = v2_split_binary(toks, op, lp=b2.lp, rp=b2.rp)
+            if parts is not None:
+                left, right = parts
+                bin_proof: list[SymbolId] = []
+                for subst_tokens in ph_ps_mandatory_substs(left, right):
+                    bin_proof.extend(v2_wff_proof(subst_tokens))
+                bin_proof.append(v2_resolve_label(label))
+                return bin_proof
 
         raise ValueError(f"wff proof: unsupported token shape (len={len(toks)})")
 

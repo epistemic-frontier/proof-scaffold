@@ -62,6 +62,10 @@ class ProofBuilder:
             from skfd.proof.unify import UnifyCtx
 
             symtab = self.sys.interner.symbol_table()
+            binops = [b.imp, b.and_]
+            or_ = getattr(b, "or_", None)
+            if or_ is not None:
+                binops.append(or_)
             self._unify_ctx = UnifyCtx(
                 symtab=symtab,
                 neg=b.neg,
@@ -69,6 +73,7 @@ class ProofBuilder:
                 and_=b.and_,
                 lp=b.lp,
                 rp=b.rp,
+                binops=binops,
             )
 
     def _remember(self, label: str, stmt: Wff) -> None:

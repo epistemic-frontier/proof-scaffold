@@ -41,18 +41,19 @@ Related references:
 - Deleting legacy script mode in this project.
 - Migrating all future predicate/set-theory content.
 
-## Current State
+## Implemented State
 
 - `metamath-prelude` currently exports foundation vocabulary and global `$f`
   labels, and `metamath-logic` uses them.
-- `metamath-prelude` also currently contains `wo`, `wtru`, `wfal`, `idi`, and
-  `a1ii`, which are ordinary propositional-logic content.
-- `ExportsView` is a flat `Mapping[str, SymbolId]`; it does not expose export
-  class to authors or linker diagnostics.
-- Link Model v4 says cross-unit `$f/$e` references are forbidden, but the
-  practical standard stack needs a controlled exception for foundation-owned
-  `$f`.
-- Some templates and examples still describe pre-BuilderV2 entrypoints.
+- `metamath-prelude` now contains only the foundation slice: base typecodes,
+  primitive constants, schema variables, global `$f` labels, `wn`, and `wi`.
+- `metamath-logic` now owns `wo`, `wtru`, `wfal`, `idi`, and `a1ii`.
+- `ExportsView` remains a flat `Mapping[str, SymbolId]`, while the linker
+  classifies exports internally as vocabulary, foundation hypothesis, assertion,
+  or internal hypothesis.
+- Link Model v4 is now foundation-aware: ordinary `$f/$e` references remain
+  forbidden cross-unit, while exported foundation-owned `$f` labels are ambient.
+- Templates and primary user-facing docs now teach `build(ctx)` / BuilderV2.
 
 ## Target Shape
 

@@ -1,6 +1,6 @@
 # Foundation Scope v1
 
-> Status: Draft, accepted direction for the next refactor round.
+> Status: Implemented direction for the current prelude/logic refactor slice.
 >
 > Scope: package roles, dependency export semantics, and linker handling for the
 > global Metamath foundation frame.
@@ -33,12 +33,13 @@ The current implementation already behaves like a global foundation system:
 - the emitted monolith leaves prelude declarations and floating hypotheses in a
   global frame;
 - later proofs can use prelude `$f` labels such as `wph` and `wps`;
-- Stage 1 currently treats all exported labels uniformly, which obscures the
-  difference between exported assertions and ambient foundation hypotheses.
+- Stage 1 now has to preserve the difference between exported assertions,
+  exported foundation hypotheses, and ordinary internal hypotheses.
 
-This document turns that implicit behavior into an explicit contract so the
-prelude/logic split can be refactored without changing the Metamath verifier
-semantics or weakening ProofScaffold's package boundaries.
+This document turns that implicit behavior into an explicit contract. The
+current implementation follows this contract for the `metamath-prelude` /
+`metamath-logic` stack without changing the Metamath verifier semantics or
+weakening ProofScaffold's ordinary package boundaries.
 
 ---
 
@@ -52,6 +53,8 @@ semantics or weakening ProofScaffold's package boundaries.
   project-specific results.
 - **Foundation Frame**: the top-level Metamath scope emitted by the foundation
   unit.
+- **Foundation Symbol Namespace**: the canonical interner namespace used for
+  builtin foundation vocabulary. The standard namespace id is `__prelude__`.
 - **Ambient Hypothesis**: a foundation-owned `$f` label that remains available
   in later statements because it lives in the foundation frame.
 - **Vocabulary Export**: an exported `Const` or `Var` symbol used for authoring
@@ -91,6 +94,17 @@ SymbolId-level formulas, but a vocabulary export is not a proof reference.
 **F8. `.mm` stays canonical.** The linked monolith remains ASCII canonical.
 Unicode is an authoring/display concern handled before emission.
 
+**F9. Foundation symbol ids are canonical.** Builtin foundation vocabulary is
+interned in the foundation symbol namespace so independent packages refer to the
+same `SymbolId`s for `(`, `)`, `-.`, `->`, `wff`, `|-`, schema variables, and
+other reserved token names.
+
+**F10. Namespace sharing is not dependency bypass.** `Builtins.ensure(...)` may
+intern canonical foundation vocabulary, but proof dependencies still go through
+the export/access-control rules above. In particular, ordinary package labels
+must not be discovered through the namespace; they must be imported through
+`ctx.deps` and pass linker export checks.
+
 ---
 
 ## 4. Standard Package Boundary
@@ -119,8 +133,7 @@ logic is authored and verified.
 - later derived theorems, registries, and catalogues.
 
 `wo`, `wtru`, and `wfal` are not foundation mechanics. They are ordinary syntax
-extensions over the foundation frame and should move from `metamath-prelude` to
-`metamath-logic`.
+extensions over the foundation frame and now live in `metamath-logic`.
 
 `idi` and `a1ii` are also not foundation mechanics. They use local essential
 hypotheses and should live in `metamath-logic`, unless a separate compatibility
@@ -147,11 +160,38 @@ This classification can be implemented without changing the authoring-facing
 `ctx.deps[...]` shape in the first refactor slice. A later API may expose a
 structured export object if it removes ambiguity.
 
+## 6. Foundation Symbol Namespace
+
+`metamath-prelude` owns the canonical foundation symbol namespace. The current
+standard id is:
+
+```python
+GLOBAL_PRELUDE_MODULE_ID = "__prelude__"
+```
+
+`prelude.formula.Builtins.ensure(interner, ...)` interns builtin constants in
+that namespace by default. This is intentional. It gives downstream packages a
+stable token identity for authoring and compilation bridges that need to
+construct formulas before reading every token from `ctx.deps`.
+
+Rules:
+
+- `Builtins.ensure(...)` is allowed only for canonical foundation vocabulary.
+- It must not be used to create or discover ordinary package theorem labels.
+- Downstream packages should still read exported foundation vocabulary and
+  foundation `$f` labels from `ctx.deps["metamath-prelude"]` when those symbols
+  are part of the package contract.
+- Reusing the namespace creates stable `SymbolId`s; it does not emit anything by
+  itself. Emitted `.mm` content still comes from the unit LIR and the linker.
+- If a caller overrides `origin_module_id`, it is intentionally creating a
+  distinct token namespace and must not expect those ids to match the standard
+  foundation frame.
+
 ---
 
-## 6. Linker Behavior
+## 7. Linker Behavior
 
-### 6.1 Discovery and metadata
+### 7.1 Discovery and metadata
 
 The driver should identify package kind before linking:
 
@@ -159,10 +199,10 @@ The driver should identify package kind before linking:
 - `library`;
 - `application`.
 
-Short-term detection may special-case `metamath-prelude`. Long-term package kind
-should be declared in package metadata or ProofScaffold config.
+Current detection special-cases `metamath-prelude` as `foundation`. Long-term
+package kind should be declared in package metadata or ProofScaffold config.
 
-### 6.2 Stage 1 access control
+### 7.2 Stage 1 access control
 
 Stage 1 should enforce:
 
@@ -174,7 +214,7 @@ Stage 1 should enforce:
 - diagnostics should distinguish "not exported", "hypothesis leakage", and
   "wrong export class".
 
-### 6.3 Stage 5 scope emission
+### 7.3 Stage 5 scope emission
 
 Foundation scope emission is intentionally different from ordinary unit scope
 emission:
@@ -187,7 +227,7 @@ emission:
 
 ---
 
-## 7. Builder and Authoring Behavior
+## 8. Builder and Authoring Behavior
 
 BuilderV2 remains responsible for constructing well-scoped LIR from SymbolIds.
 Foundation scope does not make the builder a Metamath verifier.
@@ -204,26 +244,25 @@ Authoring rules:
 
 ---
 
-## 8. Migration Notes
+## 9. Migration Notes
 
-The next refactor should perform these package moves:
+The current refactor performed these package moves:
 
 1. Keep `wff`, `|-`, `(`, `)`, `-.`, `->`, schema variables, global `$f`,
    `wn`, and `wi` in `metamath-prelude`.
 2. Move `wo`, `wtru`, and `wfal` to `metamath-logic`.
 3. Move `idi` and `a1ii` to `metamath-logic`.
-4. Update tests/goldens so downstream references still verify through the
+4. Updated tests/goldens so downstream references still verify through the
    transient monolith.
-5. Update package docs so `metamath-prelude` is documented as foundation, not as
-   a broad propositional-logic library.
+5. Updated package docs so `metamath-prelude` is documented as foundation, not
+   as a broad propositional-logic library.
 
 ---
 
-## 9. Open Questions
+## 10. Open Questions
 
 1. Where should package kind be declared: `pyproject.toml`, `.skfd`, or a small
-   `proof_scaffold.toml` package manifest?
-2. Should structured exports become public in BuilderV2 v1, or stay an internal
+   `proof_scaffold.toml` package manifest? The current implementation infers
+   `metamath-prelude`.
+2. Should structured exports become public in a future BuilderV2 revision, or stay an internal
    linker index until the next API revision?
-3. Should ordinary unit scope wrapping become mandatory in Stage 5 immediately,
-   or first land as a strict-mode diagnostic?

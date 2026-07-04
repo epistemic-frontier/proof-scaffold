@@ -50,31 +50,7 @@ def run(units: list[ProofUnitIR], symtab: Mapping[SymbolId, SymbolDef]) -> Linea
     for u in units:
         current_stmts: list[object] = []
 
-        # We wrap each unit in a conceptual frame if it has content?
-        # Actually Link Model v4 says: "emit ${ ... emit unit ... $}"
-        # But wait, LIR Stmts include ScopeEnter/ScopeExit?
-        # If LIR already has explicit scoping, we might just follow it.
-        # But usually we wrap the whole unit to isolate its local hyps.
-        # Let's verify existing practice.
-        # Existing emit_mm loop just iterates stmts.
-        # But units are usually independent.
-        # Let's inspect LIR behavior in `emit_mm`:
-        # It iterates units, and for each unit iterates statements.
-        # If the unit has ScopeEnter/Exit internally, they are emitted.
-        # But `emit_mm` didn't wrap the unit itself in `${ $}` automatically?
-        # Let's check `emit_mm` again.
-
-        # Checking memory of emit_mm...
-        # It did NOT wrap units automatically. It trusted LIR.
-        # However, for robust linking, usually we want to isolate units.
-        # But if LIR *is* the trusted IR, maybe we shouldn't add scopes that aren't there.
-        # Let's stick to LIR fidelity for now: "What you see is what you get".
-
         for st in u.lir_stmts:
-            # Preamble comments?
-            # If we want to hoist them, we can. But usually they stay in place.
-            # Sticking to LIR order for body.
-
             if isinstance(st, ConstDecl):
                 used_ids.update(st.tokens)
                 # Do NOT add to body
@@ -112,13 +88,9 @@ def run(units: list[ProofUnitIR], symtab: Mapping[SymbolId, SymbolDef]) -> Linea
             elif isinstance(st, Comment):
                 current_stmts.append(st)
 
-        # We gather this unit's stream into one "Frame" for simplicity,
-        # but "ScopeFrame" implies `${` and `$}`.
-        # If we aren't enforcing wrapping, we just append to a flat list?
-        # LinearPlan.frames should probably be `list[LIRStmt]` or `list[Block]`.
-        # Let's refine LinearPlan: `body_stmts: list[object]`.
-        # Because we flattened the units.
-
+        # Foundation statements remain top-level so foundation-owned `$f` labels
+        # stay ambient. Ordinary units receive an outer frame so local `$f/$e`
+        # labels cannot leak into downstream units.
         if u.kind == "foundation" or not current_stmts:
             frames.append(ScopeFrame(stmts=current_stmts))
         else:

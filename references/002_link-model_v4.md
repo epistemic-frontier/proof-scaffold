@@ -55,7 +55,9 @@ Every new capability must be introduced with:
 - **Symbol**: any relocatable identifier (Const/Var/Label). Internally referenced by `SymbolId`.
 - **Token**: an `int` (a `SymbolId`) that appears in math strings or proof token sequences in IR.
 - **TokenSeq**: a contiguous, indexable sequence of tokens (ints), layout-agnostic.
-- **ProofUnit**: the linkable boundary. A unit exports one or more assertions (`$a`/`$p`).
+- **ProofUnit**: the linkable boundary. A unit may export vocabulary, assertions,
+  and foundation-owned ambient hypotheses; ordinary local hypotheses are not a
+  dependency API.
 - **HIR**: optional structured proof trace (e.g., `Apply(assertion, subst, step_id)`).
 - **LIR**: required Metamath-shaped IR whose token payloads are **SymbolIds**, not strings.
 - **ScopeFrame**: an explicit `${ ... $}` region in linear IR emission.
@@ -199,13 +201,23 @@ A ProofUnitIR contains:
 - `origin_module_id: str`
 - `lir_stmts: list[LIRStmt]` (required)
 - optional: `hir_steps: list[HIRStep]`
-- `exports: list[SymbolId]` (Label ids of exported `$a/$p` assertions)
+- `exports: list[SymbolId]` (exported symbols; classified by statement kind)
 - optional: `export_contracts` (interface contract records if precomputed)
+
+Export classes:
+- `Const` / `Var`: vocabulary exports for authoring and formula construction.
+- Foundation-owned `$f`: ambient foundation hypotheses.
+- `$a` / `$p`: assertion exports usable as cross-unit proof references.
+- Ordinary `$f` / `$e`: internal hypotheses; not importable cross-unit.
 
 Constraints:
 - A unit must be internally scope-balanced (its LIR scopes must balance).
-- Cross-unit references are allowed **only** via exported assertions.
-- A unit must not depend on other units by referencing their internal `$f/$e` labels.
+- Cross-unit proof references to ordinary units are allowed only via exported
+  `$a` / `$p` assertions.
+- Cross-unit proof references to foundation-owned exported `$f` labels are
+  allowed because the foundation frame is global.
+- A unit must not depend on ordinary packages by referencing their internal
+  `$f/$e` labels.
 
 ---
 
@@ -246,9 +258,13 @@ Required checks:
    - proof tokens must be Label ids,
    - math tokens must be Const/Var ids.
 5. **Out-of-range / unresolved token ids** are rejected (no silent stringification).
-6. **Cross-unit hypothesis leakage** is rejected:
-   - referencing a non-exported label from another unit is an error.
-   - referencing another unit’s `$f/$e` labels is an error.
+6. **Cross-unit access control** is enforced:
+   - referencing a non-exported assertion from another unit is an error.
+   - referencing an ordinary unit’s `$f/$e` labels is an error, even if the
+     owner attempted to export them.
+   - referencing an exported foundation-owned `$f` label is allowed.
+   - diagnostics distinguish assertion export, foundation hypothesis export,
+     and internal hypothesis leakage.
 
 COMPAT behavior (optional):
 - raw label strings in proof tokens MAY be accepted only if they resolve to
@@ -292,13 +308,14 @@ Rules:
 
 ### Stage 5 — Scope planning
 
-Baseline strategy (conservative, debuggable):
+Baseline strategy (foundation-aware, conservative, debuggable):
 
-For each unit in topo order:
-- emit `${`
-- emit unit-local `$f/$e/$d` as required
-- emit exported assertion(s) and required internal statements
-- emit `$}`
+- Emit the foundation unit at top level so its `$c/$v/$f` frame is ambient.
+- Emit each ordinary unit inside an outer `${ ... $}` frame.
+- Preserve author-authored nested scopes inside ordinary units.
+- Emit unit-local `$f/$e/$d` as required inside that ordinary-unit frame.
+- Emit exported assertion(s) and required internal statements inside that
+  ordinary-unit frame.
 
 Outputs:
 - `LinearPlan` with:
@@ -309,6 +326,7 @@ Outputs:
 
 Rules:
 - `$c/$v` are not emitted inside frames in the final stream (see Stage 7).
+- Ordinary unit frames prevent accidental `$f/$e` leakage into downstream units.
 
 ### Stage 6 — Token-level relocation
 

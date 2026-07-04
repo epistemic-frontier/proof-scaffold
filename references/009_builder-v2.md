@@ -152,7 +152,11 @@ class Auto:
 
 * 在当前 scope 内，**同一 var 只生成一次 `$f`**。
 * `$f` label：`w{var}`；冲突则 `w{var}0, w{var}1...`（确定性）。
-* `mm.a/mm.p` 在写入前自动补齐缺失 `$f`。
+* `mm.a/mm.p` 在写入前自动补齐缺失 `$f`，但默认推断只适用于
+  typecode canonical name 为 `wff` 的 syntax assertion。
+* `|-` theorem 的 wff mandatory variables 必须通过已有 foundation `$f`
+  或 proof lowering 的 `floating_by_var` 显式提供；BuilderV2 不会从 `|-`
+  typecode 推断出 `wff` floating hypotheses。
 
 ### 6.3 与 foundation `$f` 的关系
 

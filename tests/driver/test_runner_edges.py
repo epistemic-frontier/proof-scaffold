@@ -27,6 +27,55 @@ def _seed_runner(tmp_path: Path, *, name: str = "pkg") -> DriverRunner:
     return r
 
 
+def test_foundation_kind_is_inferred_and_ordered_first(tmp_path: Path) -> None:
+    r = DriverRunner(tmp_path / "src", tmp_path / "target")
+    r.metas["pkg"] = UnitMeta(dist_name="pkg", module_name="pkg", build_path=None)
+    r.metas["metamath-prelude"] = UnitMeta(
+        dist_name="metamath-prelude",
+        module_name="prelude",
+        build_path=None,
+        kind="foundation",
+    )
+    r.deps_graph = {"pkg": [], "metamath-prelude": []}
+
+    assert runner_mod._infer_package_kind("metamath-prelude") == "foundation"
+    assert runner_mod._infer_package_kind("pkg") == "library"
+    assert r._order_foundation_first(["pkg", "metamath-prelude"]) == [
+        "metamath-prelude",
+        "pkg",
+    ]
+
+
+def test_foundation_validation_rejects_multiple_or_dependent_foundations(
+    tmp_path: Path,
+) -> None:
+    r = DriverRunner(tmp_path / "src", tmp_path / "target")
+    r.metas["f1"] = UnitMeta(
+        dist_name="f1", module_name="f1", build_path=None, kind="foundation"
+    )
+    r.metas["f2"] = UnitMeta(
+        dist_name="f2", module_name="f2", build_path=None, kind="foundation"
+    )
+    r.deps_graph = {"f1": [], "f2": []}
+
+    with pytest.raises(ValueError, match="multiple foundation units"):
+        r._validate_foundation_units()
+
+    r.metas = {
+        "metamath-prelude": UnitMeta(
+            dist_name="metamath-prelude",
+            module_name="prelude",
+            build_path=None,
+            kind="foundation",
+        ),
+        "dep": UnitMeta(dist_name="dep", module_name="dep", build_path=None),
+    }
+    r.deps_graph = {"metamath-prelude": ["dep"], "dep": []}
+
+    with pytest.raises(ValueError, match="must not declare dependencies"):
+        r._validate_foundation_units()
+
+
 def test_requirement_helpers_filter_proof_scaffold(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

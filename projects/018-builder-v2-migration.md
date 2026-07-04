@@ -2,6 +2,11 @@
  
 ## Status
 Draft
+
+BuilderV2 的主体方向已进入实现阶段；package role、foundation scope 与
+prelude/logic 边界问题由后续
+[Project 020](file:///Users/mingli/MetaMath/proof-scaffold/projects/020-foundation-scope-refactor.md)
+继续推进。
  
 ## Context
 This project defines a concrete migration plan to land **BuilderV2** as specified by:

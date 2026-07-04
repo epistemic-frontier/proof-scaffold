@@ -107,16 +107,16 @@ This command detects that the target is a file (not a package) and executes it. 
 
 ### Helper Pattern
 The generated script uses a helper pattern that:
-1. Takes a `System` and a list of `Proof` objects.
-2. Uses `MMBuilderV2` to emit a unit IR, then `LinkerV1` to produce a `.mm` monolith.
-3. Invokes `skfd.verifier.aggregate.run_all` to check the monolith.
+1. Defines one or more `prove_*` functions.
+2. Lets `skfd verify <script.py>` discover those functions.
+3. Uses the current script runner to lower returned proof objects, link a
+   temporary `.mm` monolith, and invoke configured verifiers.
 
 ### Example Code
 
-The template imports:
-
-- [MMBuilderV2](file:///Users/mingli/MetaMath/proof-scaffold/src/skfd/builder_v2/builder.py) and [LinkerV1](file:///Users/mingli/MetaMath/proof-scaffold/src/skfd/linker/api.py) for emission.
-- [emit_axioms / emit_lemmas](file:///Users/mingli/MetaMath/proof-scaffold/src/skfd/authoring/emit.py) to bridge authoring proofs into BuilderV2.
+The default template imports the logic theorem registry and exposes a minimal
+`prove_example(sys)` function. Replace or add `prove_*` functions to iterate on
+new proofs while keeping the same verification command.
 
 This approach provides immediate feedback loop (REPL-like experience) while still guaranteeing that the generated proofs are valid Metamath code.
 

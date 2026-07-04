@@ -119,7 +119,18 @@ def run(units: list[ProofUnitIR], symtab: Mapping[SymbolId, SymbolDef]) -> Linea
         # Let's refine LinearPlan: `body_stmts: list[object]`.
         # Because we flattened the units.
 
-        frames.append(ScopeFrame(stmts=current_stmts))
+        if u.kind == "foundation" or not current_stmts:
+            frames.append(ScopeFrame(stmts=current_stmts))
+        else:
+            frames.append(
+                ScopeFrame(
+                    stmts=[
+                        ScopeEnter(stmt_id=-1, origin_ref=u.origin_ref),
+                        *current_stmts,
+                        ScopeExit(stmt_id=-1, origin_ref=u.origin_ref),
+                    ]
+                )
+            )
 
     # 2. Header Calculation
     # Sort symbols by ID to be deterministic

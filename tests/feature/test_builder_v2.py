@@ -34,6 +34,20 @@ def test_builder_v2_auto_f_emits_single_floating_per_scope() -> None:
     assert len(floatings) == 1
 
 
+def test_builder_v2_auto_f_reuses_existing_floating_without_emitting_duplicate() -> None:
+    mm = _mk_mm()
+    wff = mm.sym.const("wff")
+    ph = mm.sym.var("φ")
+    existing = mm.sym.label("external-wph")
+
+    mm.auto.use_existing_floating(ph, label=existing)
+    mm.a(mm.sym.label("ax-1"), tc=wff, expr=[ph])
+
+    unit: ProofUnitIR = mm.finish()
+    floatings = [st for st in unit.lir_stmts if isinstance(st, FloatingHyp)]
+    assert floatings == []
+
+
 def test_builder_v2_auto_f_avoids_label_collision_with_statement_label() -> None:
     mm = _mk_mm()
     wff = mm.sym.const("wff")

@@ -7,8 +7,11 @@ from pathlib import Path
 
 from skfd.builder_v2 import BuildConfig, MMBuilderV2
 from skfd.core.symbols import SymbolId
+from skfd.core.unit import UnitKind
 from skfd.names import NameResolver
 from skfd.proof.coverage import ProofCoverage
+
+PackageKind = UnitKind
 
 
 @dataclass(frozen=True)
@@ -16,6 +19,7 @@ class UnitMeta:
     dist_name: str
     module_name: str
     build_path: Path | None
+    kind: PackageKind = "library"
 
 
 class ExportsView(Mapping[str, SymbolId]):
@@ -74,6 +78,7 @@ __all__ = [
     "BuildContextV2",
     "DepsView",
     "ExportsView",
+    "PackageKind",
     "ProofCoverage",
     "UnitMeta",
 ]

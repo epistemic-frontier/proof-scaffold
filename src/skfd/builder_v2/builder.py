@@ -180,6 +180,13 @@ class Auto:
         self._mm.f(label_id, tc=tc, var=var)
         return label_id
 
+    def use_existing_floating(self, var: SymbolId, *, label: SymbolId) -> SymbolId:
+        """Mark an already-emitted `$f` label as active for auto-$f lookup."""
+        self._mm._require_kind(var, "Var")
+        self._mm._require_kind(label, "Label")
+        self._mm._scope.activate_f(var, label)
+        return label
+
     def mandatory_f(self, expr: Sequence[SymbolId], *, tc: SymbolId) -> list[SymbolId]:
         return [self.floating(v, tc=tc) for v in self.vars_in(expr)]
 

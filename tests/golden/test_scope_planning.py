@@ -125,11 +125,13 @@ def test_golden_scope_planning_determinism() -> None:
     expected_corrected = """$c wff term $.
 $v ph $.
 ${
+${
 wffph $f wff ph $.
 ax1 $a wff ph $.
 th1 $p wff ph $=
   ax1
 $.
+$}
 $}
 """
 

@@ -78,6 +78,9 @@ def build(ctx: BuildContextV2) -> None:
     runner = DriverRunner(src, target)
     runner.execute_all()
 
+    assert runner.metas["metamath-prelude"].kind == "foundation"
+    assert runner.build_order[0] == "metamath-prelude"
+
     runner.verify_package("metamath-logic")
     out = target / "metamath-logic_full.mm"
     assert out.exists()

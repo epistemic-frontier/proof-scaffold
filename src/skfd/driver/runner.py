@@ -5,12 +5,20 @@ import logging
 import inspect
 import importlib.metadata
 import re
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
 import tomllib
 
-from skfd.api_v2 import BuildConfig, BuildContextV2, DepsView, ExportsView, UnitMeta
+from skfd.api_v2 import (
+    BuildConfig,
+    BuildContextV2,
+    DepsView,
+    ExportsView,
+    PackageKind,
+    UnitMeta,
+)
 from skfd.builder_v2 import MMBuilderV2
 from skfd.core.origin import OriginTable
 from skfd.core.symbols import SymbolInterner
@@ -61,6 +69,12 @@ def _external_requires(dist_name: str) -> list[str]:
     return deps
 
 
+def _infer_package_kind(dist_name: str) -> PackageKind:
+    if _norm_dist_name(dist_name) == _norm_dist_name("metamath-prelude"):
+        return "foundation"
+    return "library"
+
+
 class DriverRunner:
     def __init__(self, root: Path, target_dir: Path):
         self.root = root
@@ -79,6 +93,7 @@ class DriverRunner:
         self.build_paths: dict[str, Path] = {}
         self.metas: dict[str, UnitMeta] = {}
         self.deps_graph: dict[str, list[str]] = {}
+        self.build_order: list[str] = []
 
     def discover(self) -> None:
         """Scan and plan build order."""
@@ -87,7 +102,10 @@ class DriverRunner:
                 deps = get_package_deps(path)
                 self.build_paths[name] = path
                 self.metas[name] = UnitMeta(
-                    dist_name=name, module_name=path.parent.name, build_path=path
+                    dist_name=name,
+                    module_name=path.parent.name,
+                    build_path=path,
+                    kind=_infer_package_kind(name),
                 )
                 self.deps_graph[name] = deps
             except Exception as e:
@@ -126,6 +144,7 @@ class DriverRunner:
                                     dist_name=dep_name,
                                     module_name=build_path.parent.name,
                                     build_path=build_path,
+                                    kind=_infer_package_kind(dep_name),
                                 )
                                 self.deps_graph[dep_name] = deps
                                 for dep in deps:
@@ -166,7 +185,12 @@ class DriverRunner:
         self._external_modules[name] = mod
 
         module_name = getattr(mod, "__name__", name).split(".", 1)[0]
-        self.metas[name] = UnitMeta(dist_name=name, module_name=module_name, build_path=None)
+        self.metas[name] = UnitMeta(
+            dist_name=name,
+            module_name=module_name,
+            build_path=None,
+            kind=_infer_package_kind(name),
+        )
 
         deps = _external_requires(name)
         self.deps_graph[name] = deps
@@ -182,11 +206,46 @@ class DriverRunner:
             for dep in self.deps_graph.get(pkg, []):
                 self._resolve_dependency(dep)
 
-        order = sort_packages(self.deps_graph)
+        self._validate_foundation_units()
+
+        order = self._order_foundation_first(sort_packages(self.deps_graph))
+        self.build_order = list(order)
         logger.info(f"Build plan: {order}")
 
         for pkg_name in order:
             self.build_package(pkg_name)
+
+    def _foundation_units(self) -> list[str]:
+        return [
+            name
+            for name, meta in self.metas.items()
+            if meta.kind == "foundation"
+        ]
+
+    def _validate_foundation_units(self) -> None:
+        foundations = self._foundation_units()
+        if len(foundations) > 1:
+            names = ", ".join(sorted(foundations))
+            raise ValueError(f"Build closure contains multiple foundation units: {names}")
+
+        if not foundations:
+            return
+
+        foundation = foundations[0]
+        deps = self.deps_graph.get(foundation, [])
+        if deps:
+            deps_text = ", ".join(deps)
+            raise ValueError(
+                f"Foundation unit '{foundation}' must not declare dependencies: {deps_text}"
+            )
+
+    def _order_foundation_first(self, order: list[str]) -> list[str]:
+        foundations = [name for name in order if self.metas[name].kind == "foundation"]
+        if not foundations:
+            return order
+
+        foundation = foundations[0]
+        return [foundation, *[name for name in order if name != foundation]]
 
     def build_package(self, name: str) -> None:
         """Execute build() for a single package."""
@@ -249,7 +308,7 @@ class DriverRunner:
             coverage=coverage,
         )
         mod.build(ctx)
-        unit = mm.finish()
+        unit = replace(mm.finish(), kind=meta.kind)
 
         symtab = self.interner.symbol_table()
         coverage_report = build_proof_coverage_report(

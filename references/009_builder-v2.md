@@ -3,6 +3,9 @@
 > **状态**：冻结（v1）
 >
 > **目标**：在项目早期一次性钉死接口边界，使业务库只表达数学结构；BuilderV2 只产 IR；工具链只负责调度、链接、校验与产物输出。
+>
+> **后续解释**：全局 foundation scope 与 package/export 分类见
+> [010-foundation-scope.md](file:///Users/mingli/MetaMath/proof-scaffold/references/010-foundation-scope.md)。
 
 ---
 
@@ -140,6 +143,7 @@ mm.finish() -> ProofUnitIR
 ```python
 class Auto:
     def floating(self, var: SymbolId, *, tc: SymbolId) -> SymbolId
+    def use_existing_floating(self, var: SymbolId, *, label: SymbolId) -> SymbolId
     def mandatory_f(self, expr: Sequence[SymbolId], *, tc: SymbolId) -> list[SymbolId]
     def vars_in(self, expr: Sequence[SymbolId]) -> list[SymbolId]
 ```
@@ -149,6 +153,15 @@ class Auto:
 * 在当前 scope 内，**同一 var 只生成一次 `$f`**。
 * `$f` label：`w{var}`；冲突则 `w{var}0, w{var}1...`（确定性）。
 * `mm.a/mm.p` 在写入前自动补齐缺失 `$f`。
+
+### 6.3 与 foundation `$f` 的关系
+
+Auto-`$f` 是普通作者侧的局部便利；foundation-owned `$f` 是全局
+foundation frame 的一部分。普通包如果显式使用 `metamath-prelude` 提供的
+schema variables 和 `$f` labels，应先调用
+`mm.auto.use_existing_floating(var, label=...)` 注册已有 foundation `$f`，
+避免生成第二套同义 floating hypotheses。访问控制和 scope emission 以
+`010-foundation-scope.md` 为准。
 
 ---
 

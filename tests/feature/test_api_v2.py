@@ -10,6 +10,8 @@ def test_exports_view_and_deps_view_error_paths() -> None:
     assert exports.as_dict() == {"x": 1, "y": 2}
 
     metas = {"pkg-a": UnitMeta(dist_name="pkg-a", module_name="a", build_path=None)}
+    assert metas["pkg-a"].kind == "library"
+
     deps = {"pkg-a": exports}
     dv = DepsView(deps=deps, metas=metas)
 
@@ -18,4 +20,3 @@ def test_exports_view_and_deps_view_error_paths() -> None:
 
     with pytest.raises(AttributeError):
         _ = dv.missing
-

@@ -86,5 +86,10 @@ def run(units: list[ProofUnitIR], contracts: ContractIndex) -> list[ProofUnitIR]
             )
         ) from e
 
-    # Reconstruct list[ProofUnitIR]
-    return [unit_lut[uid] for uid in sorted_unit_ids]
+    # Reconstruct list[ProofUnitIR]. Foundation units are required to be
+    # dependency-free and ambient, so keep them before ordinary units even when
+    # graphlib would otherwise preserve a caller-provided tie order.
+    sorted_units = [unit_lut[uid] for uid in sorted_unit_ids]
+    foundations = [u for u in sorted_units if u.kind == "foundation"]
+    ordinary = [u for u in sorted_units if u.kind != "foundation"]
+    return [*foundations, *ordinary]

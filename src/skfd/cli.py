@@ -270,15 +270,18 @@ def _cmd_init_pkg(args: argparse.Namespace) -> int:
     # build.py
     build_py = pkg_dir / "build.py"
     build_py.write_text("""
-from logic.propositional.hilbert import System
-from skfd.core.symbols import SymbolInterner
-from skfd.names import NameResolver
+from skfd.api_v2 import BuildContextV2
 
-def build():
-    interner = SymbolInterner()
-    # Create your system here
-    sys = System.make(interner=interner, names=NameResolver())
-    return sys
+
+def build(ctx: BuildContextV2) -> None:
+    mm = ctx.mm
+
+    wff = mm.sym.const("wff")
+    ph = mm.sym.var("ph")
+    ax = mm.sym.label("demo-ax")
+
+    mm.a(ax, tc=wff, expr=[ph])
+    mm.export(wff, ph, ax)
 """.strip() + "\n", encoding="utf-8")
 
     # pyproject.toml
@@ -290,7 +293,7 @@ requires = [\"setuptools>=68\", \"wheel\"]
 build-backend = \"setuptools.build_meta\"
 
 [project]
-name = \"{pkg_name}\"
+name = \"{name}\"
 version = \"0.0.1\"
 requires-python = \">=3.10\"
 
@@ -338,115 +341,15 @@ def _cmd_init_proof(args: argparse.Namespace) -> int:
 
     print(f"Creating proof script '{path}'...")
     path.write_text("""
-import sys
-from pathlib import Path
-import tempfile
-import os
+from __future__ import annotations
 
-# Helper to ensure project root is in path if needed
-ROOT = Path(__file__).resolve().parents[1]
+from typing import Any
 
-from skfd.core.symbols import SymbolInterner
-from skfd.builder_v2 import MMBuilderV2
-from skfd.linker.api import LinkerV1
-from skfd.names import NameResolver
-from skfd.authoring.emit import emit_axioms, emit_lemmas
-from skfd.verifier.aggregate import run_all, summarize
-from skfd.core.origin import OriginTable
-from skfd.config import load_config
+from logic.propositional.hilbert.theorems import SETMM_TO_HILBERT_LEMMAS
 
-from logic.propositional.hilbert import HilbertSystem
-from logic.propositional.hilbert.lemmas import LemmaBuilder, LemmaProof
 
-def verify_proofs(hs: HilbertSystem, proofs: list[LemmaProof]) -> None:
-    print(f"\\nVerifying {len(proofs)} proofs...")
-    
-    with tempfile.NamedTemporaryFile(suffix=".mm", delete=False, mode="w") as tmp:
-        mm_path = Path(tmp.name)
-    
-    try:
-        origin_table = OriginTable()
-        names = NameResolver()
-        mm = MMBuilderV2(
-            interner=hs.interner,
-            origin_table=origin_table,
-            names=names,
-            unit_id="manual_verify",
-            origin_module_id="manual_verify",
-        )
-        mm.sym.const("wff")
-        emit_axioms(mm, hs)
-        emit_lemmas(mm, hs, proofs)
-
-        unit = mm.finish()
-        res = LinkerV1.link(
-            units=[unit],
-            origin_table=origin_table,
-            interner=hs.interner,
-            conformance_level=0,
-        )
-        mm_path.write_text(res.mm_text, encoding="utf-8")
-        print(f"Generated .mm file at: {mm_path}")
-
-        # Use skfd config to find verifiers
-        cfg = load_config(ROOT)
-        active_cmds = cfg.get_active_commands()
-        
-        if not active_cmds:
-            print("Warning: No active verifiers found in .skfd. Using default mmverify.")
-            # Fallback logic is handled by cfg.get_active_commands() usually returning mmverify if empty?
-            # Actually load_config defaults to mmverify if active list is empty.
-        
-        results = run_all(mm_path, active_cmds)
-        print("\\n" + "="*20 + " VERIFICATION SUMMARY " + "="*20)
-        print(summarize(results))
-        
-        failed = False
-        for r in results:
-            if not r.passed:
-                failed = True
-                print(f"\\n❌ {r.name} FAILED:\\n{r.output}")
-        
-        if failed:
-            sys.exit(1)
-                
-    finally:
-        # os.unlink(mm_path)
-        print(f"(Temporary file kept at {mm_path})")
-
-def prove_example(sys: HilbertSystem) -> LemmaProof:
-    lb = LemmaBuilder(sys, "example_lemma")
-    # A simple proof: ph -> ph
-    h1 = lb.step("s1", "ph -> ph", "A1 with (phi, psi)=(ph, ph)") 
-    # This is just a dummy step, normally you use A1 properly
-    # See logic.propositional.hilbert.lemmas for real examples
-    
-    # Real L1_id proof for demonstration:
-    # 1. ph -> (ph -> ph) (A1)
-    # 2. (ph -> ((ph -> ph) -> ph)) -> ((ph -> (ph -> ph)) -> (ph -> ph)) (A2)
-    # ...
-    # For now let's just assume we want to prove something simple or use existing lemmas
-    
-    # Let's just return a dummy proof object to show it works
-    # In reality you would use lb.step(), lb.mp() etc.
-    # Here we just re-use a known lemma construction if available or fail
-    
-    return lb.build(lb.step("dummy", "ph -> (ps -> ph)", "A1"))
-
-def run():
-    interner = SymbolInterner()
-    sys = HilbertSystem.make(interner=interner)
-    
-    print("Constructing proofs...")
-    # proof = prove_example(sys)
-    # verify_proofs(sys, [proof])
-    print("Edit this script to add your proofs!")
-    
-    # Example usage:
-    # verify_proofs(sys, [])
-
-if __name__ == "__main__":
-    run()
+def prove_example(sys: Any) -> Any:
+    return SETMM_TO_HILBERT_LEMMAS["id"](sys)
 """.strip() + "\n", encoding="utf-8")
 
     print("Done. Run it with: skfd verify " + str(path))

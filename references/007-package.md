@@ -6,6 +6,11 @@ This specification defines the **ProofScaffold Package**, the fundamental unit o
 
 A ProofScaffold Package is a standard **Python Package** that follows specific conventions to declare dependencies and construct Metamath artifacts.
 
+Package role matters for linker semantics. Most packages are ordinary library or
+application packages. The standard `metamath-prelude` package is the distinguished
+foundation unit and follows the global foundation-scope contract described in
+[010-foundation-scope.md](file:///Users/mingli/MetaMath/proof-scaffold/references/010-foundation-scope.md).
+
 ## 2. Package Structure
 
 A compliant package MUST follow the standard `src`-layout:
@@ -35,6 +40,20 @@ dependencies = [
     "metamath-prelude>=0.1.0", 
 ]
 ```
+
+### 2.2 Package Roles
+
+ProofScaffold recognizes three conceptual roles:
+
+* **Foundation**: the unique global foundation frame in a build closure. The
+  standard package is `metamath-prelude`.
+* **Library**: a reusable ordinary package such as `metamath-logic`.
+* **Application**: a project package consuming libraries to prove local results.
+
+Ordinary packages may import vocabulary and exported assertions from declared
+dependencies. They must not rely on another ordinary package's local `$f` or
+`$e` labels. Foundation-owned `$f` labels are the controlled exception, because
+they are part of the global foundation frame.
 
 ## 3. The Build Script (`build.py`)
 
@@ -149,13 +168,14 @@ src/group_theory/
 
 **build.py**:
 ```python
-from skfd import mm
 from . import core, basic_props
 from .subgroups import lagrange
 
-core.emit(mm)
-basic_props.emit(mm)
-lagrange.emit(mm)
+def build(ctx):
+    mm = ctx.mm
+    core.emit(mm, ctx=ctx)
+    basic_props.emit(mm, ctx=ctx)
+    lagrange.emit(mm, ctx=ctx)
 ```
 
 ### 7.2 Pattern B: Layered (Strict Separation)

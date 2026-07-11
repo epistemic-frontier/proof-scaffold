@@ -21,6 +21,11 @@ from skfd.proof.unify import (
     to_tokens as _to_tokens_raw,
     apply_subst as _apply_subst_raw,
     split_binary,
+    split_bare_binary,
+    split_prefix2,
+    split_prefix3,
+    split_substitution,
+    split_ternary,
 )
 
 
@@ -134,6 +139,7 @@ def emit_lowered_lemmas(
     *,
     label_ids: Mapping[str, SymbolId] | None = None,
     floating_by_var: Mapping[SymbolId, SymbolId] | None = None,
+    hypotheses_by_label: Mapping[str, Sequence[Wff]] | None = None,
 ) -> None:
     lemmas = cast(Sequence[LoweredLemmaLike], lemmas)
     if provider.interner is not mm.interner:
@@ -172,7 +178,10 @@ def emit_lowered_lemmas(
     stmt_by_label: dict[str, tuple[int, ...]] = {
         k: tuple(v.tokens) for k, v in provider.compile_axioms().items()
     }
-    hyps_by_label: dict[str, tuple[tuple[int, ...], ...]] = {}
+    hyps_by_label: dict[str, tuple[tuple[int, ...], ...]] = {
+        label: tuple(tuple(wff.tokens) for wff in hypotheses)
+        for label, hypotheses in (hypotheses_by_label or {}).items()
+    }
     for lemma in lemmas:
         stmt_by_label[lemma.name] = tuple(lemma.statement.tokens)
         hyps: list[tuple[int, ...]] = []
@@ -193,17 +202,53 @@ def emit_lowered_lemmas(
         kind="Var",
         origin_ref=0,
     )
+    ch_tpl = mm.interner.intern(
+        origin_module_id="__tpl__",
+        local_name="__ch",
+        kind="Var",
+        origin_ref=0,
+    )
+    x_tpl = mm.interner.intern(
+        origin_module_id="__tpl__",
+        local_name="__x",
+        kind="Var",
+        origin_ref=0,
+    )
     # Optional connectives/constants that a logic may expose beyond the
     # implicational core (¬, →, ∧). Absent attributes simply stay unsupported.
+    iff_tok = getattr(b2, "iff", None)
     or_tok = getattr(b2, "or_", None)
+    nand_tok = getattr(b2, "nand", None)
+    nor_tok = getattr(b2, "nor", None)
+    xor_tok = getattr(b2, "xor", None)
+    cadd_tok = getattr(b2, "cadd", None)
+    if_tok = getattr(b2, "if_", None)
+    forall_tok = getattr(b2, "forall", None)
+    exist_tok = getattr(b2, "exist", None)
+    eu_tok = getattr(b2, "eu", None)
+    moeu_tok = getattr(b2, "moeu", None)
+    nf_tok = getattr(b2, "nf", None)
+    eq_tok = getattr(b2, "eq", None)
+    elem_tok = getattr(b2, "elem", None)
+    sb_lb_tok = getattr(b2, "sb_lb", None)
+    sb_slash_tok = getattr(b2, "sb_slash", None)
+    sb_rb_tok = getattr(b2, "sb_rb", None)
     tru_tok = getattr(b2, "tru", None)
     fal_tok = getattr(b2, "fal", None)
 
     # Infix binary operator token -> syntax-axiom label used to build wff
     # construction proofs.
     binop_label: dict[int, str] = {b2.imp: "wi", b2.and_: "wa"}
+    if iff_tok is not None:
+        binop_label[iff_tok] = "wb"
     if or_tok is not None:
         binop_label[or_tok] = "wo"
+    if nand_tok is not None:
+        binop_label[nand_tok] = "wnan"
+    if nor_tok is not None:
+        binop_label[nor_tok] = "wnor"
+    if xor_tok is not None:
+        binop_label[xor_tok] = "wxo"
     # Nullary constant token -> syntax-axiom label (e.g. verum/falsum).
     nullary_label: dict[int, str] = {}
     if tru_tok is not None:
@@ -214,8 +259,62 @@ def emit_lowered_lemmas(
     stmt_by_label.setdefault("wi", (lp, ph_tpl, b2.imp, ps_tpl, rp))
     stmt_by_label.setdefault("wn", (b2.neg, ph_tpl))
     stmt_by_label.setdefault("wa", (lp, ph_tpl, b2.and_, ps_tpl, rp))
+    if iff_tok is not None:
+        stmt_by_label.setdefault("wb", (lp, ph_tpl, iff_tok, ps_tpl, rp))
     if or_tok is not None:
         stmt_by_label.setdefault("wo", (lp, ph_tpl, or_tok, ps_tpl, rp))
+    if nand_tok is not None:
+        stmt_by_label.setdefault("wnan", (lp, ph_tpl, nand_tok, ps_tpl, rp))
+    if nor_tok is not None:
+        stmt_by_label.setdefault("wnor", (lp, ph_tpl, nor_tok, ps_tpl, rp))
+    if xor_tok is not None:
+        stmt_by_label.setdefault("wxo", (lp, ph_tpl, xor_tok, ps_tpl, rp))
+    if cadd_tok is not None:
+        stmt_by_label.setdefault("wcad", (cadd_tok, ph_tpl, ps_tpl, ch_tpl))
+    if if_tok is not None:
+        stmt_by_label.setdefault("wif", (if_tok, ph_tpl, ps_tpl, ch_tpl))
+    prefix2_labels = {
+        token: label
+        for token, label in (
+            (forall_tok, "wal"),
+            (exist_tok, "wex"),
+            (eu_tok, "weu"),
+            (moeu_tok, "wmo"),
+            (nf_tok, "wnf"),
+        )
+        if token is not None
+    }
+    for token, label in prefix2_labels.items():
+        stmt_by_label.setdefault(label, (token, x_tpl, ph_tpl))
+    bare_binary_labels = {
+        token: label
+        for token, label in ((eq_tok, "weq"), (elem_tok, "wcel"))
+        if token is not None
+    }
+    for token, label in bare_binary_labels.items():
+        stmt_by_label.setdefault(label, (x_tpl, token, ps_tpl))
+    substitution_tokens = (
+        (sb_lb_tok, sb_slash_tok, sb_rb_tok)
+        if sb_lb_tok is not None and sb_slash_tok is not None and sb_rb_tok is not None
+        else None
+    )
+    if substitution_tokens is not None:
+        stmt_by_label.setdefault(
+            "wsb",
+            (
+                substitution_tokens[0],
+                ph_tpl,
+                substitution_tokens[1],
+                ps_tpl,
+                substitution_tokens[2],
+                ch_tpl,
+            ),
+        )
+    stmt_by_label.setdefault("w3a", (lp, ph_tpl, b2.and_, ps_tpl, b2.and_, ch_tpl, rp))
+    if or_tok is not None:
+        stmt_by_label.setdefault(
+            "w3o", (lp, ph_tpl, or_tok, ps_tpl, or_tok, ch_tpl, rp)
+        )
     symtab = provider.interner.symbol_table()
     uctx = UnifyCtx(
         symtab=symtab,
@@ -225,6 +324,10 @@ def emit_lowered_lemmas(
         lp=lp,
         rp=rp,
         binops=list(binop_label),
+        bare_binops=list(bare_binary_labels),
+        prefix2=list(prefix2_labels),
+        prefix3=[token for token in (cadd_tok, if_tok) if token is not None],
+        substitution=substitution_tokens,
     )
 
     def floating_var_order() -> list[SymbolId]:
@@ -263,6 +366,19 @@ def emit_lowered_lemmas(
             return [ps_subst, ph_subst]
         return [ph_subst, ps_subst]
 
+    def ph_ps_ch_mandatory_substs(
+        ph_subst: tuple[int, ...],
+        ps_subst: tuple[int, ...],
+        ch_subst: tuple[int, ...],
+    ) -> list[tuple[int, ...]]:
+        by_name = {"ph": ph_subst, "ps": ps_subst, "ch": ch_subst}
+        ordered = [
+            by_name[symtab[var].local_name]
+            for var in floating_var_order()
+            if var in symtab and symtab[var].local_name in by_name
+        ]
+        return ordered if len(ordered) == 3 else [ph_subst, ps_subst, ch_subst]
+
     def v2_split_binary(
         tokens: Sequence[int], op_token: int, *, lp: int, rp: int
     ) -> tuple[tuple[int, ...], tuple[int, ...]] | None:
@@ -300,6 +416,64 @@ def emit_lowered_lemmas(
         if toks[0] == b2.neg:
             return [*v2_wff_proof(toks[1:]), v2_resolve_label("wn")]
 
+        substitution_parts = split_substitution(uctx, toks)
+        if substitution_parts is not None:
+            first, second, body = substitution_parts
+            return [
+                *v2_wff_proof(body),
+                *v2_wff_proof(first),
+                *v2_wff_proof(second),
+                v2_resolve_label("wsb"),
+            ]
+
+        for op, label in prefix2_labels.items():
+            parts2 = split_prefix2(uctx, toks, op)
+            if parts2 is not None:
+                variable, body = parts2
+                return [
+                    *v2_wff_proof(body),
+                    *v2_wff_proof(variable),
+                    v2_resolve_label(label),
+                ]
+
+        for op, label in bare_binary_labels.items():
+            bare_parts = split_bare_binary(uctx, toks, op)
+            if bare_parts is not None:
+                left, right = bare_parts
+                return [
+                    *v2_wff_proof(left),
+                    *v2_wff_proof(right),
+                    v2_resolve_label(label),
+                ]
+
+        prefix3_labels: dict[SymbolId, str] = {}
+        if cadd_tok is not None:
+            prefix3_labels[cadd_tok] = "wcad"
+        if if_tok is not None:
+            prefix3_labels[if_tok] = "wif"
+        for op, label in prefix3_labels.items():
+            parts3 = split_prefix3(uctx, toks, op)
+            if parts3 is not None:
+                first, second, third = parts3
+                prefix_proof: list[SymbolId] = []
+                for subst_tokens in ph_ps_ch_mandatory_substs(first, second, third):
+                    prefix_proof.extend(v2_wff_proof(subst_tokens))
+                prefix_proof.append(v2_resolve_label(label))
+                return prefix_proof
+
+        ternary_labels = {b2.and_: "w3a"}
+        if or_tok is not None:
+            ternary_labels[or_tok] = "w3o"
+        for op, label in ternary_labels.items():
+            parts3 = split_ternary(toks, op, lp=b2.lp, rp=b2.rp)
+            if parts3 is not None:
+                first, second, third = parts3
+                ternary_proof: list[SymbolId] = []
+                for subst_tokens in ph_ps_ch_mandatory_substs(first, second, third):
+                    ternary_proof.extend(v2_wff_proof(subst_tokens))
+                ternary_proof.append(v2_resolve_label(label))
+                return ternary_proof
+
         for op, label in binop_label.items():
             parts = v2_split_binary(toks, op, lp=b2.lp, rp=b2.rp)
             if parts is not None:
@@ -328,7 +502,11 @@ def emit_lowered_lemmas(
         _unify_raw(uctx, template, target, subst)
 
     def v2_emit_step(
-        label: str, *, visiting: set[str], steps: Mapping[str, LoweredStepLike]
+        label: str,
+        *,
+        visiting: set[str],
+        steps: Mapping[str, LoweredStepLike],
+        hyp_labels: Mapping[str, SymbolId],
     ) -> list[SymbolId]:
         if label in visiting:
             raise ValueError(f"cycle detected at step {label!r}")
@@ -337,7 +515,7 @@ def emit_lowered_lemmas(
             raise ValueError(f"unknown step label {label!r}")
 
         if step.op == "hyp":
-            return [mm.sym.label(label)]
+            return [hyp_labels[label]]
 
         visiting.add(label)
         try:
@@ -411,7 +589,12 @@ def emit_lowered_lemmas(
                                 f"step {label!r}: ref hyp mismatch for {step.ref!r}"
                             )
                         proof.extend(
-                            v2_emit_step(arg_label, visiting=visiting, steps=steps)
+                            v2_emit_step(
+                                arg_label,
+                                visiting=visiting,
+                                steps=steps,
+                                hyp_labels=hyp_labels,
+                            )
                         )
 
                 proof.append(v2_resolve_label(step.ref))
@@ -451,8 +634,18 @@ def emit_lowered_lemmas(
                     mandatory_proofs.extend(v2_wff_proof(subst_tokens))
                 return [
                     *mandatory_proofs,
-                    *v2_emit_step(maj, visiting=visiting, steps=steps),
-                    *v2_emit_step(minor, visiting=visiting, steps=steps),
+                    *v2_emit_step(
+                        maj,
+                        visiting=visiting,
+                        steps=steps,
+                        hyp_labels=hyp_labels,
+                    ),
+                    *v2_emit_step(
+                        minor,
+                        visiting=visiting,
+                        steps=steps,
+                        hyp_labels=hyp_labels,
+                    ),
                     v2_resolve_label("mp"),
                 ]
 
@@ -553,6 +746,11 @@ def emit_lowered_lemmas(
             step_by_label_v2: dict[str, LoweredStepLike] = {
                 s.label: s for s in lemma.steps
             }
+            hyp_labels = {
+                step.label: mm.sym.label(f"{lemma.name}.{step.label}")
+                for step in lemma.steps
+                if step.op == "hyp"
+            }
 
             vars_needed: set[SymbolId] = set(mm.auto.vars_in(lemma.statement.tokens))
             for step in lemma.steps:
@@ -565,15 +763,24 @@ def emit_lowered_lemmas(
 
             for step in lemma.steps:
                 if step.op == "hyp":
-                    mm.e(mm.sym.label(step.label), tc=theorem_tc, expr=step.wff.tokens)
+                    mm.e(hyp_labels[step.label], tc=theorem_tc, expr=step.wff.tokens)
 
             if not lemma.steps:
                 raise ValueError(f"lemma {lemma.name!r}: has no steps")
 
             last = lemma.steps[-1].label
+            try:
+                proof = v2_emit_step(
+                    last,
+                    visiting=set(),
+                    steps=step_by_label_v2,
+                    hyp_labels=hyp_labels,
+                )
+            except ValueError as exc:
+                raise ValueError(f"lemma {lemma.name!r}: {exc}") from exc
             mm.p(
                 mm.sym.label(lemma.name),
                 tc=theorem_tc,
                 expr=lemma.statement.tokens,
-                proof=v2_emit_step(last, visiting=set(), steps=step_by_label_v2),
+                proof=proof,
             )

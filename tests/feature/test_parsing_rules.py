@@ -4,7 +4,13 @@ import pytest
 
 from skfd.authoring import dsl
 from skfd.authoring.parsing import Parser, wff
-from skfd.authoring.rules import PreludeRulesError, RuleEntry, build_catalog, debug_list, get_rule
+from skfd.authoring.rules import (
+    PreludeRulesError,
+    RuleEntry,
+    build_catalog,
+    debug_list,
+    get_rule,
+)
 from skfd.authoring.typing import RuleSig
 
 
@@ -24,6 +30,40 @@ def test_parser_basic_infix_prefix() -> None:
     # prefix
     expr2 = wff("-. ph", registry=reg)
     assert isinstance(expr2, dsl.App)
+
+
+def test_parser_right_associates_chained_prefix_binders() -> None:
+    reg = dsl.RequireRegistry()
+    binder = dsl.Constructor("A.", 2)
+    reg.require(
+        binder,
+        RuleSig(("wff", "wff"), "wff"),
+        precedence=40,
+        assoc="right",
+    )
+
+    expr = wff("A. x A. y ph", registry=reg)
+
+    assert expr == binder(dsl.Var("x"), binder(dsl.Var("y"), dsl.Var("ph")))
+
+
+def test_parser_accepts_bracketed_substitution_notation() -> None:
+    reg = dsl.RequireRegistry()
+    substitution = dsl.Constructor("[", 3)
+    iff = dsl.Constructor("<->", 2)
+    reg.require(substitution, RuleSig(("wff", "wff", "wff"), "wff"))
+    reg.require(
+        iff,
+        RuleSig(("wff", "wff"), "wff"),
+        precedence=10,
+        assoc="right",
+    )
+
+    expr = wff("[ t / x ] ph", registry=reg)
+    scoped = wff("[ t / x ] ph <-> ps", registry=reg)
+
+    assert expr == substitution(dsl.Var("t"), dsl.Var("x"), dsl.Var("ph"))
+    assert scoped == iff(expr, dsl.Var("ps"))
 
 
 def test_parser_parens_and_error() -> None:
@@ -81,7 +121,12 @@ def test_rules_catalog_and_get() -> None:
     assert debug_list(cat)[0][0] == "R1"
 
     with pytest.raises(PreludeRulesError):
-        build_catalog([RuleEntry(label="R1", kind="axiom", fn=r1), RuleEntry(label="R1", kind="rule", fn=r1)])
+        build_catalog(
+            [
+                RuleEntry(label="R1", kind="axiom", fn=r1),
+                RuleEntry(label="R1", kind="rule", fn=r1),
+            ]
+        )
 
     with pytest.raises(PreludeRulesError):
         get_rule(cat, "R2")

@@ -987,6 +987,9 @@ Project 021 is complete when:
    verifier results.
 10. BuilderV2 v1, foundation scope, linker behavior, and verifier authority
     remain intact.
+11. Every completed phase has a pinned three-repository integration tuple and
+    the required scaffold, prelude, and logic evidence defined by the final
+    implementation guide.
 
 ## Risks
 
@@ -1034,3 +1037,448 @@ Project 021 is complete when:
 6. When should assumption-aware or natural-deduction HIR enter the roadmap?
    Initial recommendation: only after Term, assertion signatures, Draft IR, and
    deterministic elaboration are shared and stable.
+
+## Cross-Repository Implementation and Delivery Guide
+
+Project 021 is specified in `proof-scaffold`, but it cannot be implemented or
+declared complete in that repository alone. The authoring model is a framework
+contract whose first foundation provider is `metamath-prelude` and whose first
+non-trivial consumer and empirical corpus is `metamath-logic`.
+
+The dependency direction is:
+
+```text
+proof-scaffold
+      |
+      +------------------+
+      v                  v
+metamath-prelude    metamath-logic
+      |                  ^
+      +------------------+
+```
+
+`metamath-logic` depends on both upstream packages. Changes therefore integrate
+and release from upstream to downstream:
+
+1. `proof-scaffold`;
+2. `metamath-prelude`, when its code, foundation interface, or dependency
+   contract changes;
+3. `metamath-logic`.
+
+Cross-repository coordination does not mean that every phase must change code
+in all three repositories. A repository with no required code change still
+participates through a pinned validation run and an explicit no-change
+sign-off.
+
+The requirements in this chapter supplement the deliverables and acceptance
+criteria of every phase above.
+
+### Repository responsibility boundaries
+
+#### `proof-scaffold` owns generic mechanisms
+
+The framework owns:
+
+- typed Term and Authoring IR models;
+- deterministic parsing, elaboration, and lowering;
+- diagnostics, codecs, schemas, and compatibility adapters;
+- workspace queries, actions, transactions, and capabilities;
+- generic integration, determinism, adversarial, and replay harnesses.
+
+Framework runtime code MUST NOT import `metamath-prelude` or `metamath-logic`,
+embed logic-specific assertion labels, copy consumer registries, or special-case
+propositional/predicate connectives. Small framework-owned test theories are
+allowed, but their declarations must use the same public generic API available
+to external packages.
+
+The existing foundation package role remains a linker/package concern. New
+authoring semantics must not introduce a second hard-coded prelude path.
+
+#### `metamath-prelude` owns the foundation instance
+
+Prelude instantiates the generic framework for the ambient foundation frame:
+
+- base typecodes and canonical foundation tokens;
+- schema variables and foundation floating hypotheses;
+- primitive `wn` and `wi` syntax assertions;
+- the smallest real `LanguageSpec` and `TheoryInterface` canary;
+- foundation reuse, names mapping, and package-interface fixtures.
+
+Project 021 MUST NOT move ordinary logic declarations into prelude merely to
+make authoring implementation easier. Prelude remains intentionally small and
+must preserve the foundation boundary defined by
+[Foundation Scope v1](../references/010-foundation-scope.md).
+
+#### `metamath-logic` owns the reference application and corpus
+
+Logic owns:
+
+- propositional and predicate language extensions;
+- assertion declarations and theorem proof migrations;
+- binder, capture, distinct-variable, and underdetermined-substitution cases;
+- catalogue, coverage, module ownership, and `set.mm` alignment;
+- representative human and LLM authoring benchmarks.
+
+Reusable parser, matcher, serializer, diagnostic, workspace, or protocol logic
+must move upstream into `proof-scaffold` before it becomes a public dependency
+of multiple logic modules. Mathematical declarations and proof choices remain
+in `metamath-logic`.
+
+### Vertical-slice completion rule
+
+Each phase has three distinct statuses:
+
+1. **framework-ready**: the generic scaffold implementation and native tests
+   pass;
+2. **foundation-canary-ready**: prelude either adopts the slice or validates a
+   pinned no-change result;
+3. **logic-evidence-complete**: a representative non-trivial logic slice passes
+   the required semantic, compatibility, and verifier gates.
+
+A phase is complete only when all three statuses are recorded against the same
+pinned integration tuple. Framework unit tests alone are insufficient.
+
+Conversely, a no-change validation is sufficient when a phase genuinely does
+not require a repository modification. Cross-repository coordination must not
+manufacture meaningless package changes or releases.
+
+No public IR or protocol contract should be frozen solely from synthetic
+framework fixtures. At minimum, one propositional case and one predicate,
+binder, or distinct-variable case must validate the design before v1 freeze.
+
+### Phase participation matrix
+
+| Phase | `proof-scaffold` | `metamath-prelude` | `metamath-logic` |
+|---|---|---|---|
+| 0 | Own the baseline, determinism, artifact-comparison, and integration harnesses. | Freeze foundation `.mm`, exports, names mapping, scope, and interface baselines. | Pin the representative corpus, failure cases, `set.mm` revision, catalogue/coverage counts, output, and dependency closure. |
+| 1 | Implement fail-closed behavior, structural equality, deterministic registries, origins, and diagnostics. | Prove foundation emission, Auto-`$f` reuse, and scope remain unchanged. | Add regressions for failed constructors, unsupported proofs, duplicate registrations, and declared-but-unemitted proofs. |
+| 2 | Implement generic `LanguageSpec`, typed Term, parser, formatter, matching, and lowering. | Declare only the canonical foundation language and metavariable display policy. | Extend the language with propositional and predicate syntax; validate both a propositional and a binder/DV slice. |
+| 3 | Implement static assertions, `StepRef`, unique-only inference, and legacy adapters. | Publish static signatures for foundation syntax assertions, or provide a pinned no-change validation. | Migrate representative proofs and measure reduced author-supplied redundancy with unchanged verified results. |
+| 4 | Implement Theory/Package IR, SemanticIds, codecs, schemas, interface digests, and generic package emission. | Publish and package a foundation `TheoryInterface` sidecar without widening foundation exports. | Consume the prelude interface without executing its implementation; publish the logic interface and derive catalogue/dependency views. |
+| 5 | Implement Draft IR, revisions, transactions, queries, actions, capabilities, and structured diagnostics. | Serve as a stable read-only dependency/interface fixture and verify that normal LLM capabilities cannot mutate the foundation. | Supply real partial-proof, replay, stale-revision, ambiguity, binder/DV, and human/machine parity scenarios. |
+| 6 | Implement model-neutral exporters, bounded context queries, and evaluation infrastructure. | Supply the minimal foundation context projection and notation metadata. | Own the hidden-proof benchmark and report verifier-confirmed authoring and recovery results. |
+| 7 | Implement only generic optional higher-level elaboration mechanisms. | Normally participate by pinned validation only. | Evaluate representative high-level proofs and expose the complete Hilbert elaboration trace. |
+
+### Pinned integration tuple
+
+Every cross-repository change train must record an immutable integration tuple
+containing at least:
+
+- exact commit SHA and package version for all three repositories;
+- explicit `no-change` status for any repository without a companion change;
+- the `set.mm` revision used by corpus and label fixtures;
+- Source, Draft, Elaborated, and protocol schema versions in use;
+- supported Python versions exercised by the run;
+- expected interface digests and relevant artifact/count baselines;
+- verifier implementations used by the release gate.
+
+Moving branch names such as `main` are not reproducible inputs. Candidate tests
+must use exact SHAs or wheels built from exact SHAs.
+
+Baselines and candidates must be tested from clean, dedicated worktrees or
+clean CI checkouts. Uncommitted user changes, an ambient virtual environment,
+editable sibling installs, local path overrides, and ambient `PYTHONPATH` are
+not valid as the only acceptance evidence. They may accelerate local
+development, but the exact command and pinned revisions must still be recorded,
+and a clean candidate-stack run must follow.
+
+Machine-specific verifier paths and local `.skfd` settings are developer
+configuration, not portable integration inputs. Cross-repository acceptance
+must use a portable, explicit verifier configuration.
+
+### Required integration harness
+
+Before a phase beyond Phase 0 is marked complete, the project must have one
+documented cross-repository runner or CI workflow that:
+
+1. accepts the three checkout paths, SHAs, or candidate wheels explicitly;
+2. records the resolved integration tuple in its output;
+3. creates or uses a clean isolated environment;
+4. installs or overlays the candidate packages in dependency order;
+5. does not rewrite consumer `pyproject.toml` or `uv.lock` merely to run a
+   source-candidate experiment;
+6. runs the native gates and package verification described below;
+7. writes generated artifacts only to transient `target/`, `build/`, `dist/`,
+   or temporary directories;
+8. produces a machine-readable pass/fail summary and artifact/interface diff.
+
+The integration runner belongs with framework/integration infrastructure, not
+inside a logic theorem module. It must be usable locally and in CI without
+absolute machine paths.
+
+### Change-train sequence
+
+A normal phase slice proceeds as follows:
+
+1. Select one vertical slice and capture the pinned baseline before changing
+   behavior.
+2. Add framework contract, negative/adversarial, determinism, and compatibility
+   tests before or with the generic implementation.
+3. Implement the additive scaffold API and its legacy adapter. Confirm the
+   unmodified released/legacy prelude and logic source still work against the
+   candidate framework in the compatibility lane.
+4. Adopt or validate the slice in prelude. Review foundation output, scope,
+   names mapping, Auto-`$f`, exports, and interface digest.
+5. Adopt the slice in a representative logic module. Run both a simple
+   propositional case and the phase-appropriate difficult case.
+6. Feed package evidence back into the framework API before declaring the
+   schema or behavior stable. Consumer-side copies of generic machinery are not
+   an acceptable final workaround.
+7. Run the full candidate-stack and distribution lanes from clean environments.
+8. Record the phase evidence and only then update the phase status.
+
+Related pull requests or commits should link Project 021, name the phase and
+slice, identify their counterpart changes, and include the integration tuple.
+One repository must not silently depend on an unreferenced worktree state in
+another repository.
+
+### Integration and compatibility lanes
+
+Every implementation slice uses the following lanes:
+
+1. **Repository-native lane**: each changed repository passes its own locked
+   lint, type, test, and verification workflow.
+2. **Legacy-consumer lane**: the candidate framework runs the unmodified
+   prelude and logic authoring paths, proving the additive compatibility path.
+3. **Candidate-stack lane**: candidate scaffold, prelude, and logic revisions
+   run together, including new interfaces and representative migrations.
+4. **Distribution lane**: wheels/sdists are installed in a clean environment
+   without repository source paths or editable installs.
+5. **Determinism/replay lane**: the same pinned tuple runs in two clean
+   processes and compares canonical artifacts, digests, diagnostics, and action
+   replay.
+
+Lanes 1-3 and the applicable determinism checks are required for a phase exit.
+The distribution lane is additionally required before any package release.
+
+### Native verification gates
+
+The repository-native commands remain aligned with existing CI.
+
+For `proof-scaffold`:
+
+```bash
+uv sync --locked --all-extras --dev
+uv run --frozen ruff check .
+uv run --frozen mypy .
+uv run --frozen python -m pytest
+```
+
+For `metamath-prelude`:
+
+```bash
+uv sync --locked --dev
+uv run --frozen ruff check .
+uv run --frozen mypy .
+uv run --frozen python -m pytest
+uv run --frozen skfd verify --level 1 metamath-prelude
+```
+
+For `metamath-logic`:
+
+```bash
+uv sync --locked --dev
+uv run --frozen ruff check .
+uv run --frozen mypy .
+uv run --frozen python -m pytest
+uv run --frozen skfd verify --level 1 metamath-logic
+uv run --frozen skfd verify --coverage declared --level 1 metamath-logic
+```
+
+The normal logic verification gate must pass. If declared coverage has a known
+pre-existing gap, the gap must be recorded as a baseline and the selected Phase
+slice must not increase it. A phase that claims complete coverage for a migrated
+surface must reduce that surface's declared-but-unemitted count to zero.
+
+Whenever the logic theorem registry or lowering filter changes, regenerate and
+review `LEMMA_CATALOGUE.md` using the repository's generator. The regenerated
+catalogue and roadmap/module-plan changes are committed only when they are
+semantically part of the slice.
+
+The packages currently declare Python 3.10 as supported while their CI matrices
+start above that minimum. Before an Authoring v2 API or distribution is frozen,
+CI must exercise every declared minimum Python version, including 3.10, or the
+package metadata must be narrowed through a separate explicit decision. The
+declared minimum and the highest version in the maintained CI matrix are
+mandatory in cross-repository and distribution lanes.
+
+The built-in reference verifier is mandatory. Independent configured Metamath
+verifiers should also participate in release evidence; any unavailable external
+verifier must be named explicitly rather than silently skipped.
+
+### Artifact, interface, and semantic gates
+
+The baseline and candidate runs compare, as applicable:
+
+- canonical emitted `.mm`;
+- `*.names.json` and Unicode-to-canonical mappings;
+- exports, export classes, and deterministic within-unit declaration order;
+- declared, emitted, and declared-but-unemitted counts;
+- Source, Draft, Elaborated, and Metamath-lowered schema fixtures;
+- `TheoryInterface` bytes, SemanticIds, and semantic digests;
+- proof dependencies and trust-boundary reports;
+- verifier aggregate results;
+- diagnostics and replay results for action-log fixtures;
+- generated catalogue and module-plan state in `metamath-logic`.
+
+When a slice is intended to be behavior-preserving, verifier-visible `.mm`,
+public labels, theorem statements, exports, trust classification, foundation
+ownership, and dependency closure must remain unchanged. Canonical byte
+identity is preferred and required where the phase acceptance says so.
+
+When a semantic or serialization change is intentional, the change record must
+contain a reviewed semantic diff and migration explanation. Regenerating all
+goldens is not evidence that a change is safe.
+
+Generated schema and interface files must also be inspected from the built
+wheel. They must not contain absolute workspace paths, process-local SymbolIds,
+Python object representations, timestamps in semantic digests, or import-order
+dependencies.
+
+Transient `.mm`, source maps, names files, wheels, coverage output, virtual
+environments, and other build artifacts must not be committed unless a specific
+test fixture is deliberately reviewed and placed under the repository's fixture
+policy.
+
+### Compatibility and versioning rules
+
+Authoring v2 begins as an additive, explicitly versioned API. Legacy
+`ProofBuilder`, registry, and hand-written build paths remain available through
+one-way adapters while first-party packages migrate.
+
+A legacy adapter may be removed only after:
+
+1. the replacement has shipped in a released scaffold version with an explicit
+   deprecation path;
+2. released prelude and logic versions no longer require that adapter for the
+   migrated surface;
+3. the released-downstream compatibility lane passes;
+4. removal is handled as a dedicated compatibility change rather than being
+   bundled with a new authoring feature.
+
+Within one migrated slice, only one declaration representation is
+authoritative. A legacy registry or build path may be generated from or adapted
+to the new declaration, but old and new forms must not remain independently
+editable.
+
+Before Authoring IR v1 is frozen, incompatible experimental schema changes
+require a coordinated integration tuple and explicit migration notes. After
+freeze, writers emit a declared current schema, readers accept only explicitly
+supported versions, migrations are deterministic, and unknown versions fail
+closed.
+
+`pyproject.toml` expresses a package's supported compatibility contract;
+`uv.lock` records one exact reproducible environment. Dependency changes must
+update both intentionally, and passing one lock does not prove an advertised
+version range. The lowest and newest supported upstream versions must be
+tested before publishing a bounded compatibility range.
+
+An unbounded lower-only dependency specifier is packaging metadata, not proof
+of compatibility with all future upstream releases. The release record must
+state the upstream versions actually exercised. While Authoring v2 remains
+experimental, a downstream package using it should prefer an exact or explicitly
+bounded, tested scaffold version.
+
+### Merge and release order
+
+An experimental scaffold branch may be exercised by companion prelude and
+logic branches before any release. Default branches, however, must remain
+buildable against published dependency versions.
+
+A downstream change that requires an unreleased upstream API remains a draft or
+uses the explicit candidate integration workflow; it must not publish metadata
+that names a nonexistent upstream release.
+
+After the candidate tuple passes:
+
+1. merge and release `proof-scaffold` using its tag/version policy;
+2. update prelude's dependency contract and `uv.lock`, rerun all gates, and
+   release prelude if its code, interface artifact, or dependency contract
+   changed;
+3. update both upstream dependencies and `uv.lock` in `metamath-logic`, rerun
+   catalogue, coverage, test, and verification gates, then release logic last;
+4. install the released wheels together in a clean environment and rerun the
+   package verification smoke tests.
+
+Every changed package must build its wheel and sdist before tagging. Release
+tags must match `pyproject.toml`, CI/release gates must pass, and publication
+must use the repository's release automation rather than an ad hoc local PyPI
+upload.
+
+A no-op downstream release is not required, but its pinned validation and
+no-change sign-off remain part of the phase evidence. Local path dependencies,
+Git dependencies, editable installs, and temporary source overrides must not
+leak into release metadata or locks.
+
+### Rollback and failure handling
+
+Every vertical slice must remain independently revertible:
+
+- scaffold changes are additive until consumer evidence is complete;
+- prelude retains the previous foundation interface until the candidate
+  consumer stack passes;
+- logic migrations remain module- or declaration-scoped;
+- compatibility adapters permit downstream rollback without weakening
+  verifier or trust policy;
+- schema and interface version mismatches fail explicitly rather than falling
+  back to legacy interpretation.
+
+If any repository fails its required lane, the phase remains incomplete. The
+failure is fixed in the owning repository or the slice is rolled back. It must
+not be hidden by loosening coverage, skipping declarations, swallowing
+exceptions, changing an axiom classification, accepting a stale digest, or
+regenerating expected outputs without review.
+
+### Prohibited shortcuts
+
+The following are prohibited during a Project 021 change train:
+
+- reversing the dependency direction or creating cross-repository import
+  cycles;
+- moving ordinary logic declarations into prelude to simplify a migration;
+- embedding logic labels, connective tables, or theorem registries in generic
+  framework code;
+- changing BuilderV2 v1, linker semantics, foundation scope, or verifier policy
+  incidentally inside an authoring slice;
+- using an uncommitted or unidentified worktree as the empirical baseline;
+- relying on editable sibling packages, `PYTHONPATH`, or an existing `.venv` as
+  the only integration result;
+- adding machine-specific `.skfd` settings or absolute paths as portable
+  integration/release configuration;
+- updating unrelated dependencies or lock entries in a migration change;
+- accepting regenerated goldens without inspecting their semantic diff;
+- keeping two editable sources of truth for one migrated declaration;
+- swallowing declaration/proof exceptions, silently excluding failed proofs,
+  or converting failed proofs into axioms;
+- allowing incomplete Draft IR into lowering, export, verification, or release;
+- removing a legacy adapter in the same release that first introduces its
+  replacement;
+- publishing downstream packages before their required upstream versions;
+- declaring a phase complete from scaffold tests alone.
+
+### Required phase evidence record
+
+Every completed phase or vertical slice MUST leave a concise record with at
+least:
+
+```text
+Project 021 phase/slice:
+proof-scaffold SHA/version:
+metamath-prelude SHA/version or no-change sign-off:
+metamath-logic SHA/version or no-change sign-off:
+set.mm revision:
+Authoring IR/protocol schema versions:
+Python versions:
+native and cross-repository commands run:
+verifiers run and any explicit skips:
+baseline and candidate artifact/interface digests:
+golden or semantic diff summary:
+declared/emitted coverage delta:
+known gaps and owner:
+compatibility adapter/rollback path:
+counterpart PRs or commits:
+```
+
+These constraints make every intermediate repository revision reviewable and
+independently testable while preventing a framework-only success from being
+mistaken for a usable authoring contract.

@@ -282,7 +282,7 @@ ProofScaffold 明确采用“文档优先”的演进方式（references/003_roa
 
 ### 9.2 Authoring-First：先凝练理论，再下沉验证
 
-references/005-authoring.md 强调“凝练（condensation）阶段”的作者体验：作者在上游使用 Expr/Constructor/Var 的结构化语言表达意图，再通过受控桥接降到 token 级表示与 verifier。该路线使“理论形成期”不被过早的自动化/推断复杂度绑架。
+references/005-authoring.md 强调“凝练（condensation）阶段”的作者体验：作者在上游使用 Expr/Constructor/Var 的结构化语言表达意图，再通过受控桥接降到 token 级表示与 verifier。该路线使“理论形成期”不被过早的自动化/推断复杂度绑架。[Project 021](projects/021-authoring-ir-for-human-and-llm-authors.md) 进一步从首个非平凡包 `metamath-logic` 的实践中提炼共享的 typed Authoring IR、面向人类与 LLM 的双 façade，以及可恢复、可重放的 Draft Workspace。
 
 ---
 

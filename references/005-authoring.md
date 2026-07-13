@@ -1,5 +1,11 @@
 # An Authoring-First Architecture for Logical Systems
 
+> Evolution note: this document records the original human-oriented authoring
+> rationale. The empirical follow-up based on the first substantial
+> `metamath-logic` package, including public Authoring IR and human/LLM authoring
+> facades, is specified in
+> [Project 021](../projects/021-authoring-ir-for-human-and-llm-authors.md).
+
 ## 1. Motivation
 
 When developing a logical system, the most difficult phase is not verification or automation, but **condensation**:

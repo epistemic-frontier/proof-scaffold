@@ -6,6 +6,7 @@ from typing import Any, Protocol, cast
 
 from skfd.builder_v2 import MMBuilderV2
 from skfd.core.diag import Diagnostic, LinkerDiagError
+from skfd.core.disjoint import DVSpec, DisjointSpecError, normalize_dv_pairs
 from skfd.core.symbols import SymbolId
 from skfd.core.symbols import SymbolInterner
 
@@ -36,12 +37,140 @@ class AxiomProvider(Protocol):
     def compile_axioms(self) -> Mapping[str, Wff]: ...
 
 
+def _normalize_active_dv_pairs(
+    mm: MMBuilderV2,
+    pairs: Sequence[Sequence[SymbolId]],
+) -> DVSpec:
+    try:
+        return normalize_dv_pairs(pairs, symtab=mm.interner.symbol_table())
+    except DisjointSpecError as exc:
+        raise LinkerDiagError(
+            Diagnostic(
+                error_code="E_BAD_DISJOINT",
+                message="invalid assertion-level distinct-variable specification",
+                primary_origin_ref=-1,
+                related_origin_refs=(),
+                origin_chain=(),
+                details={"reason": str(exc)},
+            )
+        ) from exc
+
+
+def _raise_dv_mapping_error(
+    *, error_code: str, message: str, details: Mapping[str, object]
+) -> None:
+    raise LinkerDiagError(
+        Diagnostic(
+            error_code=error_code,
+            message=message,
+            primary_origin_ref=-1,
+            related_origin_refs=(),
+            origin_chain=(),
+            details=dict(details),
+        )
+    )
+
+
+def _validate_active_dv_map_keys(
+    explicit: Mapping[str, Sequence[Sequence[SymbolId]]] | None,
+    alias_owners: Mapping[str, set[str]],
+) -> None:
+    if explicit is None:
+        return
+    unknown = sorted(set(explicit) - set(alias_owners))
+    if unknown:
+        _raise_dv_mapping_error(
+            error_code="E_UNKNOWN_DV_LABEL",
+            message="distinct-variable mapping contains labels not emitted by this call",
+            details={"labels": unknown},
+        )
+    ambiguous = {
+        alias: sorted(alias_owners[alias])
+        for alias in explicit
+        if len(alias_owners[alias]) > 1
+    }
+    if ambiguous:
+        _raise_dv_mapping_error(
+            error_code="E_AMBIGUOUS_DV_LABEL",
+            message="distinct-variable mapping label resolves to multiple assertions",
+            details={"labels": ambiguous},
+        )
+
+
+def _active_dv_pairs_for(
+    mm: MMBuilderV2,
+    label: str,
+    assertion: object,
+    explicit: Mapping[str, Sequence[Sequence[SymbolId]]] | None,
+    *,
+    aliases: Sequence[str] = (),
+) -> DVSpec:
+    value = cast(
+        Sequence[Sequence[SymbolId]], getattr(assertion, "active_dv_pairs", ())
+    )
+    assertion_pairs = _normalize_active_dv_pairs(mm, value)
+    if explicit is None:
+        return assertion_pairs
+
+    matching_keys = [key for key in dict.fromkeys((label, *aliases)) if key in explicit]
+    if not matching_keys:
+        return assertion_pairs
+
+    explicit_pairs = _normalize_active_dv_pairs(mm, explicit[matching_keys[0]])
+    conflicting_keys = [
+        key
+        for key in matching_keys[1:]
+        if _normalize_active_dv_pairs(mm, explicit[key]) != explicit_pairs
+    ]
+    if conflicting_keys:
+        _raise_dv_mapping_error(
+            error_code="E_CONFLICTING_DV_MAP",
+            message="distinct-variable aliases provide conflicting pair sets",
+            details={"label": label, "keys": matching_keys},
+        )
+    if assertion_pairs and assertion_pairs != explicit_pairs:
+        _raise_dv_mapping_error(
+            error_code="E_CONFLICTING_DV_MAP",
+            message="explicit distinct-variable mapping conflicts with assertion IR",
+            details={"label": label, "keys": matching_keys},
+        )
+    return explicit_pairs
+
+
+def _emit_active_dv_pairs(
+    mm: MMBuilderV2,
+    pairs: Sequence[Sequence[SymbolId]],
+) -> DVSpec:
+    normalized = _normalize_active_dv_pairs(mm, pairs)
+    for left, right in normalized:
+        mm.d(left, right)
+    return normalized
+
+
+def _emit_axiom_with_active_dv(
+    mm: MMBuilderV2,
+    *,
+    label: SymbolId,
+    typecode: SymbolId,
+    expr: Sequence[SymbolId],
+    active_dv_pairs: Sequence[Sequence[SymbolId]],
+) -> None:
+    normalized = _normalize_active_dv_pairs(mm, active_dv_pairs)
+    if not normalized:
+        mm.a(label, tc=typecode, expr=expr)
+        return
+    with mm.block():
+        _emit_active_dv_pairs(mm, normalized)
+        mm.a(label, tc=typecode, expr=expr)
+
+
 def emit_axioms(
     mm: MMBuilderV2,
     provider: AxiomProvider,
     typecode: str | SymbolId = "wff",
     *,
     label_ids: Mapping[str, SymbolId] | None = None,
+    active_dv_pairs_by_label: Mapping[str, Sequence[Sequence[SymbolId]]] | None = None,
 ) -> None:
     if provider.interner is not mm.interner:
         raise LinkerDiagError(
@@ -55,11 +184,37 @@ def emit_axioms(
             )
         )
     tc = typecode if isinstance(typecode, int) else mm.sym.const(typecode)
+    entries: list[tuple[str, Wff, SymbolId, tuple[str, ...]]] = []
+    alias_owners: dict[str, set[str]] = {}
     for label, wff in provider.compile_axioms().items():
         label_id = mm.sym.label(label)
         if label_ids is not None:
             label_id = label_ids.get(label, label_id)
-        mm.a(label_id, tc=tc, expr=wff.tokens)
+        final_label = mm.interner.symbol_table()[label_id].local_name
+        aliases = tuple(dict.fromkeys((label, final_label)))
+        entries.append((label, wff, label_id, aliases))
+        for alias in aliases:
+            alias_owners.setdefault(alias, set()).add(label)
+
+    _validate_active_dv_map_keys(active_dv_pairs_by_label, alias_owners)
+    resolved = {
+        label: _active_dv_pairs_for(
+            mm,
+            label,
+            wff,
+            active_dv_pairs_by_label,
+            aliases=aliases,
+        )
+        for label, wff, _label_id, aliases in entries
+    }
+    for label, wff, label_id, _aliases in entries:
+        _emit_axiom_with_active_dv(
+            mm,
+            label=label_id,
+            typecode=tc,
+            expr=wff.tokens,
+            active_dv_pairs=resolved[label],
+        )
 
 
 class LemmaStepLike(Protocol):
@@ -83,6 +238,8 @@ def emit_lemmas(
     provider: AxiomProvider,
     lemmas: Sequence[LemmaLike],
     typecode: str | SymbolId = "wff",
+    *,
+    active_dv_pairs_by_label: Mapping[str, Sequence[Sequence[SymbolId]]] | None = None,
 ) -> None:
     if provider.interner is not mm.interner:
         raise LinkerDiagError(
@@ -103,12 +260,27 @@ def emit_lemmas(
                 provider,
                 cast(Sequence[LoweredLemmaLike], lemmas),
                 typecode=typecode,
+                active_dv_pairs_by_label=active_dv_pairs_by_label,
             )
             return
 
+    alias_owners = {lemma.name: {lemma.name} for lemma in lemmas}
+    _validate_active_dv_map_keys(active_dv_pairs_by_label, alias_owners)
+    resolved = {
+        lemma.name: _active_dv_pairs_for(
+            mm, lemma.name, lemma, active_dv_pairs_by_label
+        )
+        for lemma in lemmas
+    }
     tc = typecode if isinstance(typecode, int) else mm.sym.const(typecode)
     for lemma in lemmas:
-        mm.a(mm.sym.label(lemma.name), tc=tc, expr=lemma.statement.tokens)
+        _emit_axiom_with_active_dv(
+            mm,
+            label=mm.sym.label(lemma.name),
+            typecode=tc,
+            expr=lemma.statement.tokens,
+            active_dv_pairs=resolved[lemma.name],
+        )
 
 
 class LoweredStepLike(LemmaStepLike, Protocol):
@@ -140,6 +312,7 @@ def emit_lowered_lemmas(
     label_ids: Mapping[str, SymbolId] | None = None,
     floating_by_var: Mapping[SymbolId, SymbolId] | None = None,
     hypotheses_by_label: Mapping[str, Sequence[Wff]] | None = None,
+    active_dv_pairs_by_label: Mapping[str, Sequence[Sequence[SymbolId]]] | None = None,
 ) -> None:
     lemmas = cast(Sequence[LoweredLemmaLike], lemmas)
     if provider.interner is not mm.interner:
@@ -153,6 +326,15 @@ def emit_lowered_lemmas(
                 details={},
             )
         )
+
+    alias_owners = {lemma.name: {lemma.name} for lemma in lemmas}
+    _validate_active_dv_map_keys(active_dv_pairs_by_label, alias_owners)
+    resolved_active_dv_pairs = {
+        lemma.name: _active_dv_pairs_for(
+            mm, lemma.name, lemma, active_dv_pairs_by_label
+        )
+        for lemma in lemmas
+    }
 
     theorem_tc = typecode if isinstance(typecode, int) else mm.sym.const(typecode)
     wff_tc = (
@@ -739,10 +921,18 @@ def emit_lowered_lemmas(
         )
 
     for lemma in ordered:
+        active_dv_pairs = resolved_active_dv_pairs[lemma.name]
         if lemma.name in emit_as_axiom:
-            mm.a(mm.sym.label(lemma.name), tc=theorem_tc, expr=lemma.statement.tokens)
+            _emit_axiom_with_active_dv(
+                mm,
+                label=mm.sym.label(lemma.name),
+                typecode=theorem_tc,
+                expr=lemma.statement.tokens,
+                active_dv_pairs=active_dv_pairs,
+            )
             continue
         with mm.block():
+            _emit_active_dv_pairs(mm, active_dv_pairs)
             step_by_label_v2: dict[str, LoweredStepLike] = {
                 s.label: s for s in lemma.steps
             }

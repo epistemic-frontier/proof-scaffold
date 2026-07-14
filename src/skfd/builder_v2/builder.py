@@ -170,9 +170,9 @@ class Auto:
         base = f"w{var_def.local_name}"
         label_name = base
         suffix = 0
-        while self._mm._scope.label_name_is_visible(label_name) or self._mm._label_name_used(
+        while self._mm._scope.label_name_is_visible(
             label_name
-        ):
+        ) or self._mm._label_name_used(label_name):
             label_name = f"{base}{suffix}"
             suffix += 1
 
@@ -209,7 +209,9 @@ class MMBuilderV2:
         self.cfg = cfg if cfg is not None else BuildConfig()
         self.names = names
 
-        self._origin: OriginProvider = InspectOriginAdapter(origin_table, origin_module_id)
+        self._origin: OriginProvider = InspectOriginAdapter(
+            origin_table, origin_module_id
+        )
         self._lir = LIRVisitor()
         self._scope = _ScopeStackV2()
         self._exports: set[SymbolId] = set()
@@ -263,9 +265,19 @@ class MMBuilderV2:
                 primary_origin_ref=first_origin,
                 related_origin_refs=(current_origin,) if current_origin != -1 else (),
                 origin_chain=(
-                    {"label": label_name, "origin_ref": first_origin, "role": "first_definition"},
-                    {"label": label_name, "origin_ref": current_origin, "role": "duplicate"},
-                ) if first_origin != -1 else (),
+                    {
+                        "label": label_name,
+                        "origin_ref": first_origin,
+                        "role": "first_definition",
+                    },
+                    {
+                        "label": label_name,
+                        "origin_ref": current_origin,
+                        "role": "duplicate",
+                    },
+                )
+                if first_origin != -1
+                else (),
                 details={"label": label_name, "first_origin_ref": first_origin},
             )
         )
@@ -325,6 +337,17 @@ class MMBuilderV2:
                     details={"vars": list(vars)},
                 )
             )
+        if len(set(vars)) != len(vars):
+            raise LinkerDiagError(
+                Diagnostic(
+                    error_code="E_BAD_DISJOINT",
+                    message="$d cannot repeat a variable",
+                    primary_origin_ref=-1,
+                    related_origin_refs=(),
+                    origin_chain=(),
+                    details={"vars": list(vars)},
+                )
+            )
         for v in vars:
             self._require_kind(v, "Var")
         o = self._origin.here_ref()
@@ -376,7 +399,9 @@ class MMBuilderV2:
         self._scope.register_local_label_name(label_name)
 
         o = self._origin.here_ref()
-        self._lir.essential_hyp(label_name, "", ["" for _ in expr], label, tc, list(expr), o)
+        self._lir.essential_hyp(
+            label_name, "", ["" for _ in expr], label, tc, list(expr), o
+        )
         return label
 
     def a(self, label: SymbolId, *, tc: SymbolId, expr: Sequence[SymbolId]) -> SymbolId:
@@ -393,7 +418,11 @@ class MMBuilderV2:
         if self.cfg.auto_f:
             symtab = self.interner.symbol_table()
             tc_def = symtab.get(tc)
-            if tc_def is not None and tc_def.kind == "Const" and tc_def.local_name == "wff":
+            if (
+                tc_def is not None
+                and tc_def.kind == "Const"
+                and tc_def.local_name == "wff"
+            ):
                 self.auto.mandatory_f(expr, tc=tc)
 
         o = self._origin.here_ref()
@@ -423,7 +452,11 @@ class MMBuilderV2:
         if self.cfg.auto_f:
             symtab = self.interner.symbol_table()
             tc_def = symtab.get(tc)
-            if tc_def is not None and tc_def.kind == "Const" and tc_def.local_name == "wff":
+            if (
+                tc_def is not None
+                and tc_def.kind == "Const"
+                and tc_def.local_name == "wff"
+            ):
                 self.auto.mandatory_f(expr, tc=tc)
 
         o = self._origin.here_ref()
@@ -490,6 +523,5 @@ class _BlockCtxV2:
         exc: BaseException | None,
         tb: TracebackType | None,
     ) -> Literal[False]:
-        if exc_type is None:
-            self._mm._pop_scope()
+        self._mm._pop_scope()
         return False

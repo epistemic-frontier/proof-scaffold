@@ -18,9 +18,12 @@ class AssertionContract:
     mandatory_vars: list[
         SymbolId
     ]  # Ordered list of $f variable definition labels ($f typecode var)
-    distinct_vars: list[set[SymbolId]] = field(
+    distinct_vars: list[tuple[SymbolId, SymbolId]] = field(
         default_factory=list
-    )  # List of disjoint sets ($d x y z)
+    )  # Canonical unordered pairs over mandatory variables only.
+    mandatory_var_ids: list[SymbolId] = field(
+        default_factory=list
+    )  # Variables named by mandatory `$f` hypotheses, independent of label ownership.
 
 
 @dataclass(frozen=True)

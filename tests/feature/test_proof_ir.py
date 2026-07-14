@@ -3,9 +3,12 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 
+import pytest
+
 from skfd.authoring.dsl import Expr
 from skfd.authoring.formula import Wff, wff_atom
 from skfd.authoring.typing import HypothesisAny
+from skfd.core.disjoint import DisjointSpecError
 from skfd.core.symbols import SymbolInterner
 from skfd.proof import ProofBuilder
 
@@ -92,3 +95,23 @@ def test_proof_builder_ref_rejects_foreign_args() -> None:
         assert "ref args must be steps created by this ProofBuilder" in str(e)
     else:
         raise AssertionError("expected ValueError")
+
+
+def test_proof_builder_records_canonical_active_dv_pairs() -> None:
+    sys = _DummySystem(interner=SymbolInterner())
+    x = sys.interner.intern(
+        origin_module_id="test", local_name="x", kind="Var", origin_ref=-1
+    )
+    y = sys.interner.intern(
+        origin_module_id="test", local_name="y", kind="Var", origin_ref=-1
+    )
+    pb = ProofBuilder(sys, "dv-demo")
+
+    pb.disjoint(y, x)
+    pb.disjoint(x, y)
+    proof = pb.build(wff_atom(x))
+
+    assert proof.active_dv_pairs == ((x, y),)
+
+    with pytest.raises(DisjointSpecError, match="itself"):
+        pb.disjoint(x, x)

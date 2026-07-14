@@ -2,7 +2,15 @@
 from __future__ import annotations
 
 from skfd.core.contracts import AssertionContract
-from skfd.core.lir import Axiom, DisjointVar, ScopeEnter, ScopeExit, Theorem
+from skfd.core.disjoint import normalize_dv_pairs
+from skfd.core.lir import (
+    Axiom,
+    DisjointVar,
+    FloatingHyp,
+    ScopeEnter,
+    ScopeExit,
+    Theorem,
+)
 from skfd.core.symbols import SymbolDef, SymbolId
 from skfd.core.unit import ProofUnitIR
 from skfd.linker.passes.stage2_contracts import ContractIndex
@@ -16,67 +24,89 @@ def run(
     """
     Stage 3: $d Processing.
 
-    Scans units for active DisjointVar ($d) statements and enriches
-    the AssertionContract for each $a/$p.
+    Scans units for active DisjointVar ($d) statements and enriches the
+    AssertionContract for each $a/$p with its mandatory DV pairs.
 
-    Mode A (Pass-Through):
-    We collect all active $d constraints available at the assertion point.
+    Active groups are expanded pairwise. A pair is part of an assertion's
+    public contract only when both variables are mandatory for that assertion;
+    proof-only active pairs remain in the LIR but do not enter the contract.
     """
 
-    for u in units:
-        # Scope tracking state
-        # A disjoint constraint is valid if it is active in the current scope.
+    floating_var_by_label = {
+        st.label: st.var
+        for unit in units
+        for st in unit.lir_stmts
+        if isinstance(st, FloatingHyp)
+    }
 
-        scope_stack_dj: list[list[DisjointVar]] = []
-        current_frame_dj: list[DisjointVar] = []
+    ambient_dv_pairs: set[tuple[SymbolId, SymbolId]] = set()
+
+    for u in units:
+        scope_stack_dv: list[set[tuple[SymbolId, SymbolId]]] = []
+        active_dv_pairs = set(ambient_dv_pairs)
 
         for st in u.lir_stmts:
             if isinstance(st, ScopeEnter):
-                scope_stack_dj.append(list(current_frame_dj))
-                # Scopes inherit
-                # Current frame continues with outer definitions?
-                # Usually standard Metamath implies nested scopes see outer.
-                # So we keep current_frame_dj as is?
-                # Actually, ScopeEnter means "Push current state".
-                # New declarations will be added to current_frame.
-                # ScopeExit means "Pop state".
-                pass
+                scope_stack_dv.append(set(active_dv_pairs))
 
             elif isinstance(st, ScopeExit):
-                if scope_stack_dj:
-                    current_frame_dj = scope_stack_dj.pop()
+                if scope_stack_dv:
+                    active_dv_pairs = scope_stack_dv.pop()
                 else:
-                    current_frame_dj = []
+                    active_dv_pairs = set()
 
             elif isinstance(st, DisjointVar):
-                current_frame_dj.append(st)
+                active_dv_pairs.update(
+                    normalize_dv_pairs(
+                        (
+                            (left, right)
+                            for index, left in enumerate(st.vars)
+                            for right in st.vars[index + 1 :]
+                        ),
+                        symtab=symtab,
+                    )
+                )
 
             elif isinstance(st, Axiom | Theorem):
-                # Found assertion. Update its contract.
-                # In Mode A, we assume "All active $d" are relevant.
-                # A stricter Mode B would check if the vars are actually used in the assertion.
-                # For now, we capture the environment.
-
-                # Convert active DisjointVar statements to list[set[SymbolId]]
-                # Note: Metamath $d x y z means x,y disjoint; y,z disjoint; x,z disjoint.
-                # We store the set {x, y, z}.
-
-                dv_specs = []
-                for dj in current_frame_dj:
-                    dv_specs.append(set(dj.vars))
-
-                # Update contract in place?
-                # ContractIndex contains immutable AssertionContract objects (frozen).
-                # We need to replace them.
-
                 old_c = contracts.contracts.get(st.label)
                 if old_c:
+                    mandatory_vars = set(old_c.mandatory_var_ids)
+                    if not mandatory_vars and old_c.mandatory_vars:
+                        missing_floating = [
+                            label
+                            for label in old_c.mandatory_vars
+                            if label not in floating_var_by_label
+                        ]
+                        if missing_floating:
+                            raise ValueError(
+                                "mandatory $f labels missing from LIR: "
+                                f"{sorted(missing_floating)}"
+                            )
+                        mandatory_vars = {
+                            floating_var_by_label[label]
+                            for label in old_c.mandatory_vars
+                        }
+                    mandatory_dv_pairs = list(
+                        normalize_dv_pairs(
+                            (
+                                pair
+                                for pair in active_dv_pairs
+                                if pair[0] in mandatory_vars
+                                and pair[1] in mandatory_vars
+                            ),
+                            symtab=symtab,
+                        )
+                    )
                     new_c = AssertionContract(
                         label=old_c.label,
                         mandatory_hyps=old_c.mandatory_hyps,
                         mandatory_vars=old_c.mandatory_vars,
-                        distinct_vars=dv_specs,
+                        mandatory_var_ids=old_c.mandatory_var_ids,
+                        distinct_vars=mandatory_dv_pairs,
                     )
                     contracts.contracts[st.label] = new_c
+
+        if u.kind == "foundation":
+            ambient_dv_pairs = active_dv_pairs
 
     return contracts

@@ -2,7 +2,7 @@ import pytest
 
 from skfd.builder_v2 import MMBuilderV2
 from skfd.core.diag import LinkerDiagError
-from skfd.core.lir import FloatingHyp
+from skfd.core.lir import DisjointVar, FloatingHyp, ScopeEnter, ScopeExit
 from skfd.core.origin import OriginTable
 from skfd.core.symbols import SymbolInterner
 from skfd.core.unit import ProofUnitIR
@@ -34,7 +34,9 @@ def test_builder_v2_auto_f_emits_single_floating_per_scope() -> None:
     assert len(floatings) == 1
 
 
-def test_builder_v2_auto_f_reuses_existing_floating_without_emitting_duplicate() -> None:
+def test_builder_v2_auto_f_reuses_existing_floating_without_emitting_duplicate() -> (
+    None
+):
     mm = _mk_mm()
     wff = mm.sym.const("wff")
     ph = mm.sym.var("φ")
@@ -72,6 +74,36 @@ def test_builder_v2_rejects_bad_math_token_kind() -> None:
     assert e.value.diag.error_code == "E_BAD_MATH_TOKEN"
 
 
+def test_builder_v2_disjoint_rejects_repeated_and_non_variable_endpoints() -> None:
+    mm = _mk_mm()
+    x = mm.sym.var("x")
+    y = mm.sym.var("y")
+
+    mm.d(x, y)
+    assert any(isinstance(stmt, DisjointVar) for stmt in mm.finish().lir_stmts)
+
+    with pytest.raises(LinkerDiagError) as repeated:
+        mm.d(x, x)
+    assert repeated.value.diag.error_code == "E_BAD_DISJOINT"
+
+    with pytest.raises(LinkerDiagError) as non_variable:
+        mm.d(x, mm.sym.const("wff"))
+    assert non_variable.value.diag.error_code == "E_SYMBOL_KIND_MISMATCH"
+
+
+def test_builder_v2_block_unwinds_after_disjoint_error() -> None:
+    mm = _mk_mm()
+    x = mm.sym.var("x")
+
+    with pytest.raises(LinkerDiagError):
+        with mm.block():
+            mm.d(x, x)
+
+    stmts = mm.finish().lir_stmts
+    assert sum(isinstance(stmt, ScopeEnter) for stmt in stmts) == 1
+    assert sum(isinstance(stmt, ScopeExit) for stmt in stmts) == 1
+
+
 def test_builder_v2_duplicate_label_reports_first_origin() -> None:
     """Issue #3: E_DUPLICATE_LABEL must carry the first occurrence's origin ref."""
     mm = _mk_mm()
@@ -86,7 +118,9 @@ def test_builder_v2_duplicate_label_reports_first_origin() -> None:
         mm.e(mm.sym.label("myhyp"), tc=wff, expr=[ph])
     diag = exc.value.diag
     assert diag.error_code == "E_DUPLICATE_LABEL"
-    assert diag.primary_origin_ref >= 0, f"expected origin ref >=0, got {diag.primary_origin_ref}"
+    assert (
+        diag.primary_origin_ref >= 0
+    ), f"expected origin ref >=0, got {diag.primary_origin_ref}"
     assert len(diag.origin_chain) == 2
     assert diag.origin_chain[0]["role"] == "first_definition"
     assert diag.origin_chain[1]["role"] == "duplicate"
@@ -110,6 +144,7 @@ def test_builder_v2_duplicate_label_includes_current_origin() -> None:
 def test_builder_v2_suspect_label_warns_on_hyp() -> None:
     """Issue #4: lb.hyp(label='hyp') must emit RuntimeWarning."""
     import warnings
+
     mm = _mk_mm()
     wff = mm.sym.const("wff")
     ph = mm.sym.var("φ")
@@ -139,6 +174,7 @@ def test_builder_v2_suspect_label_warns_on_h1_h2_h3() -> None:
 def test_builder_v2_scoped_label_does_not_warn() -> None:
     """Labels with scoping delimiter (e.g. 'pm2_37.1') must not warn."""
     import warnings
+
     mm = _mk_mm()
     wff = mm.sym.const("wff")
     ph = mm.sym.var("φ")
@@ -146,4 +182,6 @@ def test_builder_v2_scoped_label_does_not_warn() -> None:
     with warnings.catch_warnings(record=True) as w:
         warnings.simplefilter("always")
         mm.e(mm.sym.label("pm2_37.1"), tc=wff, expr=[ph])
-    assert len(w) == 0, f"scoped label should not warn, got {[str(m.message) for m in w]}"
+    assert (
+        len(w) == 0
+    ), f"scoped label should not warn, got {[str(m.message) for m in w]}"

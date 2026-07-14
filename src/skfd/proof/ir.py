@@ -8,6 +8,8 @@ from typing import Any, cast
 from skfd.authoring.formula import Wff
 from skfd.authoring.parsing import wff
 from skfd.authoring.typing import Hypothesis, HypothesisAny, PreludeTypingError
+from skfd.core.disjoint import DVPair, DVSpec, normalize_dv_pairs
+from skfd.core.symbols import SymbolId
 
 from .core import SystemCore
 
@@ -27,6 +29,10 @@ class Proof:
     name: str
     statement: Wff
     steps: tuple[Step, ...]
+    # Complete assertion-local DV environment needed to replay this proof.
+    # This may include proof-only pairs that are not part of the public
+    # mandatory-DV contract of the theorem being defined.
+    active_dv_pairs: DVSpec = ()
 
 
 class ProofBuilder:
@@ -43,6 +49,7 @@ class ProofBuilder:
         self.sys: SystemCore = sys
         self.name: str = name
         self.steps: list[Step] = []
+        self._active_dv_pairs: list[DVPair] = []
         self._wff_to_label: dict[int, str] = {}
         self._signature_cache: Any = ProofBuilder._default_signature_cache
         self._unify_ctx: Any = None
@@ -54,6 +61,20 @@ class ProofBuilder:
         """Inject a SignatureCache for automatic hypothesis matching."""
         self._signature_cache = cache
         self._init_unify_ctx()
+
+    def disjoint(self, left: SymbolId, right: SymbolId) -> None:
+        """Record one active, assertion-local distinct-variable pair.
+
+        Source frontends must expand Metamath ``$d`` groups to pairs before
+        calling this method.  Reversed and repeated pairs are normalized away.
+        """
+
+        self._active_dv_pairs = list(
+            normalize_dv_pairs(
+                (*self._active_dv_pairs, (left, right)),
+                symtab=self.sys.interner.symbol_table(),
+            )
+        )
 
     def _init_unify_ctx(self) -> None:
         """Build a UnifyCtx from the system's builtins + symbol table."""
@@ -185,4 +206,9 @@ class ProofBuilder:
         return self.apply(label, "mp", major, minor, note=note)
 
     def build(self, statement: Wff) -> Proof:
-        return Proof(name=self.name, statement=statement, steps=tuple(self.steps))
+        return Proof(
+            name=self.name,
+            statement=statement,
+            steps=tuple(self.steps),
+            active_dv_pairs=tuple(self._active_dv_pairs),
+        )

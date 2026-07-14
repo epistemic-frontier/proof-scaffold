@@ -5,7 +5,7 @@ from typing import Any
 
 import pytest
 
-from skfd.authoring.emit import emit_lowered_lemmas
+from skfd.authoring.emit import emit_axioms, emit_lowered_lemmas
 from skfd.authoring.formula import Wff
 from skfd.builder_v2 import BuildConfig
 from skfd.builder_v2 import MMBuilderV2
@@ -15,7 +15,7 @@ from skfd.core.origin import OriginTable
 from skfd.core.symbols import SymbolId, SymbolInterner
 from skfd.linker.api import LinkerV1
 from skfd.names import NameResolver
-from tests._sanity_utils import verify_expect_ok
+from tests._sanity_utils import verify_expect_fail, verify_expect_ok
 
 
 @dataclass(frozen=True)
@@ -41,11 +41,16 @@ class _Lemma:
     name: str
     statement: Wff
     steps: tuple[_Step, ...]
+    active_dv_pairs: tuple[tuple[SymbolId, SymbolId], ...] = ()
 
 
 class _Provider:
     def __init__(
-        self, *, interner: SymbolInterner, builtins: Any, axioms: dict[str, Wff] | None = None
+        self,
+        *,
+        interner: SymbolInterner,
+        builtins: Any,
+        axioms: dict[str, Wff] | None = None,
     ) -> None:
         self.interner = interner
         self.builtins = builtins
@@ -91,11 +96,21 @@ def _setup_hilbert_core(
     wff = mm.sym.const("wff")
     provable = mm.sym.const("|-")
 
-    lp = interner.intern(origin_module_id="__b__", local_name="(", kind="Const", origin_ref=0)
-    rp = interner.intern(origin_module_id="__b__", local_name=")", kind="Const", origin_ref=0)
-    imp = interner.intern(origin_module_id="__b__", local_name="->", kind="Const", origin_ref=0)
-    neg = interner.intern(origin_module_id="__b__", local_name="-.", kind="Const", origin_ref=0)
-    and_ = interner.intern(origin_module_id="__b__", local_name="/\\", kind="Const", origin_ref=0)
+    lp = interner.intern(
+        origin_module_id="__b__", local_name="(", kind="Const", origin_ref=0
+    )
+    rp = interner.intern(
+        origin_module_id="__b__", local_name=")", kind="Const", origin_ref=0
+    )
+    imp = interner.intern(
+        origin_module_id="__b__", local_name="->", kind="Const", origin_ref=0
+    )
+    neg = interner.intern(
+        origin_module_id="__b__", local_name="-.", kind="Const", origin_ref=0
+    )
+    and_ = interner.intern(
+        origin_module_id="__b__", local_name="/\\", kind="Const", origin_ref=0
+    )
     b = _Builtins(lp=lp, rp=rp, imp=imp, neg=neg, and_=and_)
 
     ph = mm.sym.var("ph")
@@ -202,7 +217,9 @@ def test_emit_lowered_lemmas_v2_mp_proofs_verify_with_mmverify(tmp_path: Any) ->
         steps=(
             _Step(label="a1i.1", op="hyp", args=(), ref=None, wff=w["ph"]),
             _Step(label="s1", op="ref", args=(), ref="A1", wff=w["a1"]),
-            _Step(label="res", op="mp", args=("a1i.1", "s1"), ref=None, wff=w["ps_imp_ph"]),
+            _Step(
+                label="res", op="mp", args=("a1i.1", "s1"), ref=None, wff=w["ps_imp_ph"]
+            ),
         ),
     )
     identity = _Lemma(
@@ -225,7 +242,13 @@ def test_emit_lowered_lemmas_v2_mp_proofs_verify_with_mmverify(tmp_path: Any) ->
                 ref=None,
                 wff=Wff("wff", (b.lp, *a1_self.tokens, b.imp, *ph_imp_ph.tokens, b.rp)),
             ),
-            _Step(label="id.res", op="mp", args=("id.s1", "id.s4"), ref=None, wff=ph_imp_ph),
+            _Step(
+                label="id.res",
+                op="mp",
+                args=("id.s1", "id.s4"),
+                ref=None,
+                wff=ph_imp_ph,
+            ),
         ),
     )
 
@@ -240,6 +263,83 @@ def test_emit_lowered_lemmas_v2_mp_proofs_verify_with_mmverify(tmp_path: Any) ->
     )
 
     verify_expect_ok(_write_linked_mm(tmp_path, mm, origin_table))
+
+
+def _emit_dv_reference_theorem(tmp_path: Any, *, theorem_has_active_dv: bool) -> Any:
+    mm, origin_table, provider, _, _, w = _setup_hilbert_core()
+    ph = w["ph"].tokens[0]
+    ps = w["ps"].tokens[0]
+    statement = w["ph_imp_ps"]
+    dv_provider = _Provider(
+        interner=mm.interner,
+        builtins=provider.builtins,
+        axioms={"dv-ax": statement},
+    )
+    emit_axioms(
+        mm,
+        dv_provider,
+        typecode="|-",
+        active_dv_pairs_by_label={"dv-ax": ((ph, ps),)},
+    )
+    theorem = _Lemma(
+        name="dv-th",
+        statement=statement,
+        steps=(
+            _Step(
+                label="dv-th.res",
+                op="ref",
+                args=(),
+                ref="dv-ax",
+                wff=statement,
+            ),
+        ),
+        active_dv_pairs=((ph, ps),) if theorem_has_active_dv else (),
+    )
+    emit_lowered_lemmas(
+        mm,
+        dv_provider,
+        [theorem],
+        typecode="|-",
+        wff_typecode="wff",
+    )
+    return _write_linked_mm(tmp_path, mm, origin_table)
+
+
+def test_emit_lowered_lemmas_emits_active_dv_needed_for_proof_replay(
+    tmp_path: Any,
+) -> None:
+    verify_expect_ok(_emit_dv_reference_theorem(tmp_path, theorem_has_active_dv=True))
+
+
+def test_emit_lowered_lemmas_missing_active_dv_fails_verification(
+    tmp_path: Any,
+) -> None:
+    verify_expect_fail(
+        _emit_dv_reference_theorem(tmp_path, theorem_has_active_dv=False)
+    )
+
+
+def test_emit_lowered_lemmas_rejects_map_that_clears_ir_dv() -> None:
+    mm, _, provider, _, _, w = _setup_hilbert_core()
+    ph = w["ph"].tokens[0]
+    ps = w["ps"].tokens[0]
+    theorem = _Lemma(
+        name="dv-th",
+        statement=w["ph_imp_ps"],
+        steps=(),
+        active_dv_pairs=((ph, ps),),
+    )
+
+    with pytest.raises(LinkerDiagError) as excinfo:
+        emit_lowered_lemmas(
+            mm,
+            provider,
+            [theorem],
+            typecode="|-",
+            active_dv_pairs_by_label={"dv-th": ()},
+        )
+
+    assert excinfo.value.diag.error_code == "E_CONFLICTING_DV_MAP"
 
 
 def test_emit_lowered_lemmas_v2_ref_with_hyp_args_verifies_with_mmverify(
@@ -295,11 +395,21 @@ def test_emit_lowered_lemmas_v2_builds_theorem_proof_tokens() -> None:
         origin_module_id="m",
     )
 
-    lp = interner.intern(origin_module_id="__b__", local_name="(", kind="Const", origin_ref=0)
-    rp = interner.intern(origin_module_id="__b__", local_name=")", kind="Const", origin_ref=0)
-    imp = interner.intern(origin_module_id="__b__", local_name="->", kind="Const", origin_ref=0)
-    neg = interner.intern(origin_module_id="__b__", local_name="-.", kind="Const", origin_ref=0)
-    and_ = interner.intern(origin_module_id="__b__", local_name="/\\", kind="Const", origin_ref=0)
+    lp = interner.intern(
+        origin_module_id="__b__", local_name="(", kind="Const", origin_ref=0
+    )
+    rp = interner.intern(
+        origin_module_id="__b__", local_name=")", kind="Const", origin_ref=0
+    )
+    imp = interner.intern(
+        origin_module_id="__b__", local_name="->", kind="Const", origin_ref=0
+    )
+    neg = interner.intern(
+        origin_module_id="__b__", local_name="-.", kind="Const", origin_ref=0
+    )
+    and_ = interner.intern(
+        origin_module_id="__b__", local_name="/\\", kind="Const", origin_ref=0
+    )
     b = _Builtins(lp=lp, rp=rp, imp=imp, neg=neg, and_=and_)
 
     interner.intern(origin_module_id="dep", local_name="wi", kind="Label", origin_ref=0)
@@ -307,16 +417,16 @@ def test_emit_lowered_lemmas_v2_builds_theorem_proof_tokens() -> None:
     interner.intern(origin_module_id="dep", local_name="wa", kind="Label", origin_ref=0)
     interner.intern(origin_module_id="dep", local_name="mp", kind="Label", origin_ref=0)
 
-    ph = interner.intern(origin_module_id="m", local_name="ph", kind="Var", origin_ref=0)
+    ph = interner.intern(
+        origin_module_id="m", local_name="ph", kind="Var", origin_ref=0
+    )
     phi = Wff("wff", (ph,))
     phi_imp_phi = Wff("wff", (lp, ph, imp, ph, rp))
 
     lemma_ref = _Lemma(
         name="Lref",
         statement=phi_imp_phi,
-        steps=(
-            _Step(label="s1", op="ref", args=(), ref="wi", wff=phi_imp_phi),
-        ),
+        steps=(_Step(label="s1", op="ref", args=(), ref="wi", wff=phi_imp_phi),),
     )
     lemma_mp = _Lemma(
         name="Lmp",
@@ -329,7 +439,9 @@ def test_emit_lowered_lemmas_v2_builds_theorem_proof_tokens() -> None:
     )
 
     provider = _Provider(interner=interner, builtins=b)
-    emit_lowered_lemmas(mm, provider, [lemma_ref, lemma_mp], typecode="wff", label_ids=None)
+    emit_lowered_lemmas(
+        mm, provider, [lemma_ref, lemma_mp], typecode="wff", label_ids=None
+    )
     unit = mm.finish()
     assert any(isinstance(s, Theorem) for s in unit.lir_stmts)
 
@@ -345,11 +457,21 @@ def test_emit_lowered_lemmas_v2_ref_with_hyp_args_unifies_hyp_only_vars() -> Non
         origin_module_id="m",
     )
 
-    lp = interner.intern(origin_module_id="__b__", local_name="(", kind="Const", origin_ref=0)
-    rp = interner.intern(origin_module_id="__b__", local_name=")", kind="Const", origin_ref=0)
-    imp = interner.intern(origin_module_id="__b__", local_name="->", kind="Const", origin_ref=0)
-    neg = interner.intern(origin_module_id="__b__", local_name="-.", kind="Const", origin_ref=0)
-    and_ = interner.intern(origin_module_id="__b__", local_name="/\\", kind="Const", origin_ref=0)
+    lp = interner.intern(
+        origin_module_id="__b__", local_name="(", kind="Const", origin_ref=0
+    )
+    rp = interner.intern(
+        origin_module_id="__b__", local_name=")", kind="Const", origin_ref=0
+    )
+    imp = interner.intern(
+        origin_module_id="__b__", local_name="->", kind="Const", origin_ref=0
+    )
+    neg = interner.intern(
+        origin_module_id="__b__", local_name="-.", kind="Const", origin_ref=0
+    )
+    and_ = interner.intern(
+        origin_module_id="__b__", local_name="/\\", kind="Const", origin_ref=0
+    )
     b = _Builtins(lp=lp, rp=rp, imp=imp, neg=neg, and_=and_)
 
     interner.intern(origin_module_id="dep", local_name="wi", kind="Label", origin_ref=0)
@@ -358,9 +480,15 @@ def test_emit_lowered_lemmas_v2_ref_with_hyp_args_unifies_hyp_only_vars() -> Non
     interner.intern(origin_module_id="dep", local_name="mp", kind="Label", origin_ref=0)
     interner.intern(origin_module_id="dep", local_name="id", kind="Label", origin_ref=0)
 
-    ph = interner.intern(origin_module_id="m", local_name="ph", kind="Var", origin_ref=0)
-    ps = interner.intern(origin_module_id="m", local_name="ps", kind="Var", origin_ref=0)
-    ch = interner.intern(origin_module_id="m", local_name="ch", kind="Var", origin_ref=0)
+    ph = interner.intern(
+        origin_module_id="m", local_name="ph", kind="Var", origin_ref=0
+    )
+    ps = interner.intern(
+        origin_module_id="m", local_name="ps", kind="Var", origin_ref=0
+    )
+    ch = interner.intern(
+        origin_module_id="m", local_name="ch", kind="Var", origin_ref=0
+    )
 
     ph_imp_ps = Wff("wff", (lp, ph, imp, ps, rp))
     ph_imp_ph = Wff("wff", (lp, ph, imp, ph, rp))
@@ -402,21 +530,37 @@ def test_emit_lowered_lemmas_v2_declares_floating_for_hyp_only_vars() -> None:
         origin_module_id="m",
     )
 
-    lp = interner.intern(origin_module_id="__b__", local_name="(", kind="Const", origin_ref=0)
-    rp = interner.intern(origin_module_id="__b__", local_name=")", kind="Const", origin_ref=0)
-    imp = interner.intern(origin_module_id="__b__", local_name="->", kind="Const", origin_ref=0)
-    neg = interner.intern(origin_module_id="__b__", local_name="-.", kind="Const", origin_ref=0)
-    and_ = interner.intern(origin_module_id="__b__", local_name="/\\", kind="Const", origin_ref=0)
+    lp = interner.intern(
+        origin_module_id="__b__", local_name="(", kind="Const", origin_ref=0
+    )
+    rp = interner.intern(
+        origin_module_id="__b__", local_name=")", kind="Const", origin_ref=0
+    )
+    imp = interner.intern(
+        origin_module_id="__b__", local_name="->", kind="Const", origin_ref=0
+    )
+    neg = interner.intern(
+        origin_module_id="__b__", local_name="-.", kind="Const", origin_ref=0
+    )
+    and_ = interner.intern(
+        origin_module_id="__b__", local_name="/\\", kind="Const", origin_ref=0
+    )
     b = _Builtins(lp=lp, rp=rp, imp=imp, neg=neg, and_=and_)
 
     interner.intern(origin_module_id="dep", local_name="wi", kind="Label", origin_ref=0)
     interner.intern(origin_module_id="dep", local_name="wn", kind="Label", origin_ref=0)
     interner.intern(origin_module_id="dep", local_name="wa", kind="Label", origin_ref=0)
     interner.intern(origin_module_id="dep", local_name="mp", kind="Label", origin_ref=0)
-    interner.intern(origin_module_id="dep", local_name="ax_ph", kind="Label", origin_ref=0)
+    interner.intern(
+        origin_module_id="dep", local_name="ax_ph", kind="Label", origin_ref=0
+    )
 
-    ph = interner.intern(origin_module_id="m", local_name="ph", kind="Var", origin_ref=0)
-    th = interner.intern(origin_module_id="m", local_name="th", kind="Var", origin_ref=0)
+    ph = interner.intern(
+        origin_module_id="m", local_name="ph", kind="Var", origin_ref=0
+    )
+    th = interner.intern(
+        origin_module_id="m", local_name="th", kind="Var", origin_ref=0
+    )
     phi = Wff("wff", (ph,))
     theta = Wff("wff", (th,))
 
@@ -476,7 +620,11 @@ def test_emit_lowered_lemmas_warns_and_emits_axiom_for_raw_steps() -> None:
         emit_lowered_lemmas(mm, provider, [lemma], typecode="|-")
 
     unit = mm.finish()
-    labels = {mm.interner.symbol_table()[s.label].local_name for s in unit.lir_stmts if hasattr(s, "label")}
+    labels = {
+        mm.interner.symbol_table()[s.label].local_name
+        for s in unit.lir_stmts
+        if hasattr(s, "label")
+    }
     assert "rawLemma" in labels
 
 

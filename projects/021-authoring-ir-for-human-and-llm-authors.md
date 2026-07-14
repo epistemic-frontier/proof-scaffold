@@ -365,6 +365,28 @@ An assertion declaration includes at least:
 
 The assertion signature MUST be available without executing its proof body.
 
+Distinct-variable data has two related but non-interchangeable views:
+
+- `active_dv_pairs` is the complete pair relation active at the original
+  assertion site. It is proof-replay context and may mention optional variables
+  used only by the proof.
+- `mandatory_dv_pairs` is the subset whose endpoints are both mandatory
+  variables of the assertion. It is the public assertion contract checked by
+  downstream applications.
+
+A `set.mm` importer MUST snapshot and expand the scoped `$d` environment for
+every assertion before flattening it into an independent declaration or proof
+function. The lowered bridge MUST emit `active_dv_pairs` inside that assertion's
+local block, while interfaces expose only `mandatory_dv_pairs`. Pair expansion
+must be exact: `$d x y $. $d y z $.` does not imply `$d x z $.`, so independent
+pairs must never be merged into a larger `$d` clique. A label-keyed DV side
+table MUST resolve source and final emitted labels explicitly, reject unknown
+keys, and reject any conflict with assertion IR; silently dropping or
+overriding a constraint is not permitted. Contract extraction MUST run in final
+emission order so top-level foundation `$f`, `$e`, and `$d` state is modeled as
+ambient, even though flattened authored assertions normally re-emit their DV
+requirements in local blocks.
+
 A `TheorySpec` or `PackageSpec` SHOULD be the source from which the framework
 derives:
 

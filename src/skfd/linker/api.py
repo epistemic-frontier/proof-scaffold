@@ -55,14 +55,17 @@ class LinkerV1:
                 )
             ) from e
 
-        # Stage 2: Contract Extraction
-        contracts = stage2_extract(units1, ctx.symtab)
+        # Extract theorem references first so units can be put in their final
+        # order. Contract extraction is then repeated over that order because
+        # foundation-owned `$f/$e` hypotheses are ambient for downstream units.
+        dependency_index = stage2_extract(units1, ctx.symtab)
+        units4 = stage4_topo_sort(units1, dependency_index)
 
-        # Stage 3: $d Processing (Mode A: Enrich)
-        contracts = stage3_enrich(units1, ctx.symtab, contracts)
+        # Stage 2: final contract extraction in emitted scope order.
+        contracts = stage2_extract(units4, ctx.symtab)
 
-        # Stage 4: Dependency closure and topo sort
-        units4 = stage4_topo_sort(units1, contracts)
+        # Stage 3: mandatory distinct-variable contracts.
+        contracts = stage3_enrich(units4, ctx.symtab, contracts)
 
         # Stage 5: Scope Planning (LinearPlan)
         plan = stage5_planning(units4, ctx.symtab)

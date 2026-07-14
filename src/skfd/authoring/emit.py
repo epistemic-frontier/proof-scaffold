@@ -404,6 +404,7 @@ def emit_lowered_lemmas(
     nor_tok = getattr(b2, "nor", None)
     xor_tok = getattr(b2, "xor", None)
     cadd_tok = getattr(b2, "cadd", None)
+    had_tok = getattr(b2, "had", None)
     if_tok = getattr(b2, "if_", None)
     forall_tok = getattr(b2, "forall", None)
     exist_tok = getattr(b2, "exist", None)
@@ -453,6 +454,8 @@ def emit_lowered_lemmas(
         stmt_by_label.setdefault("wxo", (lp, ph_tpl, xor_tok, ps_tpl, rp))
     if cadd_tok is not None:
         stmt_by_label.setdefault("wcad", (cadd_tok, ph_tpl, ps_tpl, ch_tpl))
+    if had_tok is not None:
+        stmt_by_label.setdefault("whad", (had_tok, ph_tpl, ps_tpl, ch_tpl))
     if if_tok is not None:
         stmt_by_label.setdefault("wif", (if_tok, ph_tpl, ps_tpl, ch_tpl))
     prefix2_labels = {
@@ -508,7 +511,7 @@ def emit_lowered_lemmas(
         binops=list(binop_label),
         bare_binops=list(bare_binary_labels),
         prefix2=list(prefix2_labels),
-        prefix3=[token for token in (cadd_tok, if_tok) if token is not None],
+        prefix3=[token for token in (cadd_tok, had_tok, if_tok) if token is not None],
         substitution=substitution_tokens,
     )
 
@@ -631,6 +634,8 @@ def emit_lowered_lemmas(
         prefix3_labels: dict[SymbolId, str] = {}
         if cadd_tok is not None:
             prefix3_labels[cadd_tok] = "wcad"
+        if had_tok is not None:
+            prefix3_labels[had_tok] = "whad"
         if if_tok is not None:
             prefix3_labels[if_tok] = "wif"
         for op, label in prefix3_labels.items():

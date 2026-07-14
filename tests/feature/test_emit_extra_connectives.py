@@ -43,6 +43,7 @@ class _Builtins:
     or_: SymbolId
     fal: SymbolId
     cadd: SymbolId
+    had: SymbolId
     if_: SymbolId
 
 
@@ -282,7 +283,7 @@ def test_emit_lowers_nullary_const_and_disjunction(tmp_path: Any) -> None:
     imp, neg, and_ = const("->"), const("-."), const("/\\")
     iff, or_ = const("<->"), const("\\/")
     fal = const("F.")  # nullary falsum constant
-    cadd, if_ = const("cadd"), const("if-")
+    cadd, had, if_ = const("cadd"), const("hadd"), const("if-")
     b = _Builtins(
         lp=lp,
         rp=rp,
@@ -293,6 +294,7 @@ def test_emit_lowers_nullary_const_and_disjunction(tmp_path: Any) -> None:
         or_=or_,
         fal=fal,
         cadd=cadd,
+        had=had,
         if_=if_,
     )
 
@@ -318,6 +320,7 @@ def test_emit_lowers_nullary_const_and_disjunction(tmp_path: Any) -> None:
         expr=[lp, ph, or_, mm.sym.var("ps"), or_, ch, rp],
     )
     mm.a(mm.sym.label("wcad"), tc=wff, expr=[cadd, ph, mm.sym.var("ps"), ch])
+    mm.a(mm.sym.label("whad"), tc=wff, expr=[had, ph, mm.sym.var("ps"), ch])
     mm.a(mm.sym.label("wif"), tc=wff, expr=[if_, ph, mm.sym.var("ps"), ch])
     mm.a(mm.sym.label("wfal"), tc=wff, expr=[fal])
 
@@ -404,6 +407,19 @@ def test_emit_lowers_nullary_const_and_disjunction(tmp_path: Any) -> None:
             ),
         ),
     )
+    had_expr = _Lemma(
+        name="selfhad",
+        statement=Wff("wff", (lp, ph, imp, had, ph, ph, ph, rp)),
+        steps=(
+            _Step(
+                label="res",
+                op="ref",
+                args=(),
+                ref="triv",
+                wff=Wff("wff", (lp, ph, imp, had, ph, ph, ph, rp)),
+            ),
+        ),
+    )
     if_expr = _Lemma(
         name="selfif",
         statement=Wff("wff", (lp, ph, imp, if_, ph, ph, ph, rp)),
@@ -429,6 +445,7 @@ def test_emit_lowers_nullary_const_and_disjunction(tmp_path: Any) -> None:
             ternary_conj,
             ternary_disj,
             cadd_expr,
+            had_expr,
             if_expr,
         ],
         typecode=provable,

@@ -210,3 +210,6 @@ __marimo__/
 .vscode/
 
 .skfd
+
+# macOS
+.DS_Store

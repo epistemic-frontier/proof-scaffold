@@ -1402,9 +1402,9 @@ cross-module DV gates in
    same application is rejected when the consumer relation is absent; provider
    scope must not leak or be synthesized.
 3. `test_cross_unit_dv_relocation_keeps_formula_and_dv_endpoints_aligned`:
-   provider and consumer use independently interned, same-spelling variables,
-   and relocation preserves the identity alignment between formulas and `$d`
-   endpoints.
+   provider and consumer declare same-spelling variables in distinct module
+   namespaces of the same shared global interner, and relocation preserves
+   the identity alignment between formulas and `$d` endpoints.
 
 All three tests MUST link at `conformance_level=1` or higher. Level 0 is not
 acceptable evidence because it omits cross-unit export access control.

@@ -63,6 +63,9 @@ weakening ProofScaffold's ordinary package boundaries.
   downstream packages.
 - **Internal Hypothesis**: a non-foundation `$f` or `$e` label. It belongs to the
   unit that declares it and is not a dependency API.
+- **Ambient DV Relation**: any `$d` relation emitted at foundation top level.
+  Unlike an ordinary unit-local relation, it remains active for all later
+  statements in the linked closure.
 
 ---
 
@@ -84,8 +87,13 @@ ordinary package `$f` or `$e` labels are invalid, even if the package called
 **F5. Foundation `$f` is special by ownership, not by syntax.** A `$f` label may
 be used cross-unit only when its owning unit is the foundation unit.
 
-**F6. Assertion imports stay explicit.** Cross-unit `$a` and `$p` proof
-references are allowed only through assertion exports of declared dependencies.
+**F6. Assertion exports stay explicit; direct-import enforcement remains
+future work.** At conformance level 1 or higher, cross-unit `$a` and `$p` proof
+references are allowed only through assertion exports in the supplied build
+closure. Current `ProofUnitIR` has no imports field, so the linker does not yet
+prove that a reference follows a declared direct dependency edge. A future
+module ABI must add stable explicit imports before claiming that stronger
+property.
 
 **F7. Vocabulary imports are authoring support.** Exported constants and
 variables may be read from `ctx.deps` so downstream packages can construct
@@ -104,6 +112,18 @@ intern canonical foundation vocabulary, but proof dependencies still go through
 the export/access-control rules above. In particular, ordinary package labels
 must not be discovered through the namespace; they must be imported through
 `ctx.deps` and pass linker export checks.
+
+**F11. Foundation `$d` is global state.** Because the foundation frame is
+top-level, any foundation `$d` is ambient in every later ordinary unit. It is
+not an assertion export and cannot be hidden by an ordinary unit boundary.
+
+**F12. Standard prelude remains DV-free.** `metamath-prelude` MUST emit no `$d`.
+Adding one is a foundation ABI change and is forbidden by the standard package
+acceptance policy until a versioned foundation interface can represent the
+ambient relation, include it in its digest, and invalidate all downstream
+cached interfaces and objects. The generic linker may faithfully emit such a
+relation for an explicitly non-standard foundation, but that capability does
+not make it an implicit or backwards-compatible API.
 
 ---
 
@@ -223,7 +243,17 @@ emission:
 - ordinary units are emitted inside an outer `${ ... $}` frame;
 - ordinary units may still contain nested authoring scopes;
 - ordinary local hypotheses do not become dependency APIs after the ordinary
-  unit frame closes.
+  unit frame closes;
+- ordinary `$d` relations close with their unit, while the mandatory DV
+  contract already captured for each exported assertion remains enforceable;
+- a foundation `$d`, if an explicitly non-standard foundation supplies one,
+  remains ambient because the foundation has no enclosing unit frame.
+
+The standard `metamath-prelude` gate MUST assert zero emitted foundation `$d`
+statements. A future proposal to allow ambient DV in the standard foundation
+must define stable endpoint identities, interface serialization and digesting,
+downstream cache invalidation, and a migration/versioning rule before changing
+this policy.
 
 ---
 
@@ -256,6 +286,9 @@ The current refactor performed these package moves:
    transient monolith.
 5. Updated package docs so `metamath-prelude` is documented as foundation, not
    as a broad propositional-logic library.
+6. Preserve a zero-`$d` standard foundation baseline; assertion-specific DV
+   obligations belong to ordinary assertion contracts rather than ambient
+   prelude scope.
 
 ---
 

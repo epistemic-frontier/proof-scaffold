@@ -426,6 +426,47 @@ a companion `TheoryInterface` containing notation and exported assertion
 signatures. The interface must identify the same exports and must carry a
 canonical content digest so tools can detect stale context.
 
+### Module and distinct-variable contract
+
+The Authoring v2 package boundary is semantically stronger than Metamath
+`$[ file $]`. A Metamath include is textual insertion: the included filename
+does not introduce scope, ownership, exports, or an interface. A package module
+must instead isolate ordinary declaration scope and publish a stable interface.
+
+For distinct variables, the module rules are:
+
+1. A provider's `active_dv_pairs` is implementation and proof-replay context.
+   It closes with the provider's ordinary unit scope.
+2. Every exported assertion carries its `mandatory_dv_pairs` as part of its
+   public `AssertionSignature`; a module does not export a raw `$d` statement.
+3. A consumer applying that assertion must supply a sufficient active DV
+   relation in its own theorem context. The provider's local `$d` neither leaks
+   into nor automatically satisfies the consumer.
+4. Formula variables and DV endpoints share the same semantic identities and
+   relocation. A renamed endpoint must remain aligned with the renamed formula
+   variable.
+5. Foundation top-level `$d` would be ambient global state, not a normal module
+   export. The standard `metamath-prelude` interface therefore remains zero-DV
+   under [Foundation Scope v1](../references/010-foundation-scope.md).
+
+The current BuilderV2/linker validates these rules by loading the full
+transitive dependency closure in one process and emitting one transient
+monolith. Project 021 must not describe that as separate compilation. A future
+serialized `TheoryInterface` must carry stable SemanticIds, assertion terms,
+ordered mandatory `$f/$e`, `mandatory_dv_pairs`, foundation ambient-state
+digest, and an overall interface digest. It must never persist process-local
+`SymbolId` values. Independent unit objects additionally need scoped lowered
+IR/proofs, `active_dv_pairs`, and relocation records before cross-process
+linking or safe interface caching can be claimed.
+
+The current compatibility claim additionally requires linker conformance level
+1 or higher. Level 0 is the bootstrap default and does not execute cross-unit
+export access control, so a level-0 verifier success is not module/DV gate
+evidence. Current `ProofUnitIR` also has no explicit imports field and current
+`LinkResult` does not persist the extracted `AssertionContract` table. Project
+021 must add both capabilities before claiming declared direct-import
+enforcement or separate compilation.
+
 ## Authoring IR Stages
 
 ### Source Authoring IR
@@ -904,6 +945,9 @@ Deliverables:
 - Publish immutable Source and Elaborated IR, canonical JSON codecs, JSON
   Schema, visitors, and `TheoryInterface` sidecars.
 - Define SemanticId and interface digest policies.
+- Serialize exported assertion `mandatory_dv_pairs` and the standard
+  foundation's zero-DV/ambient-state digest; keep provider `active_dv_pairs` in
+  implementation/lowered objects rather than the public assertion signature.
 
 Acceptance:
 
@@ -917,6 +961,9 @@ Acceptance:
   same semantic digest.
 - A downstream authoring client can inspect an exported assertion signature
   without importing and executing its implementation module.
+- A downstream client can inspect every mandatory DV pair using stable
+  identities, and interface round trips do not turn active proof-only pairs
+  into public obligations.
 - Existing linker access control and verifier behavior remain unchanged.
 
 ### Phase 5 - Draft workspace and action protocol
@@ -1342,6 +1389,38 @@ The baseline and candidate runs compare, as applicable:
 - verifier aggregate results;
 - diagnostics and replay results for action-log fixtures;
 - generated catalogue and module-plan state in `metamath-logic`.
+
+Every change that affects module linking, assertion contracts, DV lowering,
+relocation, or serialized package interfaces MUST also run the three native
+cross-module DV gates in
+`tests/linker/test_module_disjoint_contract.py`:
+
+1. `test_cross_unit_dv_contract_accepts_consumer_local_disjoint`: an imported
+   assertion succeeds when the consumer theorem declares the required local
+   DV relation.
+2. `test_cross_unit_dv_contract_rejects_missing_consumer_local_disjoint`: the
+   same application is rejected when the consumer relation is absent; provider
+   scope must not leak or be synthesized.
+3. `test_cross_unit_dv_relocation_keeps_formula_and_dv_endpoints_aligned`:
+   provider and consumer use independently interned, same-spelling variables,
+   and relocation preserves the identity alignment between formulas and `$d`
+   endpoints.
+
+All three tests MUST link at `conformance_level=1` or higher. Level 0 is not
+acceptable evidence because it omits cross-unit export access control.
+
+The package-level companion gate
+`tests/driver/test_runner_v2.py::test_runner_ctx_deps_preserves_cross_package_dv_contract`
+MUST also pass. It covers dependency metadata and `DepsView`, the real
+`verify_package(..., conformance_level=1)` path, relocation, and final Metamath
+verification. It complements rather than replaces the native linker's positive,
+negative, and identity/relocation gates.
+
+For Phase 4 and later, add a cross-process interface round-trip gate proving
+that the same `mandatory_dv_pairs` serialize byte-identically from stable
+SemanticIds and that no process-local `SymbolId` appears. This fourth gate is a
+separate-compilation prerequisite; it is not evidence already provided by the
+current transient-monolith tests.
 
 When a slice is intended to be behavior-preserving, verifier-visible `.mm`,
 public labels, theorem statements, exports, trust classification, foundation

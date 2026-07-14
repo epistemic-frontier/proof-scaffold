@@ -1,8 +1,10 @@
+import io
 from pathlib import Path
 
 import pytest
 from skfd.driver.runner import DriverRunner
 from skfd.proof import ProofCoverageError
+from skfd.verifier import mmverify
 
 
 @pytest.fixture
@@ -87,6 +89,81 @@ def build(ctx: BuildContextV2) -> None:
     mm_text = out.read_text(encoding="utf-8")
     assert "ax-1" in mm_text
     assert "th-1" in mm_text
+
+
+def test_runner_ctx_deps_preserves_cross_package_dv_contract(workspace) -> None:
+    src, target = workspace
+
+    _create_pkg(
+        src,
+        module="dv_provider",
+        dist="dv-provider",
+        deps=[],
+        build_code="""
+from skfd.api_v2 import BuildContextV2
+
+def build(ctx: BuildContextV2) -> None:
+    mm = ctx.mm
+    wff = mm.sym.const("wff")
+    x = mm.sym.var("x")
+    y = mm.sym.var("y")
+    ax_dv = mm.sym.label("ax-dv")
+    with mm.block():
+        mm.d(x, y)
+        mm.a(ax_dv, tc=wff, expr=[x, y])
+    mm.export(wff, ax_dv)
+""",
+    )
+
+    _create_pkg(
+        src,
+        module="dv_consumer",
+        dist="dv-consumer",
+        deps=["dv-provider"],
+        build_code="""
+from skfd.api_v2 import BuildContextV2
+
+def build(ctx: BuildContextV2) -> None:
+    mm = ctx.mm
+    provider = ctx.deps.dv_provider
+    wff = provider["wff"]
+    x = mm.sym.var("x")
+    y = mm.sym.var("y")
+    wx = mm.sym.label("wx")
+    wy = mm.sym.label("wy")
+    mm.f(wx, tc=wff, var=x)
+    mm.f(wy, tc=wff, var=y)
+    mm.d(x, y)
+    th_dv = mm.sym.label("th-dv")
+    mm.p(
+        th_dv,
+        tc=wff,
+        expr=[x, y],
+        proof=[wx, wy, provider["ax-dv"]],
+    )
+    mm.export(th_dv)
+""",
+    )
+
+    runner = DriverRunner(src, target)
+    runner.execute_all()
+    runner.verify_package("dv-consumer", conformance_level=1)
+
+    mm_text = (target / "dv-consumer_full.mm").read_text(encoding="utf-8")
+    assert "$d x y $." in mm_text
+    assert "ax-dv $a wff x y $." in mm_text
+    assert "$d x0 y0 $." in mm_text
+    assert "th-dv $p wff x0 y0 $=" in mm_text
+
+    old_verbosity = mmverify.verbosity
+    mmverify.verbosity = 0
+    try:
+        database = mmverify.MM()
+        database.read(mmverify.toks(io.StringIO(mm_text)))
+    finally:
+        mmverify.verbosity = old_verbosity
+
+    assert "th-dv" in database.labels
 
 
 def test_runner_records_declared_proof_coverage(workspace) -> None:

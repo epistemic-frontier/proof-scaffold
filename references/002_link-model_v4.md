@@ -58,6 +58,17 @@ Every new capability must be introduced with:
 - **ProofUnit**: the linkable boundary. A unit may export vocabulary, assertions,
   and foundation-owned ambient hypotheses; ordinary local hypotheses are not a
   dependency API.
+- **Textual include**: Metamath `$[ file $]`, which splices another file into one
+  statement stream. The file boundary has no scope or interface semantics.
+- **Assertion contract**: the verifier-visible signature of an exported `$a` or
+  `$p`, including mandatory `$f/$e` hypotheses and mandatory distinct-variable
+  pairs. It survives after the provider unit's lexical scope closes.
+- **Active DV relation**: the complete set of exact unordered variable pairs
+  active at an assertion's definition site. It is implementation/proof-replay
+  context and may mention proof-only variables.
+- **Mandatory DV relation**: the subset of the active relation whose two
+  endpoints are mandatory variables of the assertion. It is part of the public
+  assertion contract.
 - **HIR**: optional structured proof trace (e.g., `Apply(assertion, subst, step_id)`).
 - **LIR**: required Metamath-shaped IR whose token payloads are **SymbolIds**, not strings.
 - **ScopeFrame**: an explicit `${ ... $}` region in linear IR emission.
@@ -218,6 +229,47 @@ Constraints:
   allowed because the foundation frame is global.
 - A unit must not depend on ordinary packages by referencing their internal
   `$f/$e` labels.
+- A unit does not export a lexically active `$d` statement. Each exported
+  assertion instead retains its own `mandatory_dv_pairs` after the unit frame
+  closes.
+- A theorem that applies an imported assertion must satisfy that assertion's
+  mandatory DV relation from the theorem's own active DV relation. Provider
+  scope is never inherited by an ordinary consumer unit.
+
+### 4.7 Module boundary and `$d` semantics
+
+ProofUnit linking is not Metamath textual inclusion. `$[ file $]` only expands
+text; after expansion, `$d` follows ordinary `${ ... $}` lexical scope and the
+included file has no independent interface. A ProofUnit is a semantic boundary:
+
+- ordinary unit-local `$f/$e/$d` state is isolated by the unit's outer scope;
+- an assertion label is exported together with its extracted assertion
+  contract, not together with the provider's lexical environment;
+- `active_dv_pairs` stays with the provider declaration/proof replay;
+- `mandatory_dv_pairs` crosses the boundary as part of the exported assertion;
+- the consumer supplies its own active `$d` relation and the verifier checks
+  the imported contract after substitution.
+
+For an application of assertion `A` under substitution `sigma`, every free
+variable in `sigma(x)` must be disjoint from every free variable in `sigma(y)`
+for each `(x, y)` in `mandatory_dv_pairs(A)`. Those substituted pairs must be
+present in the consumer theorem's active DV relation. Closing the provider
+scope neither erases this obligation nor satisfies it for the consumer.
+
+The current linker implements this contract by loading the complete transitive
+dependency closure, linking it in one process, and emitting one verified
+transient monolith. This is whole-closure modular linking, not separate
+compilation. An independently cached or cross-process unit interface is a
+future format and must include stable semantic symbol identities, assertion
+statements, ordered mandatory `$f/$e`, `mandatory_dv_pairs`, and an interface
+digest. Process-local `SymbolId` values are not a serializable module ABI.
+`ProofUnitIR` currently has exports but no declared imports, so level-1 access
+control can enforce owner/export visibility within the supplied closure but
+cannot yet prove that every reference follows a declared direct dependency
+edge. `LinkResult` currently returns emitted text, source map, and linker
+context, but does not persist its extracted assertion-contract table. Explicit
+imports and a serializable contract-bearing result/interface are prerequisites
+for separate compilation, not current features.
 
 ---
 
@@ -258,7 +310,7 @@ Required checks:
    - proof tokens must be Label ids,
    - math tokens must be Const/Var ids.
 5. **Out-of-range / unresolved token ids** are rejected (no silent stringification).
-6. **Cross-unit access control** is enforced:
+6. At conformance level 1 or higher, **cross-unit access control** is enforced:
    - referencing a non-exported assertion from another unit is an error.
    - referencing an ordinary unit’s `$f/$e` labels is an error, even if the
      owner attempted to export them.
@@ -275,7 +327,8 @@ COMPAT behavior (optional):
 Outputs:
 - For each exported assertion `A`:
   - `mandatory_hyps(A)` and `mandatory_vars(A)` (deterministic order)
-  - `dv_contract(A)` if available (may be empty in bootstrap)
+  - `mandatory_dv_pairs(A)`, computed from the active relation and mandatory
+    variables (it may be empty, but must not be silently unavailable)
 - For each theorem `T`:
   - `uses_assertions(T)` computed from proof token ids (preferred)
   - optional: `uses_subst(T)` derived from HIR (if present)
@@ -292,6 +345,12 @@ Same as v3, with three modes:
 - Mode C: HIR-assisted propagation
 
 Mode selection must be explicit per build configuration.
+
+Regardless of mode, pair semantics are exact and unordered. Separate
+declarations `$d x y $.` and `$d y z $.` do not imply `$d x z $.`. Stage 3 must
+preserve the active relation needed to replay a provider assertion and derive
+the mandatory relation attached to its exported contract. It must not copy the
+provider's active relation into an ordinary consumer unit.
 
 ### Stage 4 — Dependency closure and topo sort
 
@@ -326,7 +385,13 @@ Outputs:
 
 Rules:
 - `$c/$v` are not emitted inside frames in the final stream (see Stage 7).
-- Ordinary unit frames prevent accidental `$f/$e` leakage into downstream units.
+- Ordinary unit frames prevent accidental `$f/$e/$d` leakage into downstream
+  units. An exported assertion remains usable because its assertion contract
+  was captured when the assertion was declared.
+- A foundation `$d` emitted at top level is ambient for the remainder of the
+  closure. That is verifier-compatible but privileged global state; the
+  standard foundation policy is defined in
+  [Foundation Scope v1](010-foundation-scope.md).
 
 ### Stage 6 — Token-level relocation
 
@@ -337,6 +402,7 @@ Compute deterministic emitted names:
 Relocation applies to:
 - all labels,
 - all constants and variables appearing in math strings,
+- every endpoint of every `$d` relation,
 - all proof tokens (labels).
 
 Rules:
@@ -442,10 +508,13 @@ For the same failing verifier step, debug slice output must be deterministic:
   - LIR required
   - no HIR
   - Debug Slice optional (but still recommended)
+  - cross-unit export access control is not enforced; L0 is not an admissible
+    module-boundary, cross-module DV, integration, or release gate
 
 - **L1 Debug Slice**:
   - LIR required
   - StepId tracking + step_to_span required
+  - cross-unit assertion/foundation-hypothesis export access control required
   - enables step-local debugging
 
 - **L2 HIR-assisted**:
@@ -470,6 +539,14 @@ Build configuration must state the conformance level, and the linker must fail e
 3. Adversarial tests:
    - crafted inputs that must fail fast, or must succeed in tricky edge cases,
    - with precise diagnostics and determinism guarantees.
+
+4. Cross-module DV gates:
+   - a consumer-local `$d` satisfies an imported assertion contract;
+   - omitting that consumer-local `$d` is rejected by the verifier;
+   - relocation keeps formula variables and `$d` endpoints aligned when
+     provider and consumer intern the same local spellings as distinct symbols;
+   - a package-driver integration companion carries the same contract through
+     package metadata, `DepsView`, level-1 linking, relocation, and verification.
 
 ### 9.2 Mandatory adversarial tests for known M1.4 debts
 
@@ -621,6 +698,77 @@ Each test must enforce:
 **Expectations**:
 - `__str__` contains a deterministic rendering of `details`.
 - Re-running the same test produces identical string output.
+
+### ADV-P0-7 Cross-unit `$d` assertion contract
+
+These three gates are mandatory and live together in
+`tests/linker/test_module_disjoint_contract.py`.
+They MUST invoke the linker with `conformance_level=1` or higher. A verifier
+success obtained from the default level 0 does not exercise the cross-unit
+export boundary and is not gate evidence.
+
+#### ADV-P0-7a Consumer-local `$d` satisfies an imported contract
+
+**Setup**:
+- Provider unit A declares a local `$d x y` and exports an assertion whose
+  mandatory variables include `x` and `y`.
+- Consumer unit B declares the corresponding local `$d` pair and proves a
+  theorem by applying A's exported assertion.
+
+**Expectations**:
+- Linking closes A's ordinary unit scope before B.
+- The emitted transient monolith verifies successfully.
+- A's `$d` does not appear as ambient state in B; B's local relation is what
+  satisfies the imported assertion contract.
+
+**Test**:
+- `test_cross_unit_dv_contract_accepts_consumer_local_disjoint`
+
+#### ADV-P0-7b Missing consumer-local `$d` is rejected
+
+**Setup**:
+- Use the same provider and consumer application as ADV-P0-7a, but omit the
+  required pair from B's active DV relation.
+
+**Expectations**:
+- Link and emission must not manufacture or inherit A's local `$d` for B.
+- Metamath verification rejects the theorem with a disjoint-variable
+  violation.
+
+**Test**:
+- `test_cross_unit_dv_contract_rejects_missing_consumer_local_disjoint`
+
+#### ADV-P0-7c Relocation preserves formula/DV endpoint identity
+
+**Setup**:
+- Provider and consumer independently intern variables with the same local
+  spellings, so their `SymbolId`s differ.
+- Both formulas and local `$d` relations use those distinct symbols before
+  linking.
+
+**Expectations**:
+- Collision-safe emitted names may differ, for example provider `x/y` and
+  consumer `x0/y0`.
+- Each unit's formula endpoints and `$d` endpoints relocate to the same names
+  within that unit; no endpoint is captured by the other unit's spelling.
+- The final stream verifies successfully.
+
+**Test**:
+- `test_cross_unit_dv_relocation_keeps_formula_and_dv_endpoints_aligned`
+
+### ADV-P0-8 Package-driver cross-package `$d` integration
+
+The three ADV-P0-7 tests lock the native linker semantics. The companion
+integration gate MUST also exercise the actual package path rather than
+constructing only in-memory units:
+
+- `tests/driver/test_runner_v2.py::test_runner_ctx_deps_preserves_cross_package_dv_contract`
+
+It must resolve a provider through package metadata and `DepsView`, invoke
+`verify_package(..., conformance_level=1)`, relocate the linked closure, and
+complete Metamath verification. This positive integration gate does not replace
+ADV-P0-7b: the native negative test remains the proof that provider scope is not
+silently inherited.
 
 ---
 

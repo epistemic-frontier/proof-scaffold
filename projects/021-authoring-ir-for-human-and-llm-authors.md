@@ -1587,3 +1587,215 @@ counterpart PRs or commits:
 These constraints make every intermediate repository revision reviewable and
 independently testable while preventing a framework-only success from being
 mistaken for a usable authoring contract.
+
+## Addendum: Evidence from the Transpiled Logic Corpus
+
+This addendum records evidence obtained after the initial Project 021 draft.
+It supplements and sharpens the empirical baseline, IR placement rules, and
+work plan above. Where this addendum narrows an experimental choice, the
+narrower rule applies to the first metaprogramming slices.
+
+### New empirical baseline
+
+A complete transpilation experiment combined `mono`, `partition`, and
+`metamath-replay` metadata without modifying those projects. It materialized a
+fixed `set.mm` logic range into 14 `metamath-logic` authoring modules with:
+
+- 2,736 partition targets;
+- 2,675 generated `ProofBuilder` theorem constructors;
+- 61 foundation statements;
+- 2,675/2,675 direct assertion comments preserved as constructor docstrings;
+- 352 theorems with mandatory DV pairs and zero missing mandatory contracts;
+- 83 theorems with additional proof-only auxiliary DV pairs;
+- 387 generated labels with non-empty active DV context;
+- successful mmverify, reference Metamath, and metamath-knife verification.
+
+The generated authoring modules contain approximately 2.07 MiB and 36,401
+lines, compared with approximately 1.04 MiB and 24,505 lines in the
+corresponding continuous `set.mm` source range. Within the generated theorem
+functions, docstrings account for about 22.7 percent of bytes and formula
+strings for about 30.8 percent. The result is therefore a successful concrete
+compiler target and compatibility oracle, but not by itself an ideal
+human-maintained source representation.
+
+AST-level clustering found two importantly different results:
+
+- retaining concrete referenced assertion labels yields only 10 repeated
+  complete proof recipes covering 20 functions, about 0.7 percent;
+- retaining only `hyp`/`ref`/`mp` data-flow topology yields 167 repeated
+  clusters covering 2,280 functions, about 85.2 percent.
+
+A conservative theorem-name and structure analysis identified 373 functions,
+about 197 KB, in clear parameterized cohorts: conjunction projections,
+`syl...anc`, ternary positional operations, antecedent insertion, `mp3an...`,
+and positional connective families. This is a lower bound on useful family
+structure, not evidence that every topology cluster is one abstraction.
+
+### Refined metaprogramming terminology
+
+Project 021 now distinguishes three mechanisms.
+
+**Concrete family factory (A).** A source-level factory materializes an already
+known assertion with its own stable `AssertionId`, canonical source label,
+static signature, proof body, documentation, provenance, and exact DV data.
+The result is an ordinary concrete declaration and follows every normal
+elaboration, lowering, verification, admission, and export gate.
+
+**Proof combinator (B).** A deterministic derived authoring operation accepts
+typed parameters and existing `StepRef`s, then expands to an ordered sequence
+of applications of existing concrete assertions. It is not an assertion, has
+no Metamath label or exported signature, and is not emitted independently.
+
+**On-demand theorem-family instance (C).** A family reference requests a new
+assertion that has not already been materialized. It requires canonical family
+identity and parameters, deterministic instance identity and label allocation,
+static signature and DV specialization, dependency-closure materialization,
+cycle and collision handling, serialization, visibility, and admission rules.
+This is a future declaration/materialization subsystem, not proof-application
+sugar.
+
+These mechanisms are separate from ordinary Metamath schema substitution.
+Formula variables such as `ph`, `ps`, and `x` belong to a concrete
+`AssertionSignature` and are instantiated by assertion application. Family
+parameters such as conjunction shape, projection path, arity, mode, direction,
+or child-family choice select or generate an assertion. They MUST NOT be placed
+in premise lists or formula-substitution maps.
+
+### Additional invariants
+
+The transpiled corpus adds the following invariants to the Project 021 target.
+
+**A13. Concrete elaborated semantics.** Elaborated proof semantics contain
+only concrete assertion IDs, ordered premise `StepRef`s, explicit
+substitutions, computed results, and satisfied constraints. A family key,
+topology template, macro name, or combinator invocation MUST NOT replace a
+concrete assertion application in Elaborated IR.
+
+**A14. Metaprogramming expands before lowering.** Factories and combinators MAY
+appear in source tooling, facades, or Draft operations, but they MUST
+deterministically elaborate to ordinary concrete declarations and proof
+applications before Metamath lowering. No unresolved factory or combinator
+node may survive finalization.
+
+**A15. DV ownership is not delegated to macros.** A concrete declaration owns
+its exact provider replay context, including full `active_dv_pairs`; its static
+signature owns the public `mandatory_dv_pairs`. A combinator owns neither and
+MUST NOT add, widen, infer, copy, or synthesize DV pairs to make an application
+succeed. Assertion application checks the substituted mandatory contract
+against the enclosing theorem's explicit consumer context.
+
+**A16. Expanded output is the semantic oracle.** A metaprogramming refactor MAY
+change Python source volume and layout, but for a behavior-preserving migration
+the expanded concrete declarations and proof DAGs MUST preserve assertion
+identity, ordered signatures, references, premise order, formulas, DV,
+declaration order, lowered Metamath, and verifier results.
+
+**A17. Topology is analysis, not identity.** Proof-topology clusters MAY drive
+discovery and candidate extraction, but topology hashes and family membership
+are not assertion identity, proof semantics, or sufficient justification for a
+public combinator. A combinator needs a typed, stable mathematical
+responsibility.
+
+### Placement in Authoring IR
+
+The three metaprogramming mechanisms map to the existing stages as follows.
+
+```text
+family factory invocation
+    -> concrete Source assertion declaration
+    -> ordinary Draft/elaboration operations
+    -> concrete ElaboratedProof
+
+combinator invocation
+    -> atomic ordered Draft action expansion
+    -> concrete assertion applications
+    -> concrete ElaboratedProof
+
+on-demand family instance
+    -> future declaration elaborator (not v0.1)
+    -> concrete Source assertion declaration
+    -> normal pipeline
+```
+
+Source IR MAY retain typed factory/combinator parameters and source spans.
+Draft IR stores the resulting ordinary steps and may retain an expansion trace
+for diagnostics. Elaborated IR stores only concrete applications. Factory or
+combinator origin is non-semantic provenance: changing its name or source
+location without changing the expanded declaration or DAG MUST NOT change the
+semantic digest. Changing expansion output MUST change that digest.
+
+If a combinator expands multiple operations, the Draft mutation MUST be
+atomic. Invalid shape, path, mode, assertion resolution, premise, substitution,
+or DV constraints leave the input snapshot unchanged and return a structured
+diagnostic that identifies both the combinator invocation and the failed
+concrete application.
+
+### Static declarations become an immediate migration requirement
+
+The current compatibility path discovers a lemma signature by executing its
+proof constructor. The full corpus makes the limits of that approach concrete:
+factory closures, forward references, import-order caches, and recursively
+selected family members make executable signature discovery fragile.
+
+The transpiler already possesses assertion statements, ordered hypotheses,
+source labels, documentation, and exact active and mandatory DV metadata. A
+Project 021 migration SHOULD therefore emit static `AssertionSignature` and
+`AssertionDecl` data directly and adapt legacy constructors to those
+declarations, rather than materialize a constructor and execute it merely to
+rediscover its public contract. This implements the existing rule that a
+signature is available without executing its proof body.
+
+### Typed Term priority
+
+Parameterized families construct and traverse formula trees. They MUST NOT use
+ad hoc formula-string concatenation as semantic construction. The first A/B
+prototype SHOULD construct typed `Term`s for conjunction, implication,
+position, and path operations, render them through one canonical formatter at
+the legacy `ProofBuilder` compatibility boundary, and prove:
+
+```text
+parse(render(term)) == term
+```
+
+Accepting an already compiled token-level `Wff` as a reusable family parameter
+is not an adequate replacement: token identities belong to one runtime
+interner. Until the typed lowering path is complete, uncompiled typed Terms are
+the stable semantic values and strings are boundary syntax.
+
+### Revised corpus and work-plan evidence
+
+Phase 0 now has two corpus roles.
+
+1. The complete 2,675-constructor result is the global compatibility oracle.
+   It is not necessary to hand-migrate every constructor before using it for
+   signature, proof-DAG, DV, order, lowering, and verifier regression checks.
+2. The conservative 373-member cohort is the authoring-abstraction corpus. It
+   tests whether typed factories and combinators reduce source repetition
+   without hiding concrete dependencies.
+
+The first vertical A/B slice SHOULD include:
+
+- all 37 identified `syl...anc` members, exercising recursive shape
+  composition and family-to-family concrete references;
+- a representative or complete conjunction-projection cohort, exercising
+  typed tree paths;
+- one predicate theorem that performs a real mandatory-DV application;
+- one irregular long `axioms` theorem that deliberately remains a direct
+  concrete proof as a non-family control.
+
+Phase 2 acceptance therefore includes typed shape/path construction and
+canonical rendering for this slice. Phase 3 acceptance includes one concrete
+family factory, one atomic deterministic combinator expansion, and comparison
+against the expanded corpus oracle. `proof-lab` remains the primary evidence
+for human/agent parity, drafts, capabilities, workflows, and diagnostics; the
+transpiled corpus is the primary scale and compatibility evidence for the proof
+kernel.
+
+On-demand family instantiation (C) is explicitly post-v1. It may be reconsidered
+only when an author needs a shape/path/arity absent from the concrete registry,
+the result must become an independently reusable or exported assertion, and
+combinator inlining is demonstrably inadequate. A proposal must then define
+family IDs, canonical parameter schemas, deterministic materialized labels,
+header/body staging, instance closure, cache scope, DV specialization,
+diagnostics, serialization, visibility, and admission before changing proof
+references or lowering.

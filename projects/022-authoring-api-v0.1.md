@@ -1346,3 +1346,226 @@ It does not succeed merely because a new set of classes exists, a generated
 `.mm` file verifies once, or all current implementation modules can be
 imported. The evidence must connect author experience, semantic determinism,
 trust boundaries, package policy, and final independent verification.
+
+## Addendum: v0.1 Metaprogramming and Transpiled-Corpus Contract
+
+This addendum incorporates the complete logic transpilation evidence described
+in the Project 021 addendum. It narrows the first metaprogramming experiment and
+defines how factories and combinators relate to the v0.1 semantic kernel.
+
+### Additional evidence source
+
+The v0.1 evidence set now includes the transpiled `set.mm` logic corpus:
+
+- 2,675 concrete theorem constructors across 14 implementation modules;
+- complete assertion docstrings;
+- exact mandatory and full active DV metadata;
+- successful mmverify, reference Metamath, and metamath-knife verification;
+- about 2.07 MiB of generated authoring source for about 1.04 MiB of continuous
+  Metamath source;
+- only 0.7 percent exact concrete-ref recipe reuse, but 85.2 percent shared
+  proof topology after ignoring concrete refs;
+- a conservative 373-member parameterized-family cohort.
+
+This evidence tests proof-kernel scale, metadata preservation, declaration
+derivation, and compatibility. The three `proof-lab` workflows continue to
+test interaction, capabilities, drafts, trust transitions, and human/agent
+parity. Neither corpus replaces the other.
+
+### v0.1 scope refinement
+
+The following experimental capabilities are included in v0.1 vertical slices.
+
+1. **Concrete family factories (A).** A typed factory may generate concrete
+   Source declarations for existing, already named assertions. Every generated
+   member has an explicit `AssertionId`, canonical label, static signature,
+   implementation, documentation, provenance, visibility, and exact DV data.
+2. **Proof combinators (B).** A typed deterministic combinator may expand into
+   an ordered sequence of ordinary `ApplyAssertion` operations over existing
+   concrete assertions.
+3. **Typed formula-tree construction.** Shape, path, position, mode, and
+   direction parameters operate on typed Terms. String rendering is permitted
+   only at the legacy compatibility boundary.
+
+The following capability is explicitly not included.
+
+4. **On-demand theorem-family instantiation (C).** v0.1 does not define a
+   family-instance registry, dynamic assertion identity or label allocation,
+   parameter-specialized signatures or DV, recursive instance materialization,
+   or publication of newly requested family members.
+
+The A/B API spelling remains experimental, but this boundary is normative.
+A/B MUST compile to the same concrete semantic objects as direct authoring. C
+requires a separate post-v1 design.
+
+### `apply_assertion` remains the sole proof-semantic primitive
+
+The v0.1 core operation always applies one concrete `AssertionId` from the
+fixed theory interface and profile:
+
+```python
+result = apply_assertion(
+    state,
+    assertion=concrete_assertion_id,
+    premises=(step_ref_1, step_ref_2),
+    target=optional_checked_constraint,
+    subst=optional_partial_schema_substitution,
+)
+```
+
+Its fields have strict meanings:
+
+- `assertion` selects one existing concrete assertion;
+- `premises` are ordered proofs of its essential hypotheses;
+- `subst` maps assertion-local schema variables to typed Terms;
+- `target` constrains an otherwise inferred result and is checked, never
+  trusted as the result;
+- the elaborator computes and reifies the final substitution and result.
+
+Family shape, path, arity, mode, direction, child selection, and materialized
+label policy are not assertion schema variables. They MUST NOT appear in
+`premises` or `subst`. A combinator resolves those parameters before invoking
+the concrete operation. Modus ponens may be represented as application of the
+concrete `ax-mp` assertion; it does not require a second proof-semantic
+primitive.
+
+`apply_assertion` does not select a family member, validate a combinator's
+domain parameters, generate a declaration, or materialize a new assertion.
+Those are typed operations around the kernel.
+
+### Experimental combinator expansion contract
+
+v0.1 SHOULD exercise, but need not freeze, an operation with the following
+semantics:
+
+```text
+expand(
+    combinator_id,
+    typed_params,
+    input_step_refs,
+    draft_revision,
+    theory_interface_digest,
+)
+    -> ordered ApplyAssertion requests
+       + new immutable Draft snapshot
+       + non-semantic ExpansionTrace
+    | structured diagnostic + unchanged input snapshot
+```
+
+The expansion contract is:
+
+1. parameters are immutable, typed, and canonicalized before expansion;
+2. every generated request names a concrete, profile-permitted assertion ID;
+3. expansion order and generated `StepRef`s are deterministic;
+4. the entire expansion is atomic;
+5. invalid parameters, stale interface state, failed assertion application, or
+   unsatisfied constraints leave the input Draft unchanged;
+6. diagnostics identify the combinator invocation, canonical parameters, and
+   failed concrete application;
+7. expansion MUST NOT add or widen local DV pairs;
+8. an implementation/version digest participates in the Draft input lock if a
+   persisted action log records a server-side combinator invocation.
+
+For the simplest v0.1 implementation, a source/client combinator library may
+emit ordinary typed actions directly. Server-side macro identity is not needed
+to prove the semantic model.
+
+### Factory-to-declaration contract
+
+A concrete family factory is declaration tooling, not an admission or trust
+shortcut. For every member it produces ordinary source data equivalent to a
+direct declaration:
+
+```text
+factory + canonical parameters
+    -> concrete assertion identity and static signature
+    -> ordinary proof Draft/actions
+    -> concrete ElaboratedProof
+    -> normal lowering, verification, admission, and export policy
+```
+
+A factory MUST NOT directly create a trusted `TheoremDecl` merely because
+another family member verified. It MUST NOT infer assertion DV from formula
+shape or copy a neighboring member's pairs. Imported corpus metadata provides
+the member's exact provider `active_dv_pairs`; its static signature carries the
+derived `mandatory_dv_pairs`.
+
+Factory parameters and family membership may be recorded in declaration
+provenance or `TheoryAnalysis`. They do not replace `AssertionId`, canonical
+label, signature, or proof dependencies. Generated declarations participate in
+duplicate-ID/label checks and retain deterministic source declaration order.
+
+### IR and digest rules
+
+The authoritative semantic result of A/B is the expanded concrete form:
+
+- Source IR may record factory or combinator syntax and typed parameters;
+- Draft IR contains the resulting ordinary hypothesis and assertion-application
+  steps, with optional expansion origin for diagnostics;
+- Elaborated IR contains only concrete assertion IDs, premise `StepRef`s,
+  substitutions, computed Terms, and constraint evidence;
+- lowering sees no unresolved family or combinator reference.
+
+An `ExpansionTrace` is provenance, not proof semantics. Renaming or relocating
+a combinator while preserving the same expanded DAG does not change the proof
+semantic digest. A change to the concrete assertion sequence, premise graph,
+substitutions, results, or satisfied constraints does change that digest.
+
+Proof-topology signatures and family-cluster IDs belong in a digest-linked
+analysis sidecar. They MUST NOT enter `AssertionId`, `TheoryInterface`, or
+proof semantic equality.
+
+### Revised experiment matrix
+
+The v0.1 experiment has three evidence lanes.
+
+**Global regression oracle.** Preserve all 2,675 transpiled constructors and
+compare concrete labels, static signatures, ordered hypotheses, conclusions,
+direct references, premise order, formula results, active and mandatory DV,
+declaration order, lowered Metamath, and verifier results.
+
+**A/B authoring cohort.** The preferred first slice contains all 37
+`syl...anc` members and a representative or complete conjunction-projection
+cohort. It additionally includes one predicate theorem that exercises a real
+mandatory-DV application and one irregular long theorem that remains a direct
+proof. Later slices may cover the full 373-member conservative family cohort.
+
+**Proof Lab workflows.** Task 1 remains the concise human/agent application
+canary. Tasks 2 and 3 remain the draft, capability, profile, promotion, and
+trust-boundary canaries. They are not the sole proof-kernel scale evidence.
+
+### Additional acceptance gates
+
+An A/B v0.1 slice is accepted only when:
+
+- every factory member has an independent concrete identity, label, static
+  signature, documentation, and exact DV metadata;
+- every expanded combinator reference resolves to a concrete assertion in the
+  selected profile;
+- no family parameter appears as a proof premise or schema substitution;
+- factory and combinator expansion is deterministic across clean processes;
+- duplicate generated identities or labels fail before proof execution;
+- invalid shape, path, mode, or direction fails atomically with a structured
+  diagnostic;
+- combinators cannot synthesize DV, and a missing consumer-local mandatory DV
+  remains a failure;
+- expanded concrete DAGs match the compatibility oracle for behavior-preserving
+  migrations;
+- public labels, signatures, exports, declaration order, lowered Metamath, and
+  verifier results remain unchanged unless an explicit reviewed migration says
+  otherwise;
+- source reduction and author-supplied redundancy are measured alongside
+  diagnostics and verified correctness.
+
+### Revised v0.1 success evidence
+
+In addition to the original `proof-lab` success criterion, v0.1 must show at
+least one verified concrete factory family and one verified deterministic
+combinator over the transpiled corpus. Their expanded semantics must match the
+global oracle while materially reducing repeated author-supplied formulas,
+step labels, or proof plumbing.
+
+Success does not require C, a general macro language, or migration of all 2,675
+constructors. It requires evidence that typed declarations plus concrete
+`apply_assertion` form a sufficient semantic kernel, and that useful
+metaprogramming remains a deterministic, inspectable layer above that kernel.

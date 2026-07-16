@@ -10,6 +10,10 @@ small v0.1 API proposal. It is a design and experiment contract, not a frozen
 public release. The next step is to test it in `proof-lab`; this document does
 not implement that test.
 
+[Project 023](./023-concrete-proof-families-and-combinators.md) defines the
+companion transpiled-corpus experiment for concrete family factories and proof
+combinators.
+
 Normative words such as MUST, SHOULD, and MAY describe the intended v0.1
 contract. Python and action examples are pseudocode. Their semantics are more
 important than their final spelling.

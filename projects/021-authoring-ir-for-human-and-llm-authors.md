@@ -10,6 +10,9 @@ validated by representative migrations before they are frozen.
 
 [Project 022](./022-authoring-api-v0.1.md) narrows this direction into the
 first concrete API draft and its `proof-lab` experiment contract.
+[Project 023](./023-concrete-proof-families-and-combinators.md) operationalizes
+the transpiled-corpus addendum as a bounded concrete-family and proof-combinator
+experiment.
 
 ## Context
 

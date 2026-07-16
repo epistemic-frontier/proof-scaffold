@@ -44,6 +44,21 @@ def test_load_build_module_uses_package_import_for_relative_imports(tmp_path: Pa
     assert mod.build(None) == 42
 
 
+def test_load_build_module_supports_internal_name(tmp_path: Path) -> None:
+    pkg = tmp_path / "src" / "pkg_internal"
+    _write(pkg / "__init__.py", "")
+    _write(pkg / "helper.py", "VALUE = 42")
+    _write(
+        pkg / "_build.py",
+        "from .helper import VALUE\n\ndef build(ctx):\n    return VALUE\n",
+    )
+    sys.modules.pop("pkg_internal._build", None)
+
+    mod = load_build_module(pkg / "_build.py")
+
+    assert mod.build(None) == 42
+
+
 def test_load_build_module_falls_back_to_file_loading(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -173,3 +188,14 @@ def test_find_packages_skips_root_build_and_uses_project_name(tmp_path: Path) ->
     assert list(find_packages(tmp_path / "missing")) == []
     found = list(find_packages(root))
     assert found == [("dist-name", root / "pkg", root / "pkg" / "build.py")]
+
+
+def test_find_packages_prefers_internal_build_module(tmp_path: Path) -> None:
+    root = tmp_path / "src"
+    pkg = root / "pkg"
+    _write(pkg / "build.py", "")
+    _write(pkg / "_build.py", "")
+
+    found = list(find_packages(root))
+
+    assert found == [("pkg", pkg, pkg / "_build.py")]

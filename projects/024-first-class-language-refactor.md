@@ -141,6 +141,11 @@ formation label、legacy lowering 与 `wa/w3a` emission。迁移前后
 `0e857f13fe8c82d406f3b730f8dcc2aade8a94a031f38152a295f0be00ba75b8`，三套 verifier 均通过。
 这仍是 compatibility migration：全局 registry 与 legacy `Expr` 尚未移除，完整 Phase 2 尚未结束。
 
+Phase 2C 进一步删除了 prop 对 Prelude `Imp/Not` 的重复 authoring 声明：原导入路径现为 Prelude
+constructor 的兼容 re-export。Prelude token lowering 改用只读结构协议接收下游 builtins，因此
+prop 与 FOL 无需继承具体 runtime 类即可复用同一 constructor builder；Logic artifact 仍保持上述
+SHA-256 不变。
+
 ---
 
 ## 1. 问题陈述

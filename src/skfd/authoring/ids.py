@@ -86,6 +86,16 @@ class OwnerId(_Id):
 
 
 @dataclass(frozen=True, order=True, slots=True)
+class ProofId(_Id):
+    pass
+
+
+@dataclass(frozen=True, order=True, slots=True)
+class StepId(_Id):
+    pass
+
+
+@dataclass(frozen=True, order=True, slots=True)
 class Digest:
     value: str
 

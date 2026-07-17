@@ -171,6 +171,23 @@ variable `x` 以及 mandatory pair `(φ, x)`；`ax-gen` 没有被错误附加该
 公开 `prove_*` API。下一步应把该 typed assertion contract 接入 Phase 5 的统一
 `AssertionSignature/apply_assertion`，再逐步消除 label-keyed side table，而不是长期维护两份事实源。
 
+Phase 5A 已建立最小 semantic assertion-application kernel。`AssertionSignature` 统一承载
+axiom 与 primitive rule 的稳定 assertion identity、kind、有序 schema variables、有序 judgment
+premises、conclusion 和 mandatory-DV；primitive `RuleId` 到 backend assertion identity 的绑定必须
+显式给出，不做隐式类型转换。不可变 `ProofDraft` 以 occurrence-based `StepId` 保存 hypotheses 与
+fully reified steps，构造时检查连续 ID、无重复、无 forward/foreign premise，并规范化完整 active-DV
+环境。`apply_assertion` 只接受一个确定 signature 与有序 prior steps，执行局部结构 unification，
+把 partial substitution/target 作为约束，要求所有 mandatory variables 唯一确定，再通过独立的
+one-pass schema instantiation 计算结果；它不调用 capture-avoiding object substitution，也不信任
+调用者提供的结果。DV 检查与 Metamath 一致地使用两端 substitution 中所有语法出现变量的笛卡尔
+积，包括 binder 下的出现，并要求 consumer active-DV relation 覆盖每一对。失败抛出结构化
+`AssertionApplicationError`，原 draft 不变。
+
+这一切片已用真实 `ax-mp` 与 `ax-5` metadata 验证 ordered-premise inference、binder-variable
+instantiation、missing/overlapping DV rejection 和 reified substitution/evidence。它尚不声称完成
+完整 Phase 5：theory/profile lookup、goals/holes、finalization、replay context、semantic digest、
+legacy lowering 以及 family/combinator expansion 仍明确留在后续切片。
+
 ---
 
 ## 1. 问题陈述

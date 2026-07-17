@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import replace
+from typing import cast
 
 import pytest
 
@@ -20,13 +21,17 @@ from skfd.authoring.catalog import (
     apply_assertion_by_id,
     resolve_assertion_catalog,
 )
+from skfd.authoring.errors import AuthoringSemanticError
 from skfd.authoring.ids import (
     AssertionCatalogId,
     AssertionProfileId,
     AssertionSemanticId,
+    BackendBindingId,
+    BackendVocabularyId,
     CalculusId,
     ConstructorId,
     Digest,
+    FoundationId,
     JudgmentKindId,
     LanguageId,
     OwnerId,
@@ -55,9 +60,26 @@ from skfd.authoring.language import (
     VariableKindDecl,
     resolve_language,
 )
+from skfd.authoring.legacy_replay import (
+    LegacyAssertionReplayBinding,
+    LegacyReplayBinding,
+    LegacyReplayOperation,
+    lower_semantic_replay_plan,
+)
+from skfd.authoring.metamath_language import (
+    ArgumentPart,
+    FormationBinding,
+    FoundationRequirement,
+    LiteralPart,
+    MetamathLanguageBinding,
+    TokenRef,
+    resolve_metamath_language,
+)
 from skfd.authoring.replay import ResolvedDependency, build_semantic_replay_plan
 from skfd.authoring.source import SourceBuilder, elaborate_block, start_draft_from_snapshot
 from skfd.authoring.term import Var, VariableRef
+from skfd.core.symbols import SymbolInterner
+from skfd.proof import Proof, Step
 
 
 def test_apply_assertion_elaborates_mp_and_preserves_failed_draft() -> None:
@@ -212,6 +234,161 @@ def test_apply_assertion_elaborates_mp_and_preserves_failed_draft() -> None:
         ResolvedDependency(signature.id, "primitive_rule"),
     )
     assert replay.replay_context.active_distinct == ()
+    with pytest.raises(AssertionApplicationError, match="positions are not canonical"):
+        replace(
+            replay,
+            applications=(replace(replay.applications[0], position=3),),
+        )
+    with pytest.raises(AuthoringSemanticError, match="unsupported legacy replay"):
+        LegacyAssertionReplayBinding(
+            assertion=signature.id,
+            backend_label="ax-mp",
+            operation=cast(LegacyReplayOperation, "raw"),
+        )
+    with pytest.raises(AuthoringSemanticError, match="only supports the mp"):
+        LegacyAssertionReplayBinding(
+            assertion=signature.id,
+            backend_label="other",
+            operation="apply",
+            legacy_rule="other",
+        )
+
+    vocabulary = BackendVocabularyId("test#vocabulary:mm")
+    left_token = TokenRef(vocabulary, "(")
+    imp_token = TokenRef(vocabulary, "->")
+    right_token = TokenRef(vocabulary, ")")
+    backend = resolve_metamath_language(
+        MetamathLanguageBinding(
+            id=BackendBindingId("test#binding:mm"),
+            language=LanguageRequirement(
+                id=language.id,
+                semantic_digest=language.semantic_digest,
+            ),
+            foundation=FoundationRequirement(id=FoundationId("test#foundation:mm")),
+            formations=(
+                FormationBinding(
+                    constructor=imp,
+                    syntax_assertion=AssertionSemanticId("test#formation:imp"),
+                    syntax_assertion_label="wi",
+                    template=(
+                        LiteralPart(left_token),
+                        ArgumentPart(0),
+                        LiteralPart(imp_token),
+                        ArgumentPart(1),
+                        LiteralPart(right_token),
+                    ),
+                ),
+            ),
+        ),
+        language,
+        {},
+    )
+    interner = SymbolInterner()
+    token_symbols = {
+        token: interner.intern(
+            origin_module_id="test",
+            local_name=token.local_name,
+            kind="Const",
+            origin_ref=0,
+        )
+        for token in (left_token, imp_token, right_token)
+    }
+    variable_symbols = {
+        variable: interner.intern(
+            origin_module_id="test",
+            local_name=variable.local_key,
+            kind="Var",
+            origin_ref=0,
+        )
+        for variable in theorem_signature.schema_variables
+    }
+    legacy = lower_semantic_replay_plan(
+        replay,
+        LegacyReplayBinding(
+            language=backend,
+            provable_judgment=provable,
+            assertions=(
+                LegacyAssertionReplayBinding(
+                    assertion=signature.id,
+                    backend_label="ax-mp",
+                    operation="apply",
+                    legacy_rule="mp",
+                ),
+            ),
+            token_symbols=token_symbols,
+            variable_symbols=variable_symbols,
+            legacy_sorts={wff: "wff"},
+            symbol_table=interner.symbol_table(),
+        ),
+        proof_name="mp-instance",
+    )
+    phi_symbol = variable_symbols[phi_ref]
+    psi_symbol = variable_symbols[psi_ref]
+    implication = (
+        token_symbols[left_token],
+        phi_symbol,
+        token_symbols[imp_token],
+        psi_symbol,
+        token_symbols[right_token],
+    )
+    assert legacy == Proof(
+        "mp-instance",
+        legacy.statement,
+        (
+            Step("mp-instance.1", legacy.steps[0].wff, "Hypothesis", op="hyp"),
+            Step("mp-instance.2", legacy.steps[1].wff, "Hypothesis", op="hyp"),
+            Step(
+                "res",
+                legacy.statement,
+                "ax-mp",
+                op="apply",
+                args=("mp-instance.1", "mp-instance.2"),
+                ref="mp",
+            ),
+        ),
+    )
+    assert legacy.steps[0].wff.tokens == (phi_symbol,)
+    assert legacy.steps[1].wff.tokens == implication
+
+    hypothesis_root_signature = AssertionSignature(
+        id=AssertionSemanticId("test#theorem:hypothesis-root"),
+        canonical_label="hypothesis-root",
+        kind="theorem",
+        schema_variables=(phi_ref, psi_ref),
+        premises=(Judgment(provable, (phi,)), Judgment(provable, (psi,))),
+        conclusion=Judgment(provable, (phi,)),
+    )
+    hypothesis_root_draft = start_draft(
+        ProofId("test#proof:hypothesis-root"),
+        calculus,
+        hypothesis_root_signature.premises,
+        signature=hypothesis_root_signature,
+    )
+    hypothesis_root_proof = finalize_proof(
+        hypothesis_root_draft,
+        calculus,
+        root=hypothesis_root_draft.hypotheses[0].id,
+    )
+    hypothesis_root_replay = build_semantic_replay_plan(
+        hypothesis_root_proof,
+        calculus,
+        catalog,
+        profile_id,
+    )
+    with pytest.raises(AuthoringSemanticError, match="root to be the final"):
+        lower_semantic_replay_plan(
+            hypothesis_root_replay,
+            LegacyReplayBinding(
+                language=backend,
+                provable_judgment=provable,
+                assertions=(),
+                token_symbols=token_symbols,
+                variable_symbols=variable_symbols,
+                legacy_sorts={wff: "wff"},
+                symbol_table=interner.symbol_table(),
+            ),
+            proof_name="hypothesis-root",
+        )
 
     denied_profile = AssertionProfileId("test#profile:denied")
     denied_catalog = resolve_assertion_catalog(

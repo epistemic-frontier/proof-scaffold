@@ -218,11 +218,27 @@ Phase 5C 已建立固定 theory/profile 所需的最小 assertion catalog 边界
 `apply_assertion_by_id` 只允许从显式 profile 授权的 catalog 解析 signature，再复用 Phase 5A
 kernel。Backend-neutral `SemanticReplayPlan` 不引入第二套 proof semantics：它逐步使用 catalog
 signature、proof substitution、premise occurrence 与 target 重新运行 `apply_assertion`，之后才附加
-canonical backend label、位置化 premise 和按 assertion kind 分类的 dependency closure。Prop
+catalog compatibility label、位置化 premise 和按 assertion kind 分类的 dependency closure。Prop
 `mp2b` canary 已用两次按 ID 解析的 `ax-mp` 完成 semantic proof、finalization 与 replay-plan
 生成，并与 legacy proof 的两步结构一致。当前切片尚不把 replay plan 转换为 legacy `Proof`，不改
 BuilderV2/corpus emission；完整 theory ontology、跨 catalog dependency 与 family/combinator migration
 留给后续切片。
+
+Phase 5D 已增加从 `SemanticReplayPlan` 到现有 `Proof`/`Step` 的窄 legacy bridge。Term 只通过
+`ResolvedMetamathLanguageBinding` 形成 token sequence；runtime 必须显式提供 `TokenRef -> Const
+SymbolId`、`VariableRef -> Var SymbolId` 与 semantic-sort -> legacy-sort 映射。变量映射要求存在、
+kind 正确且保持 identity 的单射，防止 lowering 静默特化公式。Assertion backend binding 也明确
+区分 semantic assertion ID、set.mm label 与 legacy operation：`ax-mp` 映射为 legacy `apply(mp)`，
+普通 assertion 映射为 `ref(label)`，而 catalog 中的 display/compatibility label 不再决定 lowering。
+Bridge 只接受 canonical、无 forward/dead step 且 root 位于最终 occurrence 的 replay plan；当前
+legacy emitter 无法忠实表示的 hypothesis-root proof 会 fail closed。`mp2b` canary 的 hypotheses、
+局部 labels、两次 MP、结果 Wff 与现有 `prove_mp2b()` 返回值逐字段完全相等。
+
+Phase 5D.5 进一步以 `ax-5` 验证 DV bridge。Canary 的 replay context 除公开 mandatory pair 外还
+包含一个 proof-only active pair；lowering 从完整 `AssertionReplayContext.active_distinct` 映射并
+规范化 SymbolId pairs，两对均进入 legacy `Proof.active_dv_pairs`，证明实现没有错误地退化为只
+读取 assertion mandatory-DV。现有 emitter 对 `Proof.active_dv_pairs` 的 `$d` 路径保持不变；正式
+corpus emission 和公开 `prove_*` 尚未切换到 semantic source。
 
 ---
 

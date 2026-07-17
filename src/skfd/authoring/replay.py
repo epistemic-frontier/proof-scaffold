@@ -54,6 +54,56 @@ class SemanticReplayPlan:
     replay_context: AssertionReplayContext
     dependency_closure: tuple[ResolvedDependency, ...]
 
+    def __post_init__(self) -> None:
+        if tuple(item.result for item in self.hypotheses) != self.signature.premises:
+            raise AssertionCatalogError(
+                "replay hypotheses do not match the theorem signature"
+            )
+        hypothesis_count = len(self.hypotheses)
+        if tuple(item.position for item in self.hypotheses) != tuple(
+            range(hypothesis_count)
+        ):
+            raise AssertionCatalogError("replay hypothesis positions are not canonical")
+        available = set(range(hypothesis_count))
+        by_position: dict[int, ReplayApplication] = {}
+        for expected, application in enumerate(
+            self.applications, start=hypothesis_count
+        ):
+            if application.position != expected:
+                raise AssertionCatalogError(
+                    "replay application positions are not canonical"
+                )
+            if any(position not in available for position in application.premise_positions):
+                raise AssertionCatalogError("replay application has a forward premise")
+            available.add(application.position)
+            by_position[application.position] = application
+        if self.root_position not in available:
+            raise AssertionCatalogError("replay root position is unknown")
+
+        reachable: set[int] = set()
+        pending = [self.root_position]
+        while pending:
+            position = pending.pop()
+            reachable_application = by_position.get(position)
+            if reachable_application is None or position in reachable:
+                continue
+            reachable.add(position)
+            pending.extend(reachable_application.premise_positions)
+        if reachable != frozenset(by_position):
+            raise AssertionCatalogError("replay plan contains unreachable applications")
+
+        expected_dependencies = tuple(
+            ResolvedDependency(assertion, kind)
+            for assertion, kind in sorted(
+                {
+                    (application.assertion, application.kind)
+                    for application in self.applications
+                }
+            )
+        )
+        if self.dependency_closure != expected_dependencies:
+            raise AssertionCatalogError("replay dependency closure is not canonical")
+
 
 def build_semantic_replay_plan(
     proof: ElaboratedProof,

@@ -129,8 +129,17 @@ free-variable、substitution、capture rejection 和 alpha-renaming 行为一起
 Phase 2A 已在 Prelude `Not/Imp` 上完成第一轮事实源反转：legacy token interning、token-level
 constructors、shape matchers、authoring symbol specs、formation rule signatures 和 `wn/wi` emission
 均由 resolved language/notation/backend declarations 投影；兼容层仍保留旧 Python API。该迁移
-前后 `metamath-prelude_full.mm` 的 SHA-256 完全一致。Phase 2B 将以同一机制迁移 prop 的
-`And2/And3`，并删除按参数个数修改全局 registry 的 hack。
+前后 `metamath-prelude_full.mm` 的 SHA-256 完全一致。
+
+Phase 2B 已将同一机制推进到 prop 的 `And2/And3`：legacy builder registry 以完整
+`Constructor(name, arity)` 为精确键，同名二元、三元构造子可以共存，字符串查询仅保留为兼容
+fallback；authoring parser 也通过公开的 name/arity 查询，不再读写 registry 私有映射。Logic
+侧已删除 conjunction/disjunction 的 `_by_name` pop/restore 和按参数个数 dispatch，并由 prop
+language/notation/backend declarations 派生 `And2/And3` 的 authoring specs、token template、
+formation label、legacy lowering 与 `wa/w3a` emission。迁移前后
+`metamath-logic_full.mm` 的 SHA-256 均为
+`0e857f13fe8c82d406f3b730f8dcc2aade8a94a031f38152a295f0be00ba75b8`，三套 verifier 均通过。
+这仍是 compatibility migration：全局 registry 与 legacy `Expr` 尚未移除，完整 Phase 2 尚未结束。
 
 ---
 

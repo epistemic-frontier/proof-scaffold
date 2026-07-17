@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any
 
@@ -27,7 +28,7 @@ class _FakeSym:
 def _make_env() -> dsl.CompileEnv:
     interner = SymbolInterner()
 
-    def _builder(_b: Any, args: list[Wff]) -> Wff:
+    def _builder(_b: Any, args: Sequence[Wff]) -> Wff:
         tokens = tuple(t for w in args for t in w.tokens)
         return Wff("wff", tokens)
 
@@ -38,6 +39,25 @@ def _make_env() -> dsl.CompileEnv:
         ctor_builders={"IMP": _builder},
         origin_module_id="test",
     )
+
+
+def test_builder_registry_distinguishes_same_name_by_arity() -> None:
+    registry = dsl.BuilderRegistry()
+    binary = dsl.Constructor("op", 2)
+    ternary = dsl.Constructor("op", 3)
+
+    def binary_builder(_b: Any, _args: Sequence[Wff]) -> Wff:
+        return Wff("wff", (2,))
+
+    def ternary_builder(_b: Any, _args: Sequence[Wff]) -> Wff:
+        return Wff("wff", (3,))
+
+    registry.register(binary, binary_builder)
+    registry.register(ternary, ternary_builder)
+
+    assert registry.get(binary) is binary_builder
+    assert registry.get(ternary) is ternary_builder
+    assert registry.get("op") is binary_builder
 
 
 def test_operator_registry_and_pretty() -> None:

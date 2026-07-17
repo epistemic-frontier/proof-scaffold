@@ -237,14 +237,21 @@ class RequireRegistry:
         existing_name = self._by_name.get(ctor.name)
         if existing_name is not None and existing_name.ctor is not ctor:
             # Allow compatible re-definition (e.g. from multiple packages sharing common symbols)
+            if existing_name.ctor.arity != ctor.arity:
+                # Same spelling with a different arity is a distinct constructor.
+                # Keep the first registration canonical for name-only legacy lookups.
+                return
             if existing_name.sig != sig:
-                 raise PreludeTypingError(f"duplicate constructor name: {ctor.name!r}")
-            # If compatible, we just overwrite the name mapping to the new spec
-            # This ensures the most recently registered constructor is canonical by name
+                raise PreludeTypingError(f"duplicate constructor name: {ctor.name!r}")
         self._by_name[ctor.name] = spec
 
     def spec_for(self, ctor: Constructor) -> RequireSpec | None:
         return self._by_ctor.get(ctor)
+
+    def spec_named(self, name: str, *, arity: int | None = None) -> RequireSpec | None:
+        if arity is None:
+            return self._by_name.get(name)
+        return self._by_ctor.get(Constructor(name, arity))
 
     def specs(self) -> Mapping[Constructor, RequireSpec]:
         return dict(self._by_ctor)
@@ -303,20 +310,40 @@ class BuilderRegistry:
     """Registry for authoring -> implementation builder functions."""
 
     def __init__(self) -> None:
-        self._builders: dict[str, BuilderFn] = {}
+        self._builders: dict[Constructor, BuilderFn] = {}
+        self._by_name: dict[str, BuilderFn] = {}
+        self._canonical: dict[str, Constructor] = {}
 
-    def register(self, name: str, fn: BuilderFn) -> None:
-        # Allow overwriting for reloading/common symbols support
-        self._builders[name] = fn
+    def register(self, constructor: Constructor | str, fn: BuilderFn) -> None:
+        """Register an exact constructor, with a string fallback for old callers."""
+        if isinstance(constructor, str):
+            self._by_name[constructor] = fn
+            return
+        self._builders[constructor] = fn
+        canonical = self._canonical.get(constructor.name)
+        if canonical is None:
+            self._canonical[constructor.name] = constructor
+            self._by_name[constructor.name] = fn
+        elif canonical == constructor:
+            self._by_name[constructor.name] = fn
 
-    def get(self, name: str) -> BuilderFn | None:
-        return self._builders.get(name)
+    def get(self, constructor: Constructor | str) -> BuilderFn | None:
+        if isinstance(constructor, str):
+            return self._by_name.get(constructor)
+        return self._builders.get(constructor) or self._by_name.get(constructor.name)
 
-    def all(self) -> dict[str, BuilderFn]:
-        return dict(self._builders)
+    def all(self) -> dict[Constructor | str, BuilderFn]:
+        builders: dict[Constructor | str, BuilderFn] = {}
+        for name, builder in self._by_name.items():
+            builders[name] = builder
+        for constructor, builder in self._builders.items():
+            builders[constructor] = builder
+        return builders
         
     def reset(self) -> None:
         self._builders.clear()
+        self._by_name.clear()
+        self._canonical.clear()
 
 
 DEFAULT_BUILDERS = BuilderRegistry()
@@ -354,7 +381,7 @@ def symbol(
             precedence=precedence,
             assoc=assoc,
         )
-        builder_registry.register(name, fn)
+        builder_registry.register(ctor, fn)
         if op:
             register_operator(op, ctor)
             
@@ -370,7 +397,7 @@ def symbol(
                 precedence=precedence,
                 assoc=assoc,
             )
-            builder_registry.register(alias, fn)
+            builder_registry.register(alias_ctor, fn)
             
         return ctor
 
@@ -384,7 +411,7 @@ class CompileEnv:
     interner: SymbolInterner
     names: NameResolver
     builtins: Any  # Opaque logic-specific builtins object
-    ctor_builders: Mapping[str, BuilderFn]  # Must be provided by the logic system
+    ctor_builders: Mapping[Constructor | str, BuilderFn]  # Exact constructor keys are authoritative.
     origin_module_id: str = "authoring"
     origin_ref: Any = None
 
@@ -427,7 +454,7 @@ def compile_wff(
                 f"expected {spec.sig.arity}, got {len(expr.args)}"
             )
 
-        builder = env.ctor_builders.get(expr.ctor.name)
+        builder = env.ctor_builders.get(expr.ctor) or env.ctor_builders.get(expr.ctor.name)
         if builder is None:
             raise PreludeTypingError(
                 f"compile: no builder for constructor {expr.ctor.name!r}"

@@ -188,6 +188,18 @@ instantiation、missing/overlapping DV rejection 和 reified substitution/eviden
 完整 Phase 5：theory/profile lookup、goals/holes、finalization、replay context、semantic digest、
 legacy lowering 以及 family/combinator expansion 仍明确留在后续切片。
 
+Phase 5A.5 在 kernel 与 finalization 之间补入 scoped Source IR，而不重写 `$d` 系统。
+`SourceBlock` 的 statement 可以是 `DistinctStatement`、`AssertionSource` 或 nested block；一个
+distinct group 精确展开为组内无向 pair，不做传递闭包。纯 elaborator 从 parent relation 复制
+active-DV，按 source order 累加 `$d`，在 assertion 声明点快照完整 relation，并把 relation 限制到
+assertion schema variables 后形成公开 mandatory-DV；nested block 继承 parent，但退出后不向 parent
+泄漏。`SourceBuilder.block()` 的 `with` façade 只构造 immutable Source IR，不调用 BuilderV2、linker
+或 emission，也不修改 global registry。等价 pair grouping 具有不同 `source_digest`、相同
+`semantic_digest`；两种摘要都包含完整 assertion 内容而不是只依赖 nominal ID。FOL `ax-5` canary
+现在先以无 DV 的 source assertion 进入 block，由 `d(φ, x)` elaboration 重新得到与
+`AX5_SIGNATURE` 完全相同的 mandatory contract；legacy `_dv_contracts.py` 仍是当前 emission 路径的
+权威输入。
+
 ---
 
 ## 1. 问题陈述

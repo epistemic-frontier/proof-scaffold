@@ -53,7 +53,7 @@ class AssertionSignature:
             raise AssertionApplicationError(
                 f"assertion schema variables must exactly match its judgment variables: {self.id}"
             )
-        normalized = _normalize_pairs(self.mandatory_distinct)
+        normalized = normalize_distinct_pairs(self.mandatory_distinct)
         if any(pair.left not in used or pair.right not in used for pair in normalized):
             raise AssertionApplicationError(
                 f"mandatory distinct endpoint is not an assertion variable: {self.id}"
@@ -86,7 +86,11 @@ class ProofDraft:
     active_distinct: tuple[DistinctPair, ...] = ()
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "active_distinct", _normalize_pairs(self.active_distinct))
+        object.__setattr__(
+            self,
+            "active_distinct",
+            normalize_distinct_pairs(self.active_distinct),
+        )
         prior: set[StepId] = set()
         for index, hypothesis in enumerate(self.hypotheses):
             expected = _step_id(self.proof_id, index)
@@ -130,7 +134,7 @@ def _canonical_pair(pair: DistinctPair) -> DistinctPair:
     return DistinctPair(pair.right, pair.left)
 
 
-def _normalize_pairs(pairs: Sequence[DistinctPair]) -> tuple[DistinctPair, ...]:
+def normalize_distinct_pairs(pairs: Sequence[DistinctPair]) -> tuple[DistinctPair, ...]:
     return tuple(
         sorted(
             {_canonical_pair(pair) for pair in pairs},
@@ -209,7 +213,7 @@ def start_draft(
         _checked_judgment(calculus, hypothesis, context="hypothesis")
         for hypothesis in hypotheses
     )
-    normalized_distinct = _normalize_pairs(active_distinct)
+    normalized_distinct = normalize_distinct_pairs(active_distinct)
     for pair in normalized_distinct:
         for endpoint in (pair.left, pair.right):
             if endpoint.kind not in calculus.language.variable_kinds:
@@ -435,7 +439,7 @@ def apply_assertion(
             (variable, substitution[variable]) for variable in assertion.schema_variables
         ),
         result=result,
-        satisfied_distinct=_normalize_pairs(tuple(satisfied)),
+        satisfied_distinct=normalize_distinct_pairs(tuple(satisfied)),
     )
     return ApplicationResult(
         ProofDraft(

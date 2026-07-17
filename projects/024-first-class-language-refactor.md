@@ -2,7 +2,7 @@
 
 ## 状态
 
-提议，2026-07-16。
+实施中，2026-07-16。
 
 规范性依据：
 [Reference 011：将语言作为第一类元素](../references/011-language-as-first-class.md)。
@@ -18,6 +18,113 @@
 
 本文是针对当前 `proof-scaffold`、`metamath-prelude` 和 `metamath-logic`
 实现的工程诊断与渐进改进计划，不冻结最终 Python API。
+
+## 0.1 修订后的实施契约
+
+初稿正确识别了语言缺失，但将 semantic language、notation、Metamath lowering 和 syntax
+assertion binding 压进了一个过宽的 `LanguageSpec`。本节取代第 4、5、9 节中与其冲突的旧
+分组和实施次序。
+
+目标骨架是：
+
+```text
+LanguageSpec
+  sorts + variable kinds + constructors + binders
+        |
+        +---- NotationSpec
+        |       parse + render + aliases + precedence
+        |
+        +---- MetamathLanguageBinding
+                typecodes + token templates + syntax assertions
+
+CalculusSpec
+  judgment kinds + primitive inference rules
+
+LogicSpec
+  language + calculus + logical axioms
+
+TheorySpec
+  base logic + language extension + definitions + non-logical axioms + theorems
+```
+
+其中 `Term` 只包含稳定 variable/constructor identity、argument tree 和 sort。Unicode spelling、
+source span、`SymbolId`、Python object identity 和 provenance 均不参与其相等性。`|-` 是
+`Provable(Wff)` judgment 的 Metamath realization；`wi/wn/wa/w3a` 属于 language binding；
+`ax-mp/ax-gen` 属于 calculus；`ax-1/ax-2/ax-3` 属于 logical axioms。
+
+### Source、Interface 与 Runtime
+
+三个阶段不得折叠：
+
+```text
+LanguageSpec
+  库作者编辑的有限声明源
+
+LanguageInterface
+  冲突检查、继承展开、不可变、可摘要的消费者投影
+
+BoundLanguage / LanguageEnvironment
+  绑定 notation、backend、SymbolId、resolver 和 build context 的运行时对象
+```
+
+`System` 是 runtime binding，不是理论身份。第一阶段允许新声明与 legacy globals 并存，但新
+声明不得由 globals 投影生成；下一阶段必须由声明生成 legacy compatibility adapter，最终移除
+import side effects。
+
+### 分层摘要
+
+```text
+semantic_digest = sorts + variable kinds + constructors + binder behavior
+notation_digest = patterns + aliases + canonical rendering
+backend_digest  = typecodes + owned tokens + templates + formation assertions
+calculus_digest = judgments + primitive rule signatures
+```
+
+所有摘要使用显式版本化 canonical JSON；不得使用 `repr`、Python hash、mapping iteration、
+callbacks 或 `SymbolId`。
+
+### 修订后的阶段顺序
+
+**Phase 0.5 — Term identity hardening。** 新建 nominal `SortId`、`ConstructorId`、
+`VariableRef` 和结构相等的 immutable `Term`。旧 `Expr` 只保留 compatibility role，不作为公共
+ABI。
+
+**Phase 1 — 最小语言 canary。** 实现独立的 `LanguageSpec`、`NotationSpec`、
+`MetamathLanguageBinding` 与分层摘要；Prelude 声明 `Not/Imp`；prop 扩展 `And2/And3`。二元与
+三元 conjunction 具有不同 `ConstructorId` 和 formation assertion，但可以共享 backend token。
+`And3` 首轮使用无歧义 call notation，不复制旧 parser 的 arity collapse。
+
+**Phase 2 — 声明成为事实源。** 从新声明派生 legacy registries/builders/parser tables；不再长期
+维持由旧 globals 投影出的第二份 `LANGUAGE`。
+
+**Phase 3 — Judgment / Calculus。** 先实现 `Provable(Wff)`，再设计 schema-aware MP 与
+generalization；在 substitution 和 constraints 未稳定前不得用任意 callback 提前冻结 primitive
+rule API。
+
+**Phase 4 — Binder / DV canary。** 以 `All`、`ax-gen` 和一个 mandatory-DV assertion 验证
+真实 sorts、free-variable、capture、alpha-renaming、DV substitution 与 relocation。
+
+**Phase 5 — Proof API 与 combinators。** 到此再冻结 `AssertionSignature`、`ProofDraft`、
+`ApplyAssertion` 和 `ElaboratedProof`。Project 023 的 family/combinator 必须展开为普通 concrete
+assertion applications。
+
+### 当前第一切片的完成边界
+
+本轮实现：
+
+- ProofScaffold 中并行的 Term v2 和稳定 nominal IDs；
+- conflict-checked immutable `LanguageInterface`；
+- finite prefix/infix/call `NotationSpec`；
+- symbolic、无 `SymbolId` 的 `MetamathLanguageBinding`；
+- judgment-only 的最小 `CalculusSpec`，不提前实现 MP/Gen；
+- Prelude `Not/Imp` 与 prop `And2/And3` canary；
+- semantic/notation/backend/calculus 独立摘要；
+- legacy build、proof constructors、BuilderV2 和 verifier 行为不变。
+
+本轮明确不迁移 FOL、binder、substitution、DV、primitive rules 或现有 2,675 个 proof
+constructors。为避免冻结一个只有打印形状和 binder 参数检查、却没有自由变量与捕获规避语义的
+残缺契约，Phase 1 的 `ConstructorDecl` 暂不公开 binding 字段；该字段必须在 Phase 4 与完整的
+free-variable、substitution、capture rejection 和 alpha-renaming 行为一起进入接口。
 
 ---
 
@@ -206,14 +313,17 @@ Prelude 不应成为：
 
 ---
 
-## 4. 目标架构
+## 4. 历史目标概述
 
-### 4.1 理论接口的四个一等面
+> 本节保留初稿诊断；对象分组以第 0.1 节修订契约为准。
+
+### 4.1 理论接口的公共投影
 
 每个逻辑或领域理论应提供：
 
 ```text
 LANGUAGE
+CALCULUS
 AXIOMS
 RULES
 THEOREMS
@@ -221,9 +331,10 @@ THEOREMS
 
 其中：
 
-- `LANGUAGE` 是 sorts、variables、constructors、binders、notations 和 lowering contracts；
+- `LANGUAGE` 只包含 sorts、variable kinds、constructors 与 binders；
+- `CALCULUS` 包含 judgment kinds 与 primitive inference rules；
 - `AXIOMS` 是在该语言中的 primitive provable schemas；
-- `RULES` 是当前 calculus 的 primitive inference rules；
+- `RULES` 是 `CALCULUS` primitive rules 的简单公共投影；
 - `THEOREMS` 是经过证明并命名的 assertions。
 
 `prove_*`、`Imp`、`All` 等直接 Python API 继续存在。聚合元数据服务于 build、catalogue、agent
@@ -249,19 +360,15 @@ PRELUDE_LANGUAGE
 
 ### 4.3 单一语言事实源
 
-一个 constructor declaration 应足以派生或稳定关联：
+一个 constructor semantic declaration 应唯一确定：
 
 - typed author constructor；
-- parser aliases；
-- formatter notation；
-- precedence/associativity；
 - abstract `Term` application；
-- Metamath token lowering；
-- syntax assertion metadata；
 - binder/free-variable traversal。
 
-初期可以让 `LanguageSpec` 只做现有声明的只读投影，而不是立即替换所有代码。最终不得长期保留
-数份可独立编辑的声明。
+Parser aliases、formatter、precedence 属于 `NotationSpec`；token lowering 和 syntax assertion
+属于 `MetamathLanguageBinding`。它们通过稳定 `ConstructorId` 关联，不能复制 semantic
+signature。Legacy projection 只可用于 inventory，不能被命名为稳定 `LANGUAGE`。
 
 ### 4.4 System 的职责收缩
 
@@ -280,7 +387,9 @@ System
 
 ---
 
-## 5. 渐进实施方案
+## 5. 历史阶段清单
+
+> 本节中的长期迁移目标仍然有效；实际执行次序由第 0.1 节的 Phase 0.5–5 取代。
 
 ### Phase 0：建立分类清单和兼容基线
 
@@ -475,16 +584,19 @@ proof partition 决定实现模块和检索区域，不决定 sort、constructor
 
 ---
 
-## 9. 推荐的第一实现切片
+## 9. 第一实现切片
 
-最小且高信息量的切片是：
+本轮采用的最小且高信息量切片是：
 
-1. 在 ProofScaffold 实现只包含 sort、constructor signature、notation 和 lowering linkage 的
-   immutable `LanguageSpec`；
-2. 从 `metamath-prelude` 现有 `Imp/Not` 声明生成 `PRELUDE_LANGUAGE`；
-3. 让 `logic.prop.LANGUAGE` 显式 extends 它，并只加入一个 `And` canary；
-4. 保持所有现有 build 和 proof APIs 不变；
-5. 加入 interface digest、duplicate constructor 和 import-order isolation tests。
+1. 新建结构相等的 Term v2，不修改 legacy `Expr` 行为；
+2. `LanguageSpec` 只包含 semantic declarations；
+3. `NotationSpec` 与 `MetamathLanguageBinding` 独立并具有各自摘要；
+4. `PRELUDE_LANGUAGE` 提供 `Not/Imp`；
+5. `PROP_LANGUAGE` 显式扩展并提供 `And2/And3`；
+6. `And2/And3` 共享 `/\\` backend token，但具有不同 identity、arity 和 formation assertion；
+7. 建立 judgment-only `CalculusSpec` 与 `Provable(Wff)` canary；
+8. 保持所有现有 build 和 proof APIs 不变；
+9. 验证 digest determinism、notation round-trip、symbolic exact lowering 和 verifier 无回归。
 
 该切片能验证最关键的架构判断——语言是否真的可以成为包间稳定接口——而不必先解决全部 FOL
 binder、规则元数据和领域迁移问题。

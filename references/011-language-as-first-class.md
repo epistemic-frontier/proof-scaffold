@@ -17,8 +17,11 @@
 语言（Language）
   决定哪些表达式有意义
 
+判断与演算（Judgment / Calculus）
+  决定可以对表达式作出哪些判断，以及判断如何原始地推出判断
+
 逻辑（Logic）
-  在该语言上给出公理和原始推理规则，决定什么叫作推出
+  组合语言、演算和逻辑公理
 
 具体数学理论（Mathematical Theory）
   扩展或复用底层语言，并加入本领域的非逻辑符号和公理
@@ -34,27 +37,43 @@
 标准公共心智模型应当是：
 
 ```text
-LANGUAGE  决定能说什么
-AXIOMS    决定从哪里开始
-RULES     决定怎样从已证明判断推出新的判断
-THEOREMS  记录已经推出并获得名称的结论
+LANGUAGE   决定能说什么
+CALCULUS   决定能作出什么判断，以及怎样推出新的判断
+AXIOMS     决定哪些判断被逻辑直接接受
+THEORY     加入领域语言、定义与非逻辑公理
+THEOREMS   记录已经推出并获得名称的结论
 ```
+
+`|-`、modus ponens 和 generalization 不属于对象表达式语言。前者是 judgment 的一种
+Metamath realization，后二者是 calculus 的 primitive inference rules。语言成为第一类元素，
+不得被误解为语言对象包揽了整个逻辑系统。
 
 ---
 
 ## 1. “语言”的规范定义
 
-形式语言是一个有限且可检查的表达式构造契约。一个 `LanguageSpec` 至少必须描述：
+形式语言是一个有限且可检查的抽象表达式构造契约。一个 `LanguageSpec` 至少必须描述：
 
-1. **Sort 或 typecode**：例如 `wff`、set variable、class、term；
-2. **变量族**：每个变量属于哪个 sort，以及它是对象变量还是 schema/metavariable；
+1. **Sort**：例如 `wff`、object variable、class、term；
+2. **变量种类**：每类变量属于哪个 sort，以及是否可以被 binder 绑定；
 3. **构造子和符号**：每个构造子的稳定身份、输入 sorts、输出 sort 和 arity；
 4. **抽象语法**：合法表达式由哪些构造子递归生成；
 5. **绑定行为**：哪些参数位置引入 binder，binder 的作用域覆盖哪些参数；
-6. **自由变量与代入语义**：自由出现、捕获规避和 alpha-renaming 的规则；
-7. **具体记法**：可接受的 ASCII/Unicode aliases、优先级、结合性和 mixfix 形态；
-8. **规范 lowering**：抽象项如何唯一地降为 Metamath token 序列；
-9. **形成证明关联**：lowering 所需的 syntax assertion 或形成规则如何取得。
+6. **自由变量与代入所需的结构信息**：使捕获规避和 alpha-renaming 可以由结构导出。
+
+`LanguageSpec` 不得包含 Unicode/ASCII 拼写、parser callback、Metamath token layout、
+`SymbolId` 或 syntax assertion label。这些内容分别属于 `NotationSpec` 和 backend binding。
+
+语言声明变量的**种类**，不枚举所有实际变量名称。实际变量身份属于其声明上下文：
+
+```text
+DeclaredVariableId(owner=language_or_theory_id, local_key=...)
+SchemaVariableId(owner=assertion_id, local_key=...)
+LocalVariableId(owner=proof_id, local_key=...)
+```
+
+`φ/ψ/χ` 等偏好名称属于 notation/style；Prelude 中 `ph/ps/ch` 的固定 token pool 属于
+Metamath foundation binding。二者都不得进入抽象 Term 的结构身份。
 
 语言契约必须区分下列三个对象：
 
@@ -64,6 +83,29 @@ THEOREMS  记录已经推出并获得名称的结论
 
 显示记法不得参与数学身份。`->`、`→` 与 `⇒` 可以解析为同一个构造子，但构造子的稳定身份、
 参数和结果 sort 必须参与项的结构相等性。
+
+### 1.1 四个不得混合的契约
+
+```text
+LanguageSpec
+  sorts + variable kinds + constructors + binders
+
+NotationSpec
+  parse/render + aliases + precedence + associativity
+
+MetamathLanguageBinding
+  typecodes + owned tokens + token templates + syntax assertions
+
+CalculusSpec
+  judgment kinds + primitive inference rules
+```
+
+同一个 `LanguageSpec` 可以配有多个 notation 和 backend binding。改变 Unicode 显示不得改变
+Term 或语言语义摘要；改变 Metamath token layout 可以改变 backend 摘要而不改变抽象语言；改变
+构造子的 sort signature 则必须改变语言语义摘要并使依赖接口失效。
+
+核心声明必须使用有限、代数化的数据结构。任意 Python callback 不得进入声称可序列化、可摘要、
+可跨进程复现的接口等级。
 
 语言只裁定表达式是否形成良好，不裁定表达式是否为真或可证。例如，若 `Imp` 的签名为
 `Wff × Wff → Wff`，则 `Imp(φ, ψ)` 是合法公式；这件事本身既不是逻辑公理，也没有证明它。
@@ -83,7 +125,8 @@ Metamath 使用 `$a` 同时编码 syntax assertion 和逻辑公理，因此后�
 (φ → ψ) : wff
 ```
 
-它说明如何形成一个合法公式，属于 `LANGUAGE` 的后端实现契约。
+它说明 Metamath 后端如何证明一个降低后的 token sequence 形成良好，属于
+`MetamathLanguageBinding`，而不是抽象 `LanguageSpec`。
 
 ### 2.2 逻辑公理
 
@@ -135,6 +178,10 @@ rules”概念中。
 所以 `RULES` 不是“整个数学只有一套的规则”，而是当前 calculus 的原始推演接口。派生规则如果
 已经由底层系统证明，本质上仍是可复用定理，不应伪装成新的可信原语。
 
+一个最小判断接口可以只有 `Provable : Wff -> Judgment`。即使第一版只支持 Hilbert 的
+`⊢ φ`，公共 assertion signature 也应以 premises 和 conclusion judgments 表达，而不是把
+judgment 隐藏为全局裸 `Wff` 假设。
+
 ### 3.3 数学领域在逻辑之上形成理论
 
 集合论、数论、代数等理论通常：
@@ -173,10 +220,10 @@ ProofScaffold language toolkit
 metamath-prelude LANGUAGE
               |
               v
-logic.prop LANGUAGE + LOGIC
+logic.prop LANGUAGE + CALCULUS + LOGIC
               |
               v
-logic.fol LANGUAGE + LOGIC
+logic.fol LANGUAGE + CALCULUS + LOGIC
               |
               v
 set / number-theory / other domain theories
@@ -187,11 +234,12 @@ set / number-theory / other domain theories
 ProofScaffold 必须提供与具体数学内容无关的机制，例如：
 
 - sort、variable、constructor 和 binder 的声明类型；
-- immutable `Term`/`Expr`；
+- 具有结构相等性和稳定身份的 immutable `Term`；
 - registry 的显式构造与组合；
-- parsing、formatting、matching 和 lowering 的通用算法；
+- `NotationSpec` 驱动的 parsing/formatting；
+- backend binding 驱动的 symbolic lowering；
 - substitution、free-variable 与 capture 检查；
-- `LanguageSpec`、`LanguageInterface` 及其稳定摘要。
+- `LanguageSpec`、`LanguageInterface`、`CalculusSpec` 及分层稳定摘要。
 
 ProofScaffold 不得硬编码 `→`、`∀` 或 `∈` 的数学含义。它是制造语言的工具，不是标准数学语言
 本身。
@@ -201,16 +249,20 @@ ProofScaffold 不得硬编码 `→`、`∀` 或 `∈` 的数学含义。它是�
 在标准构建闭包中，`metamath-prelude` 是唯一 Foundation Unit。它应当拥有后续标准包共享的
 最小具体语言和 ambient Metamath frame，包括：
 
-- 基础 typecodes，例如 `wff` 和 `|-`；
+- 基础语言 sort `wff`，以及 backend 中对应的 typecode；
 - 标准 foundation 变量及全局 floating hypotheses；
 - 最小公共词汇，例如 `(`、`)`、`-.`、`->`；
 - 对应的抽象构造子，例如 `Not`、`Imp`；
 - 对应的 syntax assertions，例如 `wn`、`wi`；
 - 这些对象组成的公开 `LANGUAGE` 契约。
 
+`|-` 由 foundation frame 发射，但在抽象模型中必须绑定到 calculus 的 `Provable` judgment，
+不得声明成对象语言 constructor 或普通 sort。
+
 Prelude 的“基础”是标准对象语言和 foundation scope 的基础，不是通用 DSL 的归宿。通用
 `Var`、`Sort`、`Constructor`、parser framework 和 lowering framework 属于 ProofScaffold；
-具体的 `Imp`、`Not` 及其规范 token layout 属于 Prelude。
+具体的 `Imp`、`Not` 属于 Prelude language；其规范 token layout 属于 Prelude 的
+`MetamathLanguageBinding`。
 
 Prelude 不应当拥有仅因当前下游逻辑恰好使用而存在的普通定理，也不应当吸收所有逻辑和数学
 领域的符号。其内容变化是 foundation ABI 变化，必须比普通库扩展受到更严格的控制。
@@ -222,6 +274,7 @@ Prelude 不应当拥有仅因当前下游逻辑恰好使用而存在的普通定
 
 ```text
 LANGUAGE
+CALCULUS
 AXIOMS
 RULES
 THEOREMS
@@ -242,11 +295,12 @@ theory profile。
 
 **L1. 声明显式。** 每个可构建理论必须显式指定语言；不得仅靠模块导入副作用得到构造子。
 
-**L2. 单一事实源。** 构造子的 sort、arity、binder、aliases、显示和 token layout 必须由同一
-声明派生，或由稳定语义身份关联；不得维护数份可独立漂移的 registry。
+**L2. 单一语义事实源。** 构造子的 sort、arity 和 binder 必须由 `LanguageSpec` 唯一声明。
+Notation 和 backend binding 必须通过稳定 `ConstructorId` 引用它；不得复制 signature 或维护
+可独立漂移的 registry。
 
-**L3. 扩展单调。** 普通语言扩展不得改变继承构造子的身份、sort、arity、binder 或 lowering。
-改变这些事实必须被视为不兼容的语言 ABI 变化。
+**L3. 扩展单调。** 普通语言扩展不得改变继承构造子的身份、sort、arity 或 binder。改变这些
+事实必须被视为不兼容的语义 ABI 变化；backend realization 的变化另由 backend 摘要表达。
 
 **L4. Sort 精确。** 对象变量、class 和 wff 不得仅为降低实现方便而统一伪装成 `Wff`。若后端
 桥接暂时需要兼容表示，作者层接口仍必须保留真实 sort。
@@ -256,14 +310,15 @@ theory profile。
 
 **L6. 表示分离。** 抽象项、显示字符串和 Metamath token sequence 必须是不同阶段的对象。
 
-**L7. 形成与推出分离。** Syntax assertions 属于语言 lowering 契约；逻辑公理属于
-`AXIOMS`；primitive inference rules 属于 `RULES`。
+**L7. 形成与推出分离。** Syntax assertions 属于 `MetamathLanguageBinding`；judgment 和
+primitive inference rules 属于 `CalculusSpec`；逻辑公理属于 `AXIOMS`。
 
-**L8. 接口可摘要。** 语言接口摘要必须覆盖公开 sorts、构造子签名、binder 和规范 lowering；
-不得覆盖文件布局、Python 私有类名或显示偏好之外的临时实现细节。
+**L8. 摘要分层。** `semantic_digest` 只覆盖 sorts、variable kinds、constructor signatures 和
+binder；`notation_digest` 覆盖记法；`backend_digest` 覆盖 typecodes、token templates、formation
+bindings 与 foundation requirement；`calculus_digest` 覆盖 judgments 和 primitive rules。
 
-**L9. 后端仍为权威。** `LanguageSpec` 是作者层 parsing、typing 与 display 的事实源，但不能绕过
-BuilderV2、linker 和最终 Metamath verifier。
+**L9. 后端仍为权威。** `LanguageSpec` 是抽象 Term typing 的事实源；`NotationSpec` 是
+parsing/display 的事实源；二者都不能绕过 BuilderV2、linker 和最终 Metamath verifier。
 
 **L10. 基础唯一。** 标准构建闭包继续遵守一个 Foundation Unit 的约束；语言组合不得成为隐式
 加载第二套 foundation symbols 或 ambient hypotheses 的通道。
@@ -279,22 +334,28 @@ LanguageSpec(
     id=...,
     extends=(...,),
     sorts=(...),
-    variables=(...),
+    variable_kinds=(...),
     constructors=(...),
     binders=(...),
-    lowering=(...),
 )
 
+NotationSpec(language=..., entries=(...))
+MetamathLanguageBinding(language=..., typecodes=(...), formations=(...))
+CalculusSpec(language=..., judgments=(...), rules=(...))
+
+LogicSpec(language=..., calculus=..., axioms=(...))
 TheorySpec(
-    language=...,
+    base_logic=...,
+    language_extension=...,
+    definitions=...,
     axioms=...,
-    rules=...,
     theorems=...,
 )
 ```
 
-`LANGUAGE` 可以先是现有声明的不可变投影，而不必立即引入一个覆盖所有未来场景的大类。首要
-目标是建立唯一事实源和清楚边界，而不是增加抽象数量。
+只读 legacy projection 可以用于迁移盘点，但在旧 globals、last-wins 和 import-order 仍然决定
+语义时，不得把它宣称为稳定 `LANGUAGE`。迁移的最终方向必须反转为由声明生成兼容 registry，
+而不是长期由 registry 生成第二份语言副本。
 
 ---
 

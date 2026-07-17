@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import MutableMapping
-from dataclasses import FrozenInstanceError
+from dataclasses import FrozenInstanceError, replace
 from typing import cast
 
 import pytest
@@ -20,10 +20,17 @@ from skfd.authoring.ids import (
     LanguageId,
     NotationId,
     OwnerId,
+    RuleId,
     SortId,
     VariableKindId,
 )
-from skfd.authoring.judgment import CalculusSpec, JudgmentKindDecl, resolve_calculus
+from skfd.authoring.judgment import (
+    CalculusSpec,
+    Judgment,
+    JudgmentKindDecl,
+    PrimitiveRuleDecl,
+    resolve_calculus,
+)
 from skfd.authoring.legacy_metamath import (
     build_legacy_formula,
     legacy_binary_formation,
@@ -742,8 +749,22 @@ def test_legacy_formula_adapter_applies_the_resolved_formation() -> None:
 
 def test_minimal_calculus_makes_provability_an_explicit_judgment() -> None:
     language = _minimal_language()
-    _, variables = _variables(language)
+    refs, variables = _variables(language)
     provable = JudgmentKindId("test#judgment:provable")
+    mp = RuleId("test#rule:modus-ponens")
+    implication = language.apply(
+        ConstructorId("test#constructor:imp"),
+        (variables["p"], variables["q"]),
+    )
+    modus_ponens = PrimitiveRuleDecl(
+        id=mp,
+        schema_variables=(refs["p"], refs["q"]),
+        premises=(
+            Judgment(provable, (variables["p"],)),
+            Judgment(provable, (implication,)),
+        ),
+        conclusion=Judgment(provable, (variables["q"],)),
+    )
     calculus = resolve_calculus(
         CalculusSpec(
             id=CalculusId("test#calculus:hilbert"),
@@ -754,21 +775,78 @@ def test_minimal_calculus_makes_provability_an_explicit_judgment() -> None:
                     arguments=(SortId("test#sort:wff"),),
                 ),
             ),
+            rules=(modus_ponens,),
         ),
         language,
     )
     judgment = calculus.judgment(provable, (variables["p"],))
     assert judgment.kind == provable
     assert judgment.arguments == (variables["p"],)
+    assert calculus.rule(mp) == modus_ponens
+    assert calculus.rule(mp).premises[1].arguments == (implication,)
+    reordered = resolve_calculus(
+        CalculusSpec(
+            id=CalculusId("test#calculus:reordered"),
+            language=LanguageRequirement(id=language.id),
+            judgments=(JudgmentKindDecl(id=provable, arguments=(SortId("test#sort:wff"),)),),
+            rules=(replace(modus_ponens, schema_variables=(refs["q"], refs["p"])),),
+        ),
+        language,
+    )
+    assert reordered.digest == calculus.digest
+    assert reordered.rule(mp).schema_variables == (refs["p"], refs["q"])
     with pytest.raises(AuthoringSemanticError, match="unknown judgment"):
         calculus.judgment(JudgmentKindId("test#judgment:missing"), ())
+    with pytest.raises(AuthoringSemanticError, match="unknown primitive rule"):
+        calculus.rule(RuleId("test#rule:missing"))
     with pytest.raises(AuthoringSemanticError, match="argument mismatch"):
         calculus.judgment(provable, ())
+    forged = App(
+        ConstructorId("test#constructor:missing"),
+        (),
+        SortId("test#sort:wff"),
+    )
+    with pytest.raises(AuthoringSemanticError, match="unknown term constructor"):
+        calculus.judgment(provable, (forged,))
     with pytest.raises(AuthoringSemanticError, match="calculus language requirement mismatch"):
         resolve_calculus(
             CalculusSpec(
                 id=CalculusId("test#calculus:wrong-language"),
                 language=LanguageRequirement(id=LanguageId("test#language:other")),
+            ),
+            language,
+        )
+
+    undeclared = PrimitiveRuleDecl(
+        id=RuleId("test#rule:undeclared-variable"),
+        schema_variables=(refs["p"],),
+        premises=(),
+        conclusion=Judgment(provable, (variables["q"],)),
+    )
+    with pytest.raises(AuthoringSemanticError, match="undeclared rule schema variable"):
+        resolve_calculus(
+            CalculusSpec(
+                id=CalculusId("test#calculus:invalid-rule"),
+                language=LanguageRequirement(id=language.id),
+                judgments=(JudgmentKindDecl(id=provable, arguments=(SortId("test#sort:wff"),)),),
+                rules=(undeclared,),
+            ),
+            language,
+        )
+
+    unknown_kind = VariableRef(
+        "schema",
+        OwnerId("test#rule:unknown-kind"),
+        "unused",
+        VariableKindId("test#variable-kind:missing"),
+    )
+    with pytest.raises(AuthoringSemanticError, match="unknown schema variable kind"):
+        resolve_calculus(
+            CalculusSpec(
+                id=CalculusId("test#calculus:unknown-kind"),
+                language=LanguageRequirement(id=language.id),
+                judgments=(JudgmentKindDecl(id=provable, arguments=(SortId("test#sort:wff"),)),),
+                rules=(replace(modus_ponens, schema_variables=(*modus_ponens.schema_variables, unknown_kind)),),
             ),
             language,
         )

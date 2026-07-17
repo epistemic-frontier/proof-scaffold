@@ -146,6 +146,15 @@ constructor 的兼容 re-export。Prelude token lowering 改用只读结构协�
 prop 与 FOL 无需继承具体 runtime 类即可复用同一 constructor builder；Logic artifact 仍保持上述
 SHA-256 不变。
 
+Phase 3A 已将 `CalculusSpec` 从 judgment vocabulary 扩展为包含有限、不可变、可摘要的
+`PrimitiveRuleDecl`。每条 primitive rule 显式声明 schema variables、judgment premises 与
+conclusion；resolver 校验 variable kind、constructor tree、sort、judgment kind，并规范化无位置
+语义的 schema-variable 顺序。Prop 的 modus ponens 现在正式表示为
+`Provable(φ), Provable(Imp(φ, ψ)) -> Provable(ψ)`，公开 `RULES["ax-mp"]` 只是 set.mm label 到该
+语义声明的兼容视图，不再以字符串 `"mp"` 冒充规则元数据。`ax-gen` 刻意留到 Phase 4：在
+setvar sort、`All` binder、substitution 和 DV 契约进入 semantic language 前，不创建残缺的
+generalization 声明。该阶段不改变 proof execution 或 emission，Logic artifact SHA-256 继续不变。
+
 ---
 
 ## 1. 问题陈述

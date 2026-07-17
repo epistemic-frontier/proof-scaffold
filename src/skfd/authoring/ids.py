@@ -66,6 +66,11 @@ class JudgmentKindId(_Id):
 
 
 @dataclass(frozen=True, order=True, slots=True)
+class RuleId(_Id):
+    pass
+
+
+@dataclass(frozen=True, order=True, slots=True)
 class CalculusId(_Id):
     pass
 

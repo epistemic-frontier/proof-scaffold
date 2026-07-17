@@ -75,6 +75,7 @@ from skfd.authoring.metamath_language import (
     TokenRef,
     resolve_metamath_language,
 )
+from skfd.authoring.proof_author import ProofAuthor
 from skfd.authoring.replay import ResolvedDependency, build_semantic_replay_plan
 from skfd.authoring.source import SourceBuilder, elaborate_block, start_draft_from_snapshot
 from skfd.authoring.term import Var, VariableRef
@@ -234,6 +235,26 @@ def test_apply_assertion_elaborates_mp_and_preserves_failed_draft() -> None:
         ResolvedDependency(signature.id, "primitive_rule"),
     )
     assert replay.replay_context.active_distinct == ()
+
+    author = ProofAuthor(
+        theorem_signature,
+        proof_id=ProofId("test#proof:authored-mp"),
+        calculus=calculus,
+        catalog=catalog,
+        profile=profile_id,
+    )
+    authored_step = author.use(signature, *author.hypotheses)
+    authored_proof = author.qed(authored_step)
+    assert authored_proof.semantic_digest == proof.semantic_digest
+    foreign_author = ProofAuthor(
+        theorem_signature,
+        proof_id=ProofId("test#proof:foreign-author"),
+        calculus=calculus,
+        catalog=catalog,
+        profile=profile_id,
+    )
+    with pytest.raises(AssertionApplicationError, match="created by this author"):
+        author.use(signature, *foreign_author.hypotheses)
     with pytest.raises(AssertionApplicationError, match="positions are not canonical"):
         replace(
             replay,

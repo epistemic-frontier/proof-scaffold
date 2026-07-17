@@ -240,6 +240,25 @@ Phase 5D.5 进一步以 `ax-5` 验证 DV bridge。Canary 的 replay context 除�
 读取 assertion mandatory-DV。现有 emitter 对 `Proof.active_dv_pairs` 的 `$d` 路径保持不变；正式
 corpus emission 和公开 `prove_*` 尚未切换到 semantic source。
 
+Phase 5E 已在 immutable kernel 上增加最小 `ProofAuthor` façade。它只保存当前 `ProofDraft`，
+`use()` 仍按稳定 assertion ID 进入 profiled catalog 和同一个 `apply_assertion` kernel，`qed()` 仍调用
+同一个 finalizer；façade 不接受其他 author 创建的 step，也不引入隐式 substitution、结果公式或
+第二套 proof state。`mp2b` 现在有独立的 semantic signature 与如下作者代码：
+
+```python
+h_phi, h_phi_psi, h_psi_chi = proof.hypotheses
+psi = proof.use(MP_ASSERTION, h_phi, h_phi_psi)
+chi = proof.use(MP_ASSERTION, psi, h_psi_chi)
+return proof.qed(chi)
+```
+
+该 proof 在 import 时形成 immutable `ElaboratedProof`，运行时才绑定 `ph/ps/ch` 与 set.mm tokens 并
+lower 为现有 `Proof` ABI。Prop 的公开 theorem registry 已对 `mp2b` 使用 semantic constructor，
+因此正式 corpus build 已经过新路径；它与 transpiler 生成的 `logic.prop.core.prove_mp2b` 逐字段
+相等并保持后者可直接导入。当前刻意没有手改 generated `core.py`：重新生成不会丢失 semantic
+实现或 registry override。要让 topic-module 的直接 `prove_mp2b` 名称本身切换实现，需要先为
+transpiler 定义稳定的 generated-proof override 协议，而不是加入一次性生成器特例。
+
 ---
 
 ## 1. 问题陈述

@@ -126,6 +126,12 @@ constructors。为避免冻结一个只有打印形状和 binder 参数检查、
 残缺契约，Phase 1 的 `ConstructorDecl` 暂不公开 binding 字段；该字段必须在 Phase 4 与完整的
 free-variable、substitution、capture rejection 和 alpha-renaming 行为一起进入接口。
 
+Phase 2A 已在 Prelude `Not/Imp` 上完成第一轮事实源反转：legacy token interning、token-level
+constructors、shape matchers、authoring symbol specs、formation rule signatures 和 `wn/wi` emission
+均由 resolved language/notation/backend declarations 投影；兼容层仍保留旧 Python API。该迁移
+前后 `metamath-prelude_full.mm` 的 SHA-256 完全一致。Phase 2B 将以同一机制迁移 prop 的
+`And2/And3`，并删除按参数个数修改全局 registry 的 hack。
+
 ---
 
 ## 1. 问题陈述

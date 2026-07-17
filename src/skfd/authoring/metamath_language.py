@@ -47,6 +47,7 @@ TemplatePart: TypeAlias = LiteralPart | ArgumentPart
 class FormationBinding:
     constructor: ConstructorId
     syntax_assertion: AssertionSemanticId
+    syntax_assertion_label: str
     template: tuple[TemplatePart, ...]
 
 
@@ -160,6 +161,8 @@ def resolve_metamath_language(binding: MetamathLanguageBinding, language: Langua
         constructor = language.constructors.get(constructor_id)
         if constructor is None:
             raise AuthoringSemanticError(f"unknown formation constructor: {constructor_id}")
+        if not formation.syntax_assertion_label:
+            raise AuthoringSemanticError(f"empty syntax assertion label: {constructor_id}")
         indexes = [part.index for part in formation.template if isinstance(part, ArgumentPart)]
         if sorted(indexes) != list(range(len(constructor.inputs))):
             raise AuthoringSemanticError(f"formation argument coverage mismatch: {constructor_id}")
@@ -177,6 +180,7 @@ def resolve_metamath_language(binding: MetamathLanguageBinding, language: Langua
             {
                 "constructor": str(formation.constructor),
                 "syntax_assertion": str(formation.syntax_assertion),
+                "syntax_assertion_label": formation.syntax_assertion_label,
                 "template": parts,
             }
         )

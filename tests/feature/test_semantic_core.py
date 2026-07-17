@@ -7,6 +7,7 @@ from typing import cast
 import pytest
 
 from skfd.authoring.errors import AuthoringSemanticError
+from skfd.authoring.formula import Formula
 from skfd.authoring.ids import (
     BackendBindingId,
     BackendVocabularyId,
@@ -23,6 +24,11 @@ from skfd.authoring.ids import (
     VariableKindId,
 )
 from skfd.authoring.judgment import CalculusSpec, JudgmentKindDecl, resolve_calculus
+from skfd.authoring.legacy_metamath import (
+    build_legacy_formula,
+    legacy_binary_formation,
+    legacy_symbol_spec,
+)
 from skfd.authoring.language import (
     ConstructorDecl,
     LanguageInterface,
@@ -129,6 +135,7 @@ def test_end_to_end_semantic_core() -> None:
                 FormationBinding(
                     constructor=imp,
                     syntax_assertion=AssertionSemanticId("wi"),
+                    syntax_assertion_label="wi",
                     template=(LiteralPart(token), ArgumentPart(0), ArgumentPart(1)),
                 ),
             ),
@@ -505,6 +512,7 @@ def test_same_backend_token_supports_distinct_binary_and_ternary_constructors() 
                 FormationBinding(
                     constructor=and2,
                     syntax_assertion=AssertionSemanticId("test#formation:wa"),
+                    syntax_assertion_label="wa",
                     template=(
                         LiteralPart(lp),
                         ArgumentPart(0),
@@ -516,6 +524,7 @@ def test_same_backend_token_supports_distinct_binary_and_ternary_constructors() 
                 FormationBinding(
                     constructor=and3,
                     syntax_assertion=AssertionSemanticId("test#formation:w3a"),
+                    syntax_assertion_label="w3a",
                     template=(
                         LiteralPart(lp),
                         ArgumentPart(0),
@@ -561,6 +570,7 @@ def test_backend_digest_is_separate_and_template_coverage_is_checked() -> None:
                     FormationBinding(
                         constructor=and2,
                         syntax_assertion=AssertionSemanticId(f"test#formation:{assertion}"),
+                        syntax_assertion_label=assertion,
                         template=(ArgumentPart(0), LiteralPart(token), ArgumentPart(1)),
                     ),
                 ),
@@ -583,6 +593,7 @@ def test_backend_digest_is_separate_and_template_coverage_is_checked() -> None:
                     FormationBinding(
                         constructor=and2,
                         syntax_assertion=AssertionSemanticId("test#formation:invalid"),
+                        syntax_assertion_label="invalid",
                         template=(ArgumentPart(0), LiteralPart(token), ArgumentPart(0)),
                     ),
                 ),
@@ -602,6 +613,130 @@ def test_backend_digest_is_separate_and_template_coverage_is_checked() -> None:
             ),
             language,
             {},
+        )
+
+
+def test_legacy_formula_adapter_applies_the_resolved_formation() -> None:
+    language, and2, _ = _conjunction_language()
+    vocabulary = BackendVocabularyId("test#vocabulary:setmm")
+    lp = TokenRef(vocabulary, "(")
+    conjunction = TokenRef(vocabulary, "/\\")
+    rp = TokenRef(vocabulary, ")")
+    binding = resolve_metamath_language(
+        MetamathLanguageBinding(
+            id=BackendBindingId("test#binding:legacy"),
+            language=LanguageRequirement(id=language.id),
+            foundation=FoundationRequirement(id=FoundationId("test#foundation:setmm")),
+            formations=(
+                FormationBinding(
+                    constructor=and2,
+                    syntax_assertion=AssertionSemanticId("test#formation:wa"),
+                    syntax_assertion_label="wa",
+                    template=(
+                        LiteralPart(lp),
+                        ArgumentPart(0),
+                        LiteralPart(conjunction),
+                        ArgumentPart(1),
+                        LiteralPart(rp),
+                    ),
+                ),
+            ),
+        ),
+        language,
+        {},
+    )
+    formula = build_legacy_formula(
+        binding,
+        and2,
+        (Formula("wff", (10,)), Formula("wff", (11,))),
+        token_symbols={lp: 1, conjunction: 2, rp: 3},
+        legacy_sorts={SortId("test#sort:wff"): "wff"},
+    )
+    assert formula == Formula("wff", (1, 10, 2, 11, 3))
+
+    notation = resolve_notation(
+        NotationSpec(
+            id=NotationId("test#notation:legacy"),
+            language=LanguageRequirement(id=language.id),
+            declarations=(
+                NotationDecl(
+                    constructor=and2,
+                    form=InfixForm(token="∧", precedence=25, associativity="left"),
+                    aliases=("/\\", "&"),
+                ),
+            ),
+        ),
+        language,
+        {},
+    )
+    symbol_spec = legacy_symbol_spec(
+        binding,
+        notation,
+        and2,
+        legacy_sorts={SortId("test#sort:wff"): "wff"},
+    )
+    assert symbol_spec.name == "/\\"
+    assert symbol_spec.arity == 2
+    assert symbol_spec.in_sorts == ("wff", "wff")
+    assert symbol_spec.out_sort == "wff"
+    assert symbol_spec.aliases == ("∧", "&")
+    binary_shape = legacy_binary_formation(binding, and2)
+    assert binary_shape == (
+        type(binary_shape)(left_delimiter=lp, operator=conjunction, right_delimiter=rp)
+    )
+
+    conflicting_language = resolve_language(
+        LanguageSpec(
+            id=LanguageId("test#language:conflicting-notation"),
+            sorts=(SortDecl(id=SortId("test#sort:wff")),),
+            constructors=(
+                ConstructorDecl(
+                    id=and2,
+                    inputs=(SortId("test#sort:wff"),),
+                    output=SortId("test#sort:wff"),
+                ),
+            ),
+        ),
+        {},
+    )
+    conflicting_notation = resolve_notation(
+        NotationSpec(
+            id=NotationId("test#notation:conflicting-language"),
+            language=LanguageRequirement(id=conflicting_language.id),
+            declarations=(
+                NotationDecl(
+                    constructor=and2,
+                    form=PrefixForm(token="∧", precedence=25),
+                    aliases=("/\\",),
+                ),
+            ),
+        ),
+        conflicting_language,
+        {},
+    )
+    with pytest.raises(AuthoringSemanticError, match="notation language mismatch"):
+        legacy_symbol_spec(
+            binding,
+            conflicting_notation,
+            and2,
+            legacy_sorts={SortId("test#sort:wff"): "wff"},
+        )
+
+    with pytest.raises(AuthoringSemanticError, match="expects 2 arguments"):
+        build_legacy_formula(
+            binding,
+            and2,
+            (),
+            token_symbols={lp: 1, conjunction: 2, rp: 3},
+            legacy_sorts={SortId("test#sort:wff"): "wff"},
+        )
+    with pytest.raises(AuthoringSemanticError, match="no legacy symbol binding"):
+        build_legacy_formula(
+            binding,
+            and2,
+            (Formula("wff", (10,)), Formula("wff", (11,))),
+            token_symbols={},
+            legacy_sorts={SortId("test#sort:wff"): "wff"},
         )
 
 

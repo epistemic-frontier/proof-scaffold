@@ -212,6 +212,18 @@ reference，要求 root 精确等于声明 conclusion，并拒绝任何不能从
 contract 则必然改变摘要。Theory/profile lookup、assumption closure、legacy lowering 与公开 snapshot
 codec 仍留待后续切片。
 
+Phase 5C 已建立固定 theory/profile 所需的最小 assertion catalog 边界。Catalog 以稳定
+`AssertionSemanticId` 为身份，完整 signature 参与确定性摘要，canonical label 只作为兼容视图；
+重复 ID、重复 label、profile 中的悬空引用均 fail closed，解析结果使用 immutable mappings。
+`apply_assertion_by_id` 只允许从显式 profile 授权的 catalog 解析 signature，再复用 Phase 5A
+kernel。Backend-neutral `SemanticReplayPlan` 不引入第二套 proof semantics：它逐步使用 catalog
+signature、proof substitution、premise occurrence 与 target 重新运行 `apply_assertion`，之后才附加
+canonical backend label、位置化 premise 和按 assertion kind 分类的 dependency closure。Prop
+`mp2b` canary 已用两次按 ID 解析的 `ax-mp` 完成 semantic proof、finalization 与 replay-plan
+生成，并与 legacy proof 的两步结构一致。当前切片尚不把 replay plan 转换为 legacy `Proof`，不改
+BuilderV2/corpus emission；完整 theory ontology、跨 catalog dependency 与 family/combinator migration
+留给后续切片。
+
 ---
 
 ## 1. 问题陈述

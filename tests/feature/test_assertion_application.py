@@ -13,7 +13,16 @@ from skfd.authoring.assertion import (
     signature_from_primitive_rule,
     start_draft,
 )
+from skfd.authoring.catalog import (
+    AssertionCatalogError,
+    AssertionCatalogSpec,
+    AssertionProfileSpec,
+    apply_assertion_by_id,
+    resolve_assertion_catalog,
+)
 from skfd.authoring.ids import (
+    AssertionCatalogId,
+    AssertionProfileId,
     AssertionSemanticId,
     CalculusId,
     ConstructorId,
@@ -46,6 +55,7 @@ from skfd.authoring.language import (
     VariableKindDecl,
     resolve_language,
 )
+from skfd.authoring.replay import ResolvedDependency, build_semantic_replay_plan
 from skfd.authoring.source import SourceBuilder, elaborate_block, start_draft_from_snapshot
 from skfd.authoring.term import Var, VariableRef
 
@@ -153,6 +163,81 @@ def test_apply_assertion_elaborates_mp_and_preserves_failed_draft() -> None:
         calculus,
         root=theorem_application.step.id,
     ).semantic_digest
+
+    profile_id = AssertionProfileId("test#profile:mp")
+    catalog = resolve_assertion_catalog(
+        AssertionCatalogSpec(
+            id=AssertionCatalogId("test#catalog:prop"),
+            assertions=(signature,),
+            profiles=(AssertionProfileSpec(id=profile_id, allowed=(signature.id,)),),
+        )
+    )
+    with pytest.raises(AssertionCatalogError, match="duplicate assertion id"):
+        resolve_assertion_catalog(
+            AssertionCatalogSpec(
+                id=AssertionCatalogId("test#catalog:duplicate-id"),
+                assertions=(signature, signature),
+                profiles=(),
+            )
+        )
+    with pytest.raises(AssertionCatalogError, match="duplicate assertion label"):
+        resolve_assertion_catalog(
+            AssertionCatalogSpec(
+                id=AssertionCatalogId("test#catalog:duplicate-label"),
+                assertions=(
+                    signature,
+                    replace(theorem_signature, canonical_label="ax-mp"),
+                ),
+                profiles=(),
+            )
+        )
+    with pytest.raises(AssertionCatalogError, match="unknown assertion"):
+        resolve_assertion_catalog(
+            AssertionCatalogSpec(
+                id=AssertionCatalogId("test#catalog:missing-profile-entry"),
+                assertions=(signature,),
+                profiles=(
+                    AssertionProfileSpec(
+                        id=profile_id,
+                        allowed=(theorem_signature.id,),
+                    ),
+                ),
+            )
+        )
+    replay = build_semantic_replay_plan(proof, calculus, catalog, profile_id)
+    assert replay.root_position == 2
+    assert replay.applications[0].canonical_label == "ax-mp"
+    assert replay.applications[0].premise_positions == (0, 1)
+    assert replay.dependency_closure == (
+        ResolvedDependency(signature.id, "primitive_rule"),
+    )
+    assert replay.replay_context.active_distinct == ()
+
+    denied_profile = AssertionProfileId("test#profile:denied")
+    denied_catalog = resolve_assertion_catalog(
+        AssertionCatalogSpec(
+            id=AssertionCatalogId("test#catalog:denied"),
+            assertions=(signature,),
+            profiles=(AssertionProfileSpec(id=denied_profile, allowed=()),),
+        )
+    )
+    with pytest.raises(AssertionCatalogError, match="not allowed"):
+        build_semantic_replay_plan(proof, calculus, denied_catalog, denied_profile)
+
+    catalog_draft = start_draft(
+        ProofId("test#proof:catalog-application"),
+        calculus,
+        theorem_signature.premises,
+    )
+    catalog_application = apply_assertion_by_id(
+        catalog_draft,
+        calculus,
+        catalog,
+        profile_id,
+        signature.id,
+        tuple(step.id for step in catalog_draft.hypotheses),
+    )
+    assert catalog_application.step.assertion == signature.id
     with pytest.raises(AssertionApplicationError, match="cannot cite itself"):
         apply_assertion(
             theorem_draft,

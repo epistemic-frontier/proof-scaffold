@@ -61,6 +61,16 @@ class AssertionSemanticId(_Id):
 
 
 @dataclass(frozen=True, order=True, slots=True)
+class AssertionCatalogId(_Id):
+    pass
+
+
+@dataclass(frozen=True, order=True, slots=True)
+class AssertionProfileId(_Id):
+    pass
+
+
+@dataclass(frozen=True, order=True, slots=True)
 class JudgmentKindId(_Id):
     pass
 

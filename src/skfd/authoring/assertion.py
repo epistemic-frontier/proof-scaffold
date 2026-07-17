@@ -210,7 +210,7 @@ def _pair_document(pair: DistinctPair) -> JsonValue:
     return [_variable_document(pair.left), _variable_document(pair.right)]
 
 
-def _signature_document(signature: AssertionSignature) -> JsonValue:
+def assertion_signature_document(signature: AssertionSignature) -> JsonValue:
     return {
         "id": str(signature.id),
         "kind": signature.kind,
@@ -702,7 +702,7 @@ def _elaborated_proof_digest(proof: ElaboratedProof) -> Digest:
         {
             "version": "skfd.elaborated-proof.v2",
             "calculus_digest": str(proof.calculus_digest),
-            "signature": _signature_document(proof.signature),
+            "signature": assertion_signature_document(proof.signature),
             "hypotheses": [
                 _judgment_document(hypothesis.result) for hypothesis in proof.hypotheses
             ],

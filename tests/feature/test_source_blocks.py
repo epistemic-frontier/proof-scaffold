@@ -16,6 +16,7 @@ from skfd.authoring.ids import (
 from skfd.authoring.judgment import DistinctPair, Judgment
 from skfd.authoring.source import (
     AssertionSource,
+    AssertionSourceSnapshot,
     DistinctStatement,
     SourceBlock,
     SourceBuilder,
@@ -152,6 +153,11 @@ def test_source_ir_rejects_mutable_or_malformed_payloads() -> None:
         SourceBlock(cast(tuple[SourceStatement, ...], [DistinctStatement((X_REF, Y_REF))]))
     with pytest.raises(AuthoringSemanticError, match="invalid statement"):
         SourceBlock(cast(tuple[SourceStatement, ...], (object(),)))
+    with pytest.raises(AuthoringSemanticError, match="mandatory distinct"):
+        AssertionSourceSnapshot(
+            _signature("snapshot-mismatch", X_REF, Y_REF),
+            (DistinctPair(X_REF, Y_REF),),
+        )
 
 
 def test_block_contexts_are_single_use_and_respect_parent_lifetime() -> None:

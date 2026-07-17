@@ -8,6 +8,7 @@ from skfd.authoring.assertion import (
     AssertionApplicationError,
     AssertionSignature,
     apply_assertion,
+    finalize_proof,
     signature_from_axiom,
     signature_from_primitive_rule,
     start_draft,
@@ -16,6 +17,7 @@ from skfd.authoring.ids import (
     AssertionSemanticId,
     CalculusId,
     ConstructorId,
+    Digest,
     JudgmentKindId,
     LanguageId,
     OwnerId,
@@ -44,6 +46,7 @@ from skfd.authoring.language import (
     VariableKindDecl,
     resolve_language,
 )
+from skfd.authoring.source import SourceBuilder, elaborate_block, start_draft_from_snapshot
 from skfd.authoring.term import Var, VariableRef
 
 
@@ -113,6 +116,107 @@ def test_apply_assertion_elaborates_mp_and_preserves_failed_draft() -> None:
     assert applied.step.substitution == ((phi_ref, p), (psi_ref, q))
     assert applied.draft.steps == (applied.step,)
     assert draft.steps == ()
+
+    theorem_signature = AssertionSignature(
+        id=AssertionSemanticId("test#theorem:mp-instance"),
+        canonical_label="mp-instance",
+        kind="theorem",
+        schema_variables=rule.schema_variables,
+        premises=rule.premises,
+        conclusion=rule.conclusion,
+    )
+    theorem_source = SourceBuilder()
+    with theorem_source.block() as block:
+        block.assertion(theorem_signature)
+    theorem_draft = start_draft_from_snapshot(
+        ProofId("test#proof:mp-finalized"),
+        calculus,
+        elaborate_block(theorem_source.build()).assertions[0],
+    )
+    theorem_application = apply_assertion(
+        theorem_draft,
+        calculus,
+        signature,
+        tuple(step.id for step in theorem_draft.hypotheses),
+    )
+    proof = finalize_proof(
+        theorem_application.draft,
+        calculus,
+        root=theorem_application.step.id,
+    )
+    assert proof.signature == theorem_signature
+    assert proof.root == theorem_application.step.id
+    assert proof.dependency_closure == (signature.id,)
+    assert proof.replay_context.active_distinct == ()
+    assert proof.semantic_digest == finalize_proof(
+        theorem_application.draft,
+        calculus,
+        root=theorem_application.step.id,
+    ).semantic_digest
+    with pytest.raises(AssertionApplicationError, match="cannot cite itself"):
+        apply_assertion(
+            theorem_draft,
+            calculus,
+            theorem_signature,
+            tuple(step.id for step in theorem_draft.hypotheses),
+        )
+    unsigned_draft = start_draft(
+        ProofId("test#proof:late-signature"),
+        calculus,
+        theorem_signature.premises,
+    )
+    unsigned_self_application = apply_assertion(
+        unsigned_draft,
+        calculus,
+        theorem_signature,
+        tuple(step.id for step in unsigned_draft.hypotheses),
+    )
+    with pytest.raises(AssertionApplicationError, match="cannot cite itself"):
+        replace(unsigned_self_application.draft, signature=theorem_signature)
+    extra_application = apply_assertion(
+        theorem_application.draft,
+        calculus,
+        signature,
+        tuple(step.id for step in theorem_draft.hypotheses),
+    )
+    with pytest.raises(AssertionApplicationError, match="unreachable"):
+        finalize_proof(
+            extra_application.draft,
+            calculus,
+            root=theorem_application.step.id,
+        )
+
+    relabeled_signature = replace(theorem_signature, canonical_label="display-only-change")
+    relabeled_draft = start_draft(
+        ProofId("test#proof:different-nominal-id"),
+        calculus,
+        relabeled_signature.premises,
+        signature=relabeled_signature,
+    )
+    relabeled_application = apply_assertion(
+        relabeled_draft,
+        calculus,
+        signature,
+        tuple(step.id for step in relabeled_draft.hypotheses),
+    )
+    relabeled_proof = finalize_proof(
+        relabeled_application.draft,
+        calculus,
+        root=relabeled_application.step.id,
+    )
+    assert relabeled_proof.semantic_digest == proof.semantic_digest
+    assert replace(
+        proof,
+        calculus_digest=Digest("0" * 64),
+    ).semantic_digest != proof.semantic_digest
+    with pytest.raises(AssertionApplicationError, match="must be a theorem"):
+        replace(theorem_draft, signature=signature)
+    with pytest.raises(AssertionApplicationError, match="does not match"):
+        finalize_proof(
+            theorem_application.draft,
+            calculus,
+            root=theorem_draft.hypotheses[0].id,
+        )
 
     with pytest.raises(AssertionApplicationError):
         apply_assertion(
@@ -252,6 +356,39 @@ def test_apply_assertion_checks_syntactic_dv_and_instantiates_binder_variables()
     )
     assert applied.step.result == Judgment(provable, (expected,))
     assert applied.step.satisfied_distinct == (active,)
+
+    theorem_signature = AssertionSignature(
+        id=AssertionSemanticId("test#theorem:ax-5-instance"),
+        canonical_label="ax-5-instance",
+        kind="theorem",
+        schema_variables=(phi_ref, x_ref),
+        premises=(),
+        conclusion=axiom.declaration.conclusion,
+    )
+    theorem_source = SourceBuilder()
+    with theorem_source.block() as block:
+        block.d(phi_ref, x_ref)
+        block.assertion(theorem_signature)
+    snapshot = elaborate_block(theorem_source.build()).assertions[0]
+    theorem_draft = start_draft_from_snapshot(
+        ProofId("test#proof:ax-5-finalized"),
+        calculus,
+        snapshot,
+    )
+    theorem_application = apply_assertion(
+        theorem_draft,
+        calculus,
+        signature,
+        (),
+        subst={phi_ref: phi, x_ref: x},
+    )
+    proof = finalize_proof(
+        theorem_application.draft,
+        calculus,
+        root=theorem_application.step.id,
+    )
+    assert proof.replay_context.active_distinct == (DistinctPair(phi_ref, x_ref),)
+    assert proof.signature.mandatory_distinct == (DistinctPair(phi_ref, x_ref),)
 
     reversed_draft = replace(
         draft,

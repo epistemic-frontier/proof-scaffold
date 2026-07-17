@@ -6,10 +6,15 @@ from types import TracebackType
 from typing import TypeAlias
 
 from ._canonical import JsonValue, canonical_digest
-from .assertion import AssertionSignature, normalize_distinct_pairs
+from .assertion import (
+    AssertionSignature,
+    ProofDraft,
+    normalize_distinct_pairs,
+    start_draft,
+)
 from .errors import AuthoringSemanticError
-from .ids import Digest
-from .judgment import DistinctPair, Judgment
+from .ids import Digest, ProofId
+from .judgment import CalculusInterface, DistinctPair, Judgment
 from .term import Term, Var, VariableRef
 
 
@@ -56,6 +61,20 @@ SourceStatement: TypeAlias = DistinctStatement | AssertionSource | SourceBlock
 class AssertionSourceSnapshot:
     declaration: AssertionSignature
     active_distinct: tuple[DistinctPair, ...]
+
+    def __post_init__(self) -> None:
+        normalized = normalize_distinct_pairs(self.active_distinct)
+        object.__setattr__(self, "active_distinct", normalized)
+        mandatory_variables = frozenset(self.declaration.schema_variables)
+        expected_mandatory = tuple(
+            pair
+            for pair in normalized
+            if pair.left in mandatory_variables and pair.right in mandatory_variables
+        )
+        if self.declaration.mandatory_distinct != expected_mandatory:
+            raise AuthoringSemanticError(
+                "source snapshot mandatory distinct relation does not match its active scope"
+            )
 
 
 @dataclass(frozen=True, slots=True)
@@ -218,6 +237,20 @@ def elaborate_block(
         }
     )
     return ElaboratedSourceBlock(block, assertions, source_digest, semantic_digest)
+
+
+def start_draft_from_snapshot(
+    proof_id: ProofId,
+    calculus: CalculusInterface,
+    snapshot: AssertionSourceSnapshot,
+) -> ProofDraft:
+    return start_draft(
+        proof_id,
+        calculus,
+        snapshot.declaration.premises,
+        active_distinct=snapshot.active_distinct,
+        signature=snapshot.declaration,
+    )
 
 
 class _BlockContext(AbstractContextManager["_BlockContext"]):

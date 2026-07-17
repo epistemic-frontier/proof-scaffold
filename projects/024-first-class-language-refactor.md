@@ -200,6 +200,18 @@ assertion schema variables 后形成公开 mandatory-DV；nested block 继承 pa
 `AX5_SIGNATURE` 完全相同的 mandatory contract；legacy `_dv_contracts.py` 仍是当前 emission 路径的
 权威输入。
 
+Phase 5B 已把 scoped assertion snapshot 接到固定 theorem draft 与 finalization。由 snapshot 启动的
+draft 固定 theorem signature、有序 hypotheses 和完整 active-DV；构造时要求公开 mandatory-DV
+恰好等于 active relation 对 schema variables 的限制。Finalization 只接受 theorem，禁止 self
+reference，要求 root 精确等于声明 conclusion，并拒绝任何不能从 root 反向到达的 dead step。
+`AssertionReplayContext` 原样保存完整规范化 active-DV，而不是只保留公开 mandatory pairs。
+`ElaboratedProof` 的 dependency closure 作为集合按稳定 assertion ID 排序；semantic digest 是只读
+派生值，包含 calculus digest、完整 signature、位置化 proof DAG、substitution、constraint evidence
+和 replay relation，但排除 display label、nominal `ProofId` 与具体 `StepId` spelling。因此同一证明
+换用不同 source display label 或 proof-local occurrence namespace 不改变数学摘要，改变 calculus
+contract 则必然改变摘要。Theory/profile lookup、assumption closure、legacy lowering 与公开 snapshot
+codec 仍留待后续切片。
+
 ---
 
 ## 1. 问题陈述

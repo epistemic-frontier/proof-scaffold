@@ -6,7 +6,7 @@ from types import MappingProxyType
 
 from ._canonical import JsonValue, canonical_digest
 from .errors import AuthoringSemanticError
-from .ids import CalculusId, Digest, JudgmentKindId, RuleId, SortId
+from .ids import AssertionSemanticId, CalculusId, Digest, JudgmentKindId, RuleId, SortId
 from .language import LanguageInterface, LanguageRequirement
 from .term import App, Term, Var, VariableRef
 
@@ -29,6 +29,30 @@ class PrimitiveRuleDecl:
     schema_variables: tuple[VariableRef, ...]
     premises: tuple[Judgment, ...]
     conclusion: Judgment
+
+
+@dataclass(frozen=True, slots=True)
+class DistinctPair:
+    left: VariableRef
+    right: VariableRef
+
+    def __post_init__(self) -> None:
+        if self.left == self.right:
+            raise AuthoringSemanticError("distinct-variable pair must have different endpoints")
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class AxiomDecl:
+    id: AssertionSemanticId
+    schema_variables: tuple[VariableRef, ...]
+    conclusion: Judgment
+    mandatory_distinct: tuple[DistinctPair, ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
+class AxiomInterface:
+    declaration: AxiomDecl
+    digest: Digest
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -94,6 +118,34 @@ def _judgment_document(judgment: Judgment) -> JsonValue:
     }
 
 
+def _variable_key(variable: VariableRef) -> tuple[str, str, str, str]:
+    return (
+        variable.scope,
+        str(variable.owner),
+        variable.local_key,
+        str(variable.kind),
+    )
+
+
+def _variable_document(variable: VariableRef) -> JsonValue:
+    return {
+        "scope": variable.scope,
+        "owner": str(variable.owner),
+        "local_key": variable.local_key,
+        "kind": str(variable.kind),
+    }
+
+
+def _canonical_variables(variables: tuple[VariableRef, ...]) -> tuple[VariableRef, ...]:
+    return tuple(sorted(variables, key=_variable_key))
+
+
+def _canonical_distinct_pair(pair: DistinctPair) -> DistinctPair:
+    if _variable_key(pair.left) <= _variable_key(pair.right):
+        return pair
+    return DistinctPair(pair.right, pair.left)
+
+
 def _validate_term(
     term: Term,
     language: LanguageInterface,
@@ -116,6 +168,11 @@ def _validate_term(
         or constructor_declaration.output != term.sort
     ):
         raise AuthoringSemanticError(f"invalid term: {term.constructor}")
+    binder = language.binders.get(term.constructor)
+    if binder is not None and not isinstance(term.arguments[binder.variable_argument], Var):
+        raise AuthoringSemanticError(
+            f"binder {term.constructor} argument {binder.variable_argument} must be a variable"
+        )
     for argument in term.arguments:
         _validate_term(argument, language, schema_variables)
 
@@ -160,17 +217,7 @@ def resolve_calculus(spec: CalculusSpec, language: LanguageInterface) -> Calculu
                 raise AuthoringSemanticError(
                     f"unknown schema variable kind in rule {rule_declaration.id}: {variable.kind}"
                 )
-        canonical_variables = tuple(
-            sorted(
-                rule_declaration.schema_variables,
-                key=lambda variable: (
-                    variable.scope,
-                    str(variable.owner),
-                    variable.local_key,
-                    str(variable.kind),
-                ),
-            )
-        )
+        canonical_variables = _canonical_variables(rule_declaration.schema_variables)
         if canonical_variables != rule_declaration.schema_variables:
             rule_declaration = replace(
                 rule_declaration,
@@ -192,12 +239,7 @@ def resolve_calculus(spec: CalculusSpec, language: LanguageInterface) -> Calculu
                 {
                     "id": str(item.id),
                     "schema_variables": [
-                        {
-                            "scope": variable.scope,
-                            "owner": str(variable.owner),
-                            "local_key": variable.local_key,
-                            "kind": str(variable.kind),
-                        }
+                        _variable_document(variable)
                         for variable in item.schema_variables
                     ],
                     "premises": [_judgment_document(premise) for premise in item.premises],
@@ -208,3 +250,54 @@ def resolve_calculus(spec: CalculusSpec, language: LanguageInterface) -> Calculu
         }
     )
     return CalculusInterface(spec.id, language, judgments, rules, digest)
+
+
+def resolve_axiom(declaration: AxiomDecl, calculus: CalculusInterface) -> AxiomInterface:
+    schema_variables = frozenset(declaration.schema_variables)
+    if len(schema_variables) != len(declaration.schema_variables):
+        raise AuthoringSemanticError(f"duplicate schema variable in axiom: {declaration.id}")
+    if any(variable.scope != "schema" for variable in schema_variables):
+        raise AuthoringSemanticError(f"non-schema variable in axiom: {declaration.id}")
+    for variable in schema_variables:
+        if variable.kind not in calculus.language.variable_kinds:
+            raise AuthoringSemanticError(
+                f"unknown schema variable kind in axiom {declaration.id}: {variable.kind}"
+            )
+    _validate_judgment(
+        declaration.conclusion,
+        calculus.judgments,
+        calculus.language,
+        schema_variables,
+    )
+
+    pairs: set[DistinctPair] = set()
+    for pair in declaration.mandatory_distinct:
+        if pair.left not in schema_variables or pair.right not in schema_variables:
+            raise AuthoringSemanticError(
+                f"undeclared distinct-variable endpoint in axiom: {declaration.id}"
+            )
+        pairs.add(_canonical_distinct_pair(pair))
+    canonical_pairs = tuple(
+        sorted(pairs, key=lambda pair: (_variable_key(pair.left), _variable_key(pair.right)))
+    )
+    declaration = replace(
+        declaration,
+        schema_variables=_canonical_variables(declaration.schema_variables),
+        mandatory_distinct=canonical_pairs,
+    )
+    digest = canonical_digest(
+        {
+            "version": "skfd.axiom.v1",
+            "calculus_digest": str(calculus.digest),
+            "id": str(declaration.id),
+            "schema_variables": [
+                _variable_document(variable) for variable in declaration.schema_variables
+            ],
+            "conclusion": _judgment_document(declaration.conclusion),
+            "mandatory_distinct": [
+                [_variable_document(pair.left), _variable_document(pair.right)]
+                for pair in declaration.mandatory_distinct
+            ],
+        }
+    )
+    return AxiomInterface(declaration, digest)

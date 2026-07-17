@@ -32,7 +32,13 @@ class CallForm:
     token: str
 
 
-NotationForm: TypeAlias = PrefixForm | InfixForm | CallForm
+@dataclass(frozen=True, slots=True, kw_only=True)
+class BinderForm:
+    token: str
+    precedence: int
+
+
+NotationForm: TypeAlias = PrefixForm | InfixForm | CallForm | BinderForm
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -72,22 +78,36 @@ class NotationInterface:
     digest: Digest
 
     def render(self, term: Term, variable_names: Mapping[VariableRef, str]) -> str:
-        if not isinstance(term, App):
-            name = variable_names.get(term.variable)
-            if name is None:
-                raise AuthoringSemanticError(f"no display name for variable: {term.variable.local_key}")
-            return name
-        declaration = next((item for item in self.declarations if item.constructor == term.constructor), None)
-        if declaration is None:
-            raise AuthoringSemanticError(f"no notation for constructor: {term.constructor}")
-        form = declaration.form
-        if isinstance(form, PrefixForm):
-            return f"{form.token} {self.render(term.arguments[0], variable_names)}"
-        if isinstance(form, CallForm):
-            return f"{form.token}({', '.join(self.render(item, variable_names) for item in term.arguments)})"
-        left = self.render(term.arguments[0], variable_names)
-        right = self.render(term.arguments[1], variable_names)
-        return f"({left} {form.token} {right})"
+        def render_at(item: Term, *, nested: bool) -> str:
+            if not isinstance(item, App):
+                name = variable_names.get(item.variable)
+                if name is None:
+                    raise AuthoringSemanticError(
+                        f"no display name for variable: {item.variable.local_key}"
+                    )
+                return name
+            declaration = next(
+                (entry for entry in self.declarations if entry.constructor == item.constructor),
+                None,
+            )
+            if declaration is None:
+                raise AuthoringSemanticError(f"no notation for constructor: {item.constructor}")
+            form = declaration.form
+            if isinstance(form, PrefixForm):
+                return f"{form.token} {render_at(item.arguments[0], nested=True)}"
+            if isinstance(form, BinderForm):
+                variable = render_at(item.arguments[0], nested=False)
+                body = render_at(item.arguments[1], nested=False)
+                rendered = f"{form.token} {variable} {body}"
+                return f"({rendered})" if nested else rendered
+            if isinstance(form, CallForm):
+                arguments = ", ".join(render_at(argument, nested=True) for argument in item.arguments)
+                return f"{form.token}({arguments})"
+            left = render_at(item.arguments[0], nested=True)
+            right = render_at(item.arguments[1], nested=True)
+            return f"({left} {form.token} {right})"
+
+        return render_at(term, nested=False)
 
     def parse(self, text: str, variables: Mapping[str, VariableRef]) -> Term:
         aliases: dict[str, NotationDecl] = {}
@@ -111,6 +131,21 @@ class NotationInterface:
                 position += 1
             elif declaration is not None and isinstance(declaration.form, PrefixForm):
                 left = self.language.apply(declaration.constructor, (expression(declaration.form.precedence),))
+            elif declaration is not None and isinstance(declaration.form, BinderForm):
+                if position >= len(tokens):
+                    raise AuthoringSemanticError(f"expected bound variable after {token}")
+                variable_name = tokens[position]
+                position += 1
+                variable = variables.get(variable_name)
+                if variable is None:
+                    raise AuthoringSemanticError(f"unknown bound variable: {variable_name}")
+                left = self.language.apply(
+                    declaration.constructor,
+                    (
+                        self.language.variable(variable),
+                        expression(declaration.form.precedence),
+                    ),
+                )
             elif declaration is not None and isinstance(declaration.form, CallForm):
                 if position >= len(tokens) or tokens[position] != "(":
                     raise AuthoringSemanticError(f"expected '(' after {token}")
@@ -173,9 +208,19 @@ def resolve_notation(spec: NotationSpec, language: LanguageInterface, dependenci
     tokens: set[str] = set()
     for declaration in declarations.values():
         constructor = language.constructors.get(declaration.constructor)
-        expected = 1 if isinstance(declaration.form, PrefixForm) else 2 if isinstance(declaration.form, InfixForm) else None
+        expected = (
+            1
+            if isinstance(declaration.form, PrefixForm)
+            else 2
+            if isinstance(declaration.form, (InfixForm, BinderForm))
+            else None
+        )
         if constructor is None or (expected is not None and len(constructor.inputs) != expected):
             raise AuthoringSemanticError(f"notation arity/target mismatch: {declaration.constructor}")
+        if isinstance(declaration.form, BinderForm):
+            binder = language.binders.get(declaration.constructor)
+            if binder is None or binder.variable_argument != 0 or binder.scoped_arguments != (1,):
+                raise AuthoringSemanticError(f"notation binder mismatch: {declaration.constructor}")
         for token in (declaration.form.token, *declaration.aliases):
             if not token or token in tokens:
                 raise AuthoringSemanticError(f"notation alias collision: {token!r}")
@@ -189,6 +234,8 @@ def resolve_notation(spec: NotationSpec, language: LanguageInterface, dependenci
             form_json.update({"kind": "prefix", "precedence": form.precedence})
         elif isinstance(form, InfixForm):
             form_json.update({"kind": "infix", "precedence": form.precedence, "associativity": form.associativity})
+        elif isinstance(form, BinderForm):
+            form_json.update({"kind": "binder", "precedence": form.precedence})
         else:
             form_json["kind"] = "call"
         declarations_json.append(

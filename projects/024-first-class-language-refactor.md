@@ -155,6 +155,22 @@ conclusion；resolver 校验 variable kind、constructor tree、sort、judgment 
 setvar sort、`All` binder、substitution 和 DV 契约进入 semantic language 前，不创建残缺的
 generalization 声明。该阶段不改变 proof execution 或 emission，Logic artifact SHA-256 继续不变。
 
+Phase 4A 已加入可摘要的 `BinderDecl`，并从 binder contract 统一推导 free-variable、
+alpha-renaming 与 capture-avoiding substitution；nested shadowing 只屏蔽内层 binder 的 scoped
+arguments，未受内层 binder 约束的参数仍服从外层作用域。Binder notation 支持 precedence-aware
+parse/render，语言扩展也禁止为继承构造子补加或改变 binder 语义。FOL semantic language 现在
+显式扩展 prop，声明独立 `SETVAR` sort、`All : SETVAR × WFF -> WFF` 及其 binder contract；
+`wal` 只存在于 Metamath formation binding，`ax-gen` 则表示为
+`Provable(φ) -> Provable(All(x, φ))` 的 primitive inference rule。
+
+Phase 4B 用 `ax-5` 完成 mandatory-DV canary。`DistinctPair` 的两个端点直接引用 assertion 的
+typed `VariableRef`，resolver 验证端点属于同一 schema-variable 集合、去向无关地规范化 pair，
+并把约束纳入 assertion digest。`ax-5` 因此同时表达 WFF schema variable `φ`、SETVAR schema
+variable `x` 以及 mandatory pair `(φ, x)`；`ax-gen` 没有被错误附加该约束。当前 legacy
+`ACTIVE_DV_PAIRS` 仍是 emission 权威输入，semantic `ax-5` 是迁移 canary，不另行改写 corpus 或
+公开 `prove_*` API。下一步应把该 typed assertion contract 接入 Phase 5 的统一
+`AssertionSignature/apply_assertion`，再逐步消除 label-keyed side table，而不是长期维护两份事实源。
+
 ---
 
 ## 1. 问题陈述

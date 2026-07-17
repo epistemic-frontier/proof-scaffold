@@ -25,10 +25,13 @@ from skfd.authoring.ids import (
     VariableKindId,
 )
 from skfd.authoring.judgment import (
+    AxiomDecl,
     CalculusSpec,
+    DistinctPair,
     Judgment,
     JudgmentKindDecl,
     PrimitiveRuleDecl,
+    resolve_axiom,
     resolve_calculus,
 )
 from skfd.authoring.legacy_metamath import (
@@ -37,6 +40,7 @@ from skfd.authoring.legacy_metamath import (
     legacy_symbol_spec,
 )
 from skfd.authoring.language import (
+    BinderDecl,
     ConstructorDecl,
     LanguageInterface,
     LanguageRequirement,
@@ -60,6 +64,7 @@ from skfd.authoring.metamath_language import (
     resolve_metamath_language,
 )
 from skfd.authoring.notation import (
+    BinderForm,
     CallForm,
     InfixForm,
     NotationDecl,
@@ -70,6 +75,7 @@ from skfd.authoring.notation import (
     resolve_notation,
 )
 from skfd.authoring.term import App, Var, VariableRef
+from skfd.authoring.term_ops import alpha_rename, free_variables, substitute
 
 
 def test_end_to_end_semantic_core() -> None:
@@ -795,6 +801,37 @@ def test_minimal_calculus_makes_provability_an_explicit_judgment() -> None:
     )
     assert reordered.digest == calculus.digest
     assert reordered.rule(mp).schema_variables == (refs["p"], refs["q"])
+
+    axiom = resolve_axiom(
+        AxiomDecl(
+            id=AssertionSemanticId("test#axiom:distinct-canary"),
+            schema_variables=(refs["q"], refs["p"]),
+            conclusion=Judgment(provable, (implication,)),
+            mandatory_distinct=(DistinctPair(refs["q"], refs["p"]),),
+        ),
+        calculus,
+    )
+    assert axiom.declaration.schema_variables == (refs["p"], refs["q"])
+    assert axiom.declaration.mandatory_distinct == (DistinctPair(refs["p"], refs["q"]),)
+    assert axiom.digest == resolve_axiom(
+        replace(
+            axiom.declaration,
+            schema_variables=(refs["q"], refs["p"]),
+            mandatory_distinct=(DistinctPair(refs["q"], refs["p"]),),
+        ),
+        calculus,
+    ).digest
+    with pytest.raises(AuthoringSemanticError, match="different endpoints"):
+        DistinctPair(refs["p"], refs["p"])
+    undeclared_ref = replace(refs["q"], local_key="r")
+    with pytest.raises(AuthoringSemanticError, match="undeclared distinct-variable endpoint"):
+        resolve_axiom(
+            replace(
+                axiom.declaration,
+                mandatory_distinct=(DistinctPair(refs["p"], undeclared_ref),),
+            ),
+            calculus,
+        )
     with pytest.raises(AuthoringSemanticError, match="unknown judgment"):
         calculus.judgment(JudgmentKindId("test#judgment:missing"), ())
     with pytest.raises(AuthoringSemanticError, match="unknown primitive rule"):
@@ -849,4 +886,206 @@ def test_minimal_calculus_makes_provability_an_explicit_judgment() -> None:
                 rules=(replace(modus_ponens, schema_variables=(*modus_ponens.schema_variables, unknown_kind)),),
             ),
             language,
+        )
+
+
+def test_binder_semantics_support_free_variables_alpha_renaming_and_capture_avoidance() -> None:
+    wff = SortId("test#sort:wff")
+    setvar = SortId("test#sort:setvar")
+    formula_kind = VariableKindId("test#variable-kind:formula")
+    setvar_kind = VariableKindId("test#variable-kind:setvar")
+    predicate = ConstructorId("test#constructor:predicate")
+    name = ConstructorId("test#constructor:name")
+    all_ = ConstructorId("test#constructor:all")
+    contextual = ConstructorId("test#constructor:contextual-binder")
+    imp = ConstructorId("test#constructor:binder-imp")
+    neg = ConstructorId("test#constructor:binder-neg")
+    language = resolve_language(
+        LanguageSpec(
+            id=LanguageId("test#language:binder"),
+            sorts=(SortDecl(id=wff), SortDecl(id=setvar)),
+            variable_kinds=(
+                VariableKindDecl(id=formula_kind, sort=wff),
+                VariableKindDecl(id=setvar_kind, sort=setvar),
+            ),
+            constructors=(
+                ConstructorDecl(id=name, inputs=(), output=setvar),
+                ConstructorDecl(id=predicate, inputs=(setvar,), output=wff),
+                ConstructorDecl(id=all_, inputs=(setvar, wff), output=wff),
+                ConstructorDecl(id=contextual, inputs=(setvar, wff, wff), output=wff),
+                ConstructorDecl(id=imp, inputs=(wff, wff), output=wff),
+                ConstructorDecl(id=neg, inputs=(wff,), output=wff),
+            ),
+            binders=(
+                BinderDecl(
+                    constructor=all_,
+                    variable_argument=0,
+                    scoped_arguments=(1,),
+                ),
+                BinderDecl(
+                    constructor=contextual,
+                    variable_argument=0,
+                    scoped_arguments=(1,),
+                ),
+            ),
+        ),
+        {},
+    )
+    owner = OwnerId("test#binder:variables")
+    x_ref = VariableRef("schema", owner, "x", setvar_kind)
+    y_ref = VariableRef("schema", owner, "y", setvar_kind)
+    z_ref = VariableRef("schema", owner, "z", setvar_kind)
+    phi_ref = VariableRef("schema", owner, "phi", formula_kind)
+    x, y = language.variable(x_ref), language.variable(y_ref)
+    phi = language.variable(phi_ref)
+    pred_x = language.apply(predicate, (x,))
+    pred_y = language.apply(predicate, (y,))
+    quantified_x = language.apply(all_, (x, pred_x))
+
+    assert free_variables(quantified_x, language) == frozenset()
+    assert substitute(quantified_x, {x_ref: y}, language) == quantified_x
+
+    renamed = alpha_rename(quantified_x, z_ref, language)
+    assert renamed.arguments[0] == language.variable(z_ref)
+    assert renamed.arguments[1] == language.apply(predicate, (language.variable(z_ref),))
+
+    shadowed = language.apply(all_, (x, language.apply(all_, (x, pred_x))))
+    shadowed_renamed = alpha_rename(shadowed, z_ref, language)
+    assert shadowed_renamed.arguments[1] == shadowed.arguments[1]
+
+    mixed_scope = language.apply(
+        all_,
+        (x, language.apply(contextual, (x, pred_x, pred_x))),
+    )
+    mixed_renamed = alpha_rename(mixed_scope, z_ref, language)
+    nested = mixed_renamed.arguments[1]
+    assert isinstance(nested, App)
+    assert nested.arguments[1] == pred_x
+    assert nested.arguments[2] == language.apply(predicate, (language.variable(z_ref),))
+
+    capture_risk = language.apply(all_, (x, pred_y))
+    substituted = substitute(capture_risk, {y_ref: x}, language)
+    fresh = VariableRef("schema", owner, "x_1", setvar_kind)
+    assert substituted == language.apply(
+        all_,
+        (
+            language.variable(fresh),
+            pred_x,
+        ),
+    )
+    assert free_variables(substituted, language) == frozenset((x_ref,))
+
+    x_1_ref = VariableRef("schema", owner, "x_1", setvar_kind)
+    z = language.variable(z_ref)
+    substituted_with_domain_collision = substitute(
+        capture_risk,
+        {y_ref: x, x_1_ref: z},
+        language,
+    )
+    x_2_ref = VariableRef("schema", owner, "x_2", setvar_kind)
+    assert substituted_with_domain_collision == language.apply(
+        all_,
+        (language.variable(x_2_ref), pred_x),
+    )
+
+    provable = JudgmentKindId("test#judgment:binder-provable")
+    forged_quantifier = App(
+        all_,
+        (App(name, (), setvar), phi),
+        wff,
+    )
+    invalid_rule = PrimitiveRuleDecl(
+        id=RuleId("test#rule:forged-binder"),
+        schema_variables=(phi_ref,),
+        premises=(),
+        conclusion=Judgment(provable, (forged_quantifier,)),
+    )
+    with pytest.raises(AuthoringSemanticError, match="must be a variable"):
+        resolve_calculus(
+            CalculusSpec(
+                id=CalculusId("test#calculus:forged-binder"),
+                language=LanguageRequirement(id=language.id),
+                judgments=(JudgmentKindDecl(id=provable, arguments=(wff,)),),
+                rules=(invalid_rule,),
+            ),
+            language,
+        )
+    calculus = resolve_calculus(
+        CalculusSpec(
+            id=CalculusId("test#calculus:binder"),
+            language=LanguageRequirement(id=language.id),
+            judgments=(JudgmentKindDecl(id=provable, arguments=(wff,)),),
+        ),
+        language,
+    )
+    with pytest.raises(AuthoringSemanticError, match="must be a variable"):
+        resolve_axiom(
+            AxiomDecl(
+                id=AssertionSemanticId("test#axiom:forged-binder"),
+                schema_variables=(phi_ref,),
+                conclusion=Judgment(provable, (forged_quantifier,)),
+            ),
+            calculus,
+        )
+
+    notation = resolve_notation(
+        NotationSpec(
+            id=NotationId("test#notation:binder"),
+            language=LanguageRequirement(id=language.id),
+            declarations=(
+                NotationDecl(constructor=predicate, form=CallForm(token="P")),
+                NotationDecl(
+                    constructor=imp,
+                    form=InfixForm(token="→", precedence=10, associativity="right"),
+                ),
+                NotationDecl(
+                    constructor=neg,
+                    form=PrefixForm(token="¬", precedence=20),
+                ),
+                NotationDecl(
+                    constructor=all_,
+                    form=BinderForm(token="∀", precedence=0),
+                    aliases=("forall",),
+                ),
+            ),
+        ),
+        language,
+        {},
+    )
+    variable_names = {x_ref: "x", y_ref: "y", z_ref: "z"}
+    term = language.apply(all_, (x, pred_y))
+    assert notation.parse(notation.render(term, variable_names), {"x": x_ref, "y": y_ref}) == term
+    assert notation.parse("forall x P(y)", {"x": x_ref, "y": y_ref}) == term
+    names = {"x": x_ref, "y": y_ref, "phi": phi_ref}
+    displays = {x_ref: "x", y_ref: "y", phi_ref: "phi"}
+    for compound in (
+        language.apply(imp, (term, phi)),
+        language.apply(imp, (phi, term)),
+        language.apply(neg, (term,)),
+    ):
+        assert notation.parse(notation.render(compound, displays), names) == compound
+
+    unbound_base = resolve_language(
+        LanguageSpec(
+            id=LanguageId("test#language:unbound-base"),
+            sorts=(SortDecl(id=wff), SortDecl(id=setvar)),
+            variable_kinds=(VariableKindDecl(id=setvar_kind, sort=setvar),),
+            constructors=(ConstructorDecl(id=all_, inputs=(setvar, wff), output=wff),),
+        ),
+        {},
+    )
+    with pytest.raises(AuthoringSemanticError, match="inherited binder semantics changed"):
+        resolve_language(
+            LanguageSpec(
+                id=LanguageId("test#language:illegal-binder-extension"),
+                extends=(LanguageRequirement(id=unbound_base.id),),
+                binders=(
+                    BinderDecl(
+                        constructor=all_,
+                        variable_argument=0,
+                        scoped_arguments=(1,),
+                    ),
+                ),
+            ),
+            {unbound_base.id: unbound_base},
         )

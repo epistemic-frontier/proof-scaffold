@@ -42,7 +42,7 @@ class TheoremDetails:
 ```
 
 ### Updates to `ProofUnitIR`
-We might attach these to the unit, or keep them as a sidecar `ContractTable`.
+可以把这些内容附加到 unit，也可以放在独立的 `ContractTable` 中作为伴随数据。
 Given `ProofUnitIR` is immutable serialization, let's keep it separate or create a `AnalysisContext`.
 
 *   **Decision**: `Stage2` returns a `ContractIndex: dict[SymbolId, AssertionContract]` and `DependencyIndex: dict[SymbolId, TheoremDetails]`.

@@ -21,7 +21,7 @@
 
 ## 0.1 修订后的实施契约
 
-初稿正确识别了语言缺失，但将 semantic language、notation、Metamath lowering 和 syntax
+初稿正确识别了语言缺失，但将 semantic language、notation、Metamath 后端转换和 syntax
 assertion binding 压进了一个过宽的 `LanguageSpec`。本节取代第 4、5、9 节中与其冲突的旧
 分组和实施次序。
 
@@ -47,8 +47,8 @@ TheorySpec
   base logic + language extension + definitions + non-logical axioms + theorems
 ```
 
-其中 `Term` 只包含稳定 variable/constructor identity、argument tree 和 sort。Unicode spelling、
-source span、`SymbolId`、Python object identity 和 provenance 均不参与其相等性。`|-` 是
+其中 `Term` 只包含稳定的变量／构造子标识符、argument tree 和 sort。Unicode spelling、
+source span、`SymbolId`、Python 对象同一性和 provenance 均不参与其相等性。`|-` 是
 `Provable(Wff)` judgment 的 Metamath realization；`wi/wn/wa/w3a` 属于 language binding；
 `ax-mp/ax-gen` 属于 calculus；`ax-1/ax-2/ax-3` 属于 logical axioms。
 
@@ -61,14 +61,14 @@ LanguageSpec
   库作者编辑的有限声明源
 
 LanguageInterface
-  冲突检查、继承展开、不可变、可摘要的消费者投影
+  经过冲突检查和继承展开、不可变、可摘要的消费者接口
 
 BoundLanguage / LanguageEnvironment
   绑定 notation、backend、SymbolId、resolver 和 build context 的运行时对象
 ```
 
-`System` 是 runtime binding，不是理论身份。第一阶段允许新声明与 legacy globals 并存，但新
-声明不得由 globals 投影生成；下一阶段必须由声明生成 legacy compatibility adapter，最终移除
+`System` 是 runtime binding，不能代表理论本身，也不决定理论的语义同一性。第一阶段允许新声明与 legacy 全局注册表并存，但新
+声明不得由全局注册表生成；下一阶段必须由声明派生 legacy compatibility adapter，最终移除
 import side effects。
 
 ### 分层摘要
@@ -85,7 +85,7 @@ callbacks 或 `SymbolId`。
 
 ### 修订后的阶段顺序
 
-**Phase 0.5 — Term identity hardening。** 新建 nominal `SortId`、`ConstructorId`、
+**Phase 0.5 — Term 标识与同一性强化。** 新建名称标识符 `SortId`、`ConstructorId`、
 `VariableRef` 和结构相等的 immutable `Term`。旧 `Expr` 只保留 compatibility role，不作为公共
 ABI。
 
@@ -95,7 +95,7 @@ ABI。
 `And3` 首轮使用无歧义 call notation，不复制旧 parser 的 arity collapse。
 
 **Phase 2 — 声明成为事实源。** 从新声明派生 legacy registries/builders/parser tables；不再长期
-维持由旧 globals 投影出的第二份 `LANGUAGE`。
+维持由旧全局注册表生成的第二份 `LANGUAGE`。
 
 **Phase 3 — Judgment / Calculus。** 先实现 `Provable(Wff)`，再设计 schema-aware MP 与
 generalization；在 substitution 和 constraints 未稳定前不得用任意 callback 提前冻结 primitive
@@ -112,7 +112,7 @@ assertion applications。
 
 本轮实现：
 
-- ProofScaffold 中并行的 Term v2 和稳定 nominal IDs；
+- ProofScaffold 中并行的 Term v2 和稳定名称标识符；
 - conflict-checked immutable `LanguageInterface`；
 - finite prefix/infix/call `NotationSpec`；
 - symbolic、无 `SymbolId` 的 `MetamathLanguageBinding`；
@@ -127,23 +127,23 @@ constructors。为避免冻结一个只有打印形状和 binder 参数检查、
 free-variable、substitution、capture rejection 和 alpha-renaming 行为一起进入接口。
 
 Phase 2A 已在 Prelude `Not/Imp` 上完成第一轮事实源反转：legacy token interning、token-level
-constructors、shape matchers、authoring symbol specs、formation rule signatures 和 `wn/wi` emission
-均由 resolved language/notation/backend declarations 投影；兼容层仍保留旧 Python API。该迁移
+constructors、shape matchers、写作层 symbol specs、formation rule signatures 和 `wn/wi` emission
+均从解析后的 language/notation/backend 声明派生；兼容层仍保留旧 Python API。该迁移
 前后 `metamath-prelude_full.mm` 的 SHA-256 完全一致。
 
 Phase 2B 已将同一机制推进到 prop 的 `And2/And3`：legacy builder registry 以完整
 `Constructor(name, arity)` 为精确键，同名二元、三元构造子可以共存，字符串查询仅保留为兼容
-fallback；authoring parser 也通过公开的 name/arity 查询，不再读写 registry 私有映射。Logic
+fallback；写作层 parser 也通过公开的 name/arity 查询，不再读写 registry 私有映射。Logic
 侧已删除 conjunction/disjunction 的 `_by_name` pop/restore 和按参数个数 dispatch，并由 prop
-language/notation/backend declarations 派生 `And2/And3` 的 authoring specs、token template、
-formation label、legacy lowering 与 `wa/w3a` emission。迁移前后
+language/notation/backend declarations 派生 `And2/And3` 的写作层规范、token template、
+formation label、legacy 后端转换与 `wa/w3a` emission。迁移前后
 `metamath-logic_full.mm` 的 SHA-256 均为
 `0e857f13fe8c82d406f3b730f8dcc2aade8a94a031f38152a295f0be00ba75b8`，三套 verifier 均通过。
 这仍是 compatibility migration：全局 registry 与 legacy `Expr` 尚未移除，完整 Phase 2 尚未结束。
 
-Phase 2C 进一步删除了 prop 对 Prelude `Imp/Not` 的重复 authoring 声明：原导入路径现为 Prelude
-constructor 的兼容 re-export。Prelude token lowering 改用只读结构协议接收下游 builtins，因此
-prop 与 FOL 无需继承具体 runtime 类即可复用同一 constructor builder；Logic artifact 仍保持上述
+Phase 2C 进一步删除了 prop 对 Prelude `Imp/Not` 的重复写作层声明：原导入路径现为 Prelude
+constructor 的兼容 re-export。Prelude token 后端转换改用只读结构协议接收下游 builtins，因此
+prop 与 FOL 无需继承具体 runtime 类即可复用同一 constructor builder；Logic 构建产物仍保持上述
 SHA-256 不变。
 
 Phase 3A 已将 `CalculusSpec` 从 judgment vocabulary 扩展为包含有限、不可变、可摘要的
@@ -153,7 +153,7 @@ conclusion；resolver 校验 variable kind、constructor tree、sort、judgment 
 `Provable(φ), Provable(Imp(φ, ψ)) -> Provable(ψ)`，公开 `RULES["ax-mp"]` 只是 set.mm label 到该
 语义声明的兼容视图，不再以字符串 `"mp"` 冒充规则元数据。`ax-gen` 刻意留到 Phase 4：在
 setvar sort、`All` binder、substitution 和 DV 契约进入 semantic language 前，不创建残缺的
-generalization 声明。该阶段不改变 proof execution 或 emission，Logic artifact SHA-256 继续不变。
+generalization 声明。该阶段不改变 proof execution 或 emission，Logic 构建产物的 SHA-256 继续不变。
 
 Phase 4A 已加入可摘要的 `BinderDecl`，并从 binder contract 统一推导 free-variable、
 alpha-renaming 与 capture-avoiding substitution；nested shadowing 只屏蔽内层 binder 的 scoped
@@ -172,8 +172,8 @@ variable `x` 以及 mandatory pair `(φ, x)`；`ax-gen` 没有被错误附加该
 `AssertionSignature/apply_assertion`，再逐步消除 label-keyed side table，而不是长期维护两份事实源。
 
 Phase 5A 已建立最小 semantic assertion-application kernel。`AssertionSignature` 统一承载
-axiom 与 primitive rule 的稳定 assertion identity、kind、有序 schema variables、有序 judgment
-premises、conclusion 和 mandatory-DV；primitive `RuleId` 到 backend assertion identity 的绑定必须
+axiom 与 primitive rule 的稳定 assertion 标识符、kind、有序 schema variables、有序 judgment
+premises、conclusion 和 mandatory-DV；primitive `RuleId` 到 backend assertion 标识符的绑定必须
 显式给出，不做隐式类型转换。不可变 `ProofDraft` 以 occurrence-based `StepId` 保存 hypotheses 与
 fully reified steps，构造时检查连续 ID、无重复、无 forward/foreign premise，并规范化完整 active-DV
 环境。`apply_assertion` 只接受一个确定 signature 与有序 prior steps，执行局部结构 unification，
@@ -185,18 +185,18 @@ one-pass schema instantiation 计算结果；它不调用 capture-avoiding objec
 
 这一切片已用真实 `ax-mp` 与 `ax-5` metadata 验证 ordered-premise inference、binder-variable
 instantiation、missing/overlapping DV rejection 和 reified substitution/evidence。它尚不声称完成
-完整 Phase 5：theory/profile lookup、goals/holes、finalization、replay context、semantic digest、
-legacy lowering 以及 family/combinator expansion 仍明确留在后续切片。
+完整 Phase 5：theory/断言应用许可集 lookup、goals/holes、finalization、replay context、semantic digest、
+legacy 后端转换以及 family/combinator expansion 仍明确留在后续切片。
 
 Phase 5A.5 在 kernel 与 finalization 之间补入 scoped Source IR，而不重写 `$d` 系统。
 `SourceBlock` 的 statement 可以是 `DistinctStatement`、`AssertionSource` 或 nested block；一个
 distinct group 精确展开为组内无向 pair，不做传递闭包。纯 elaborator 从 parent relation 复制
 active-DV，按 source order 累加 `$d`，在 assertion 声明点快照完整 relation，并把 relation 限制到
 assertion schema variables 后形成公开 mandatory-DV；nested block 继承 parent，但退出后不向 parent
-泄漏。`SourceBuilder.block()` 的 `with` façade 只构造 immutable Source IR，不调用 BuilderV2、linker
-或 emission，也不修改 global registry。等价 pair grouping 具有不同 `source_digest`、相同
-`semantic_digest`；两种摘要都包含完整 assertion 内容而不是只依赖 nominal ID。FOL `ax-5` canary
-现在先以无 DV 的 source assertion 进入 block，由 `d(φ, x)` elaboration 重新得到与
+泄漏。`SourceBuilder.block()` 的 `with` 简化接口只构造 immutable Source IR，不调用 BuilderV2、linker
+或 emission，也不修改全局注册表。等价 pair grouping 具有不同 `source_digest`、相同
+`semantic_digest`；两种摘要都包含完整 assertion 内容而不是只依赖名称标识符。FOL `ax-5` canary
+现在先以无 DV 的 source assertion 进入 block，由 `d(φ, x)` 详化重新得到与
 `AX5_SIGNATURE` 完全相同的 mandatory contract；legacy `_dv_contracts.py` 仍是当前 emission 路径的
 权威输入。
 
@@ -209,13 +209,13 @@ reference，要求 root 精确等于声明 conclusion，并拒绝任何不能从
 派生值，包含 calculus digest、完整 signature、位置化 proof DAG、substitution、constraint evidence
 和 replay relation，但排除 display label、nominal `ProofId` 与具体 `StepId` spelling。因此同一证明
 换用不同 source display label 或 proof-local occurrence namespace 不改变数学摘要，改变 calculus
-contract 则必然改变摘要。Theory/profile lookup、assumption closure、legacy lowering 与公开 snapshot
+contract 则必然改变摘要。Theory/断言应用许可集 lookup、assumption closure、legacy 后端转换与公开 snapshot
 codec 仍留待后续切片。
 
-Phase 5C 已建立固定 theory/profile 所需的最小 assertion catalog 边界。Catalog 以稳定
-`AssertionSemanticId` 为身份，完整 signature 参与确定性摘要，canonical label 只作为兼容视图；
-重复 ID、重复 label、profile 中的悬空引用均 fail closed，解析结果使用 immutable mappings。
-`apply_assertion_by_id` 只允许从显式 profile 授权的 catalog 解析 signature，再复用 Phase 5A
+Phase 5C 已建立固定 theory/断言应用许可集所需的最小 assertion catalog 边界。Catalog 以稳定
+标识符 `AssertionSemanticId` 引用断言，完整 signature 参与确定性摘要，canonical label 只作为兼容视图；
+重复 ID、重复 label、断言应用许可集中的悬空引用均出错即拒绝，解析结果使用 immutable mappings。
+`apply_assertion_by_id` 只允许从显式断言应用许可集授权的 catalog 解析 signature，再复用 Phase 5A
 kernel。Backend-neutral `SemanticReplayPlan` 不引入第二套 proof semantics：它逐步使用 catalog
 signature、proof substitution、premise occurrence 与 target 重新运行 `apply_assertion`，之后才附加
 catalog compatibility label、位置化 premise 和按 assertion kind 分类的 dependency closure。Prop
@@ -227,22 +227,22 @@ BuilderV2/corpus emission；完整 theory ontology、跨 catalog dependency 与 
 Phase 5D 已增加从 `SemanticReplayPlan` 到现有 `Proof`/`Step` 的窄 legacy bridge。Term 只通过
 `ResolvedMetamathLanguageBinding` 形成 token sequence；runtime 必须显式提供 `TokenRef -> Const
 SymbolId`、`VariableRef -> Var SymbolId` 与 semantic-sort -> legacy-sort 映射。变量映射要求存在、
-kind 正确且保持 identity 的单射，防止 lowering 静默特化公式。Assertion backend binding 也明确
+kind 正确且为单射，防止后端转换静默特化公式。Assertion backend binding 也明确
 区分 semantic assertion ID、set.mm label 与 legacy operation：`ax-mp` 映射为 legacy `apply(mp)`，
-普通 assertion 映射为 `ref(label)`，而 catalog 中的 display/compatibility label 不再决定 lowering。
+普通 assertion 映射为 `ref(label)`，而 catalog 中的 display/compatibility label 不再决定后端转换。
 Bridge 只接受 canonical、无 forward/dead step 且 root 位于最终 occurrence 的 replay plan；当前
-legacy emitter 无法忠实表示的 hypothesis-root proof 会 fail closed。`mp2b` canary 的 hypotheses、
+legacy emitter 无法忠实表示的 hypothesis-root proof 会出错即拒绝。`mp2b` canary 的 hypotheses、
 局部 labels、两次 MP、结果 Wff 与现有 `prove_mp2b()` 返回值逐字段完全相等。
 
 Phase 5D.5 进一步以 `ax-5` 验证 DV bridge。Canary 的 replay context 除公开 mandatory pair 外还
-包含一个 proof-only active pair；lowering 从完整 `AssertionReplayContext.active_distinct` 映射并
+包含一个 proof-only active pair；后端转换从完整 `AssertionReplayContext.active_distinct` 映射并
 规范化 SymbolId pairs，两对均进入 legacy `Proof.active_dv_pairs`，证明实现没有错误地退化为只
 读取 assertion mandatory-DV。现有 emitter 对 `Proof.active_dv_pairs` 的 `$d` 路径保持不变；正式
 corpus emission 和公开 `prove_*` 尚未切换到 semantic source。
 
-Phase 5E 已在 immutable kernel 上增加最小 `ProofAuthor` façade。它只保存当前 `ProofDraft`，
-`use()` 仍按稳定 assertion ID 进入 profiled catalog 和同一个 `apply_assertion` kernel，`qed()` 仍调用
-同一个 finalizer；façade 不接受其他 author 创建的 step，也不引入隐式 substitution、结果公式或
+Phase 5E 已在 immutable kernel 上增加最小 `ProofAuthor` 简化接口。它只保存当前 `ProofDraft`，
+`use()` 仍按稳定 assertion ID 进入受断言应用许可集约束的 catalog 和同一个 `apply_assertion` kernel，`qed()` 仍调用
+同一个 finalizer；该简化接口不接受其他编写器创建的 step，也不引入隐式 substitution、结果公式或
 第二套 proof state。`mp2b` 现在有独立的 semantic signature 与如下作者代码：
 
 ```python
@@ -273,17 +273,17 @@ THEOREMS
 
 但它没有把这些对象共同依赖的 `LANGUAGE` 作为公开的一等元素。语言事实仍散落在：
 
-- `metamath-prelude/src/prelude/formula.py` 的 builtin token 身份、token constructors 和 shape
+- `metamath-prelude/src/prelude/formula.py` 的 builtin token 标识符、token constructors 和 shape
   parsing；
 - `metamath-prelude/src/prelude/structures.py` 的作者层变量、`Imp` 与 `Not`；
 - `metamath-prelude/src/prelude/hilbert_rules.py` 的 syntax assertion wrappers；
 - `metamath-prelude/src/prelude/build.py` 的实际 constants、variables、`$f`、`wn` 和 `wi`
   发射；
-- `metamath-logic/src/logic/prop/_builtins.py` 与 `fol/_builtins.py` 的词汇、lowering 和 shape
+- `metamath-logic/src/logic/prop/_builtins.py` 与 `fol/_builtins.py` 的词汇、后端转换和 shape
   matching；
 - `prop/_structures.py` 与 `fol/_structures.py` 的构造子、aliases、precedence 和全局 DSL
   registry 修改；
-- `_system.py` 的 builtins、authoring environment、rules 和 resolver 装配；
+- `_system.py` 的 builtins、写作环境、rules 和 resolver 装配；
 - `_internal.py` 的 `Expr -> Wff` 编译和规则应用桥接。
 
 结果不是单纯的命名不整齐，而是理论接口缺少一个维度：系统能够列举公理、推理规则和定理，
@@ -297,7 +297,7 @@ THEOREMS
 
 Prelude 已经声明 `phi`、`psi`、`Imp` 和 `Not`，但
 `logic.prop._structures` 又声明相同变量和构造子；`logic.prop._builtins` 也重新提供 `imp` 与
-`wn` 的 token lowering。
+`wn` 的 token 后端转换。
 
 这使实际关系看起来像复制：
 
@@ -313,8 +313,8 @@ prelude language     prop language
 PROP_LANGUAGE = PRELUDE_LANGUAGE.extend(And, Or, Iff, ...)
 ```
 
-在没有稳定构造子身份和语言组合契约时，两份声明可能在 arity、alias、precedence、token
-namespace 或 lowering 上独立漂移。
+在没有稳定构造子标识符和语言组合契约时，两份声明可能在 arity、alias、precedence、token
+namespace 或后端转换上独立漂移。
 
 ### 2.2 `_syntactic.py` 混合形成规则和推理规则
 
@@ -330,10 +330,10 @@ Metamath 后端可以把二者都表示为 assertion application，但作者 API
 
 当前 `_builtins.py` 至少承担：
 
-1. intern canonical token identities；
+1. intern 规范 token 标识符；
 2. 直接拼装 `Wff` token sequences；
 3. 解析 implication、negation 等 token shape；
-4. 为 `_structures.py` 的作者构造子提供 lowering implementation。
+4. 为 `_structures.py` 的作者构造子提供后端转换实现。
 
 这些都是语言子系统的一部分，但不是同一种数据。因为没有显式 `LanguageSpec`，构造子的
 signature、显示记法、token layout 和 shape matching 只能靠约定保持一致。
@@ -344,7 +344,7 @@ signature、显示记法、token layout 和 shape matching 只能靠约定保持
 和 disjunction 临时修改 registry 的私有映射。这种实现能维持当前 corpus，但不能清楚回答：
 
 - 某个 `System` 精确采用哪一份语言；
-- 两个 language profile 是否可以在同一进程隔离存在；
+- 两个语言配置是否可以在同一进程隔离存在；
 - 导入顺序是否改变 constructor registry；
 - 同 token 的多 arity 是一个构造族还是多个稳定构造子。
 
@@ -354,7 +354,7 @@ signature、显示记法、token layout 和 shape matching 只能靠约定保持
 ### 2.5 一阶语言的 sort 与 binder 契约尚不完整
 
 `logic.fol._structures` 当前主要复用 `WFF` sort 表示公式变量、量词变量、class 相关构造和
-关系参数。例如 `All` 的签名暂时表现为 `(WFF, WFF) -> WFF`。这便于兼容已有 lowering，但会
+关系参数。例如 `All` 的签名暂时表现为 `(WFF, WFF) -> WFF`。这便于兼容已有后端转换，但会
 掩盖数学上的区别：
 
 - 量词绑定的是哪一类变量；
@@ -372,7 +372,7 @@ signature、显示记法、token layout 和 shape matching 只能靠约定保持
 关系，使用者无法分辨：
 
 - 哪些是纯一阶逻辑词汇；
-- 哪些是带 equality 的 profile；
+- 哪些是带 equality 的语言配置；
 - 哪些已经是 set-theoretic vocabulary；
 - 哪些仅为 `set.mm` emission order 所需。
 
@@ -406,11 +406,11 @@ constants、variables、syntax assertions 和 token layouts。但是这些事实
 
 | 层 | 职责 | 典型对象 |
 | --- | --- | --- |
-| ProofScaffold | 构造任意语言的通用元工具 | `Sort`、`Var`、`Constructor`、`Expr`、registry、parser/lowering algorithms |
+| ProofScaffold | 构造任意语言的通用元工具 | `Sort`、`Var`、`Constructor`、`Expr`、registry、parser／后端转换算法 |
 | metamath-prelude | 标准包共享的最小具体语言和 Foundation Frame | `wff`、`|-`、`(`、`)`、`-.`、`->`、schema variables、`wn`、`wi` |
 
 因此，Prelude 在语言构造中具有基础地位，但不应重新吸收已经由 `skfd.authoring` 提供的通用
-框架。Project 008 将通用 authoring machinery 从 Prelude 移入 ProofScaffold 的方向仍然正确；
+框架。Project 008 将通用写作机制从 Prelude 移入 ProofScaffold 的方向仍然正确；
 本项目是在此基础上补齐“具体语言也必须成为一等对象”。
 
 ### 3.2 Prelude 应公开什么
@@ -441,7 +441,7 @@ Prelude 不应成为：
 - 通用 parser、unifier 和 proof builder 的第二实现；
 - 通过 Python import 自动注入全局语言 registry 的机制。
 
-其最小性既降低下游 ABI 风险，也允许未来清楚定义不同 foundation/profile，而不假装所有逻辑
+其最小性既降低下游 ABI 风险，也允许未来清楚定义不同 foundation／语言配置，而不假装所有逻辑
 天然共享同一对象语言。
 
 ---
@@ -450,7 +450,7 @@ Prelude 不应成为：
 
 > 本节保留初稿诊断；对象分组以第 0.1 节修订契约为准。
 
-### 4.1 理论接口的公共投影
+### 4.1 理论的公共接口
 
 每个逻辑或领域理论应提供：
 
@@ -467,11 +467,11 @@ THEOREMS
 - `LANGUAGE` 只包含 sorts、variable kinds、constructors 与 binders；
 - `CALCULUS` 包含 judgment kinds 与 primitive inference rules；
 - `AXIOMS` 是在该语言中的 primitive provable schemas；
-- `RULES` 是 `CALCULUS` primitive rules 的简单公共投影；
+- `RULES` 是 `CALCULUS` primitive rules 的简单只读视图；
 - `THEOREMS` 是经过证明并命名的 assertions。
 
 `prove_*`、`Imp`、`All` 等直接 Python API 继续存在。聚合元数据服务于 build、catalogue、agent
-query、documentation 和 interface digest，不取代低心智负担的直接导入。
+query、documentation 和 interface digest，不取代易于理解的直接导入方式。
 
 ### 4.2 显式语言扩展
 
@@ -487,9 +487,9 @@ PRELUDE_LANGUAGE
                     +-- SET_LANGUAGE
 ```
 
-“扩展”必须保留继承构造子的稳定身份和 lowering。一个 package 可以公布多个明确 profile，
+“扩展”必须保留继承构造子的稳定标识符和后端转换规则。一个 package 可以公布多个明确语言配置，
 例如纯 FOL、FOL with equality、set.mm-compatible logic prefix；不得让额外词汇因 import 顺序
-悄然进入所有 profile。
+悄然进入所有语言配置。
 
 ### 4.3 单一语言事实源
 
@@ -499,9 +499,9 @@ PRELUDE_LANGUAGE
 - abstract `Term` application；
 - binder/free-variable traversal。
 
-Parser aliases、formatter、precedence 属于 `NotationSpec`；token lowering 和 syntax assertion
+Parser aliases、formatter、precedence 属于 `NotationSpec`；token 后端转换和 syntax assertion
 属于 `MetamathLanguageBinding`。它们通过稳定 `ConstructorId` 关联，不能复制 semantic
-signature。Legacy projection 只可用于 inventory，不能被命名为稳定 `LANGUAGE`。
+signature。Legacy 视图只可用于 inventory，不能被命名为稳定 `LANGUAGE`。
 
 ### 4.4 System 的职责收缩
 
@@ -512,7 +512,7 @@ System
   language environment  <- LANGUAGE
   axiom applications    <- AXIOMS
   inference applications<- RULES
-  name/token binding     <- build context + lowering adapter
+  name/token binding     <- build context + backend adapter
 ```
 
 `System` 可以持有进程内 `SymbolId`、`NameResolver` 和 rule implementations，但这些运行时对象
@@ -531,7 +531,7 @@ System
 - 为 Prelude、prop、fol 当前所有 sorts、variables、constructors、syntax assertions、logical
   axioms 和 primitive inference rules 建立机器可检查清单；
 - 记录当前 2,675 个声明证明、三套 verifier 结果、catalogue 和 public import smoke tests；
-- 给每个当前构造标注目标 owner：prelude、prop、fol、equality profile 或 set-domain。
+- 给每个当前构造标注目标 owner：prelude、prop、fol、equality 语言配置或 set-domain。
 
 验收：
 
@@ -539,14 +539,14 @@ System
 - `wn/wi/wa/...` 与 `ax-1/ax-mp/ax-gen` 不再在设计记录中混称；
 - 本阶段不改变 `.mm` 输出和公开导入。
 
-### Phase 1：在 ProofScaffold 中完成最小 `LanguageSpec` 投影
+### Phase 1：在 ProofScaffold 中完成最小 `LanguageSpec` 接口视图
 
 交付物：
 
 - 落实 Project 021/022 已提出的稳定 IDs、sort signatures、constructor signatures 和
   `LanguageInterface`；
 - 支持显式 `extends`/composition 和冲突诊断；
-- 由现有 DSL declarations 生成只读语言投影；
+- 由现有 DSL declarations 生成只读语言接口视图；
 - 语言接口摘要排除 `SymbolId`、文件布局和导入顺序。
 
 非目标：
@@ -559,7 +559,7 @@ System
 
 - 两个独立 language environments 可在同一进程构建而不依赖全局导入顺序；
 - constructor signature 冲突得到确定性错误；
-- 现有 `Expr -> Wff` lowering 仍可通过 compatibility adapter 工作。
+- 现有 `Expr -> Wff` 后端转换仍可通过 compatibility adapter 工作。
 
 ### Phase 2：Prelude 成为第一个语言事实源
 
@@ -584,11 +584,11 @@ System
 - 删除 `Imp/Not` 的独立重复事实源，保留兼容 re-export；
 - 将 `Wi/Wn/Wa` 等形成能力从 `Mp` 的推理 registry 中分离；
 - 用显式 constructor family 取代对 registry 私有映射的临时修改；
-- `_builtins` 逐步拆为 vocabulary binding、lowering 和 shape adapter，而不是一个含义宽泛的模块。
+- `_builtins` 逐步拆为 vocabulary binding、后端转换和 shape adapter，而不是一个含义宽泛的模块。
 
 验收：
 
-- 当前 `Imp`、`Not`、`And` 等 authoring 调用方式通过兼容 re-export 继续工作，并获得非私有的
+- 当前 `Imp`、`Not`、`And` 等写作层调用方式通过兼容 re-export 继续工作，并获得非私有的
   正式导入路径；
 - `logic.prop` 公开 `LANGUAGE/AXIOMS/RULES/THEOREMS`；
 - generated corpus、catalogue、mypy、pytest 和三套 verifier 通过；
@@ -601,14 +601,14 @@ System
 - `logic.fol.LANGUAGE` 显式 extends prop；
 - 建立 setvar/term/class/wff 等当前 corpus 实际需要的 sort model；
 - 为 `All`、`Exists` 和 substitution 声明 binder、scope、free-variable 与 capture behavior；
-- 把 DV contracts 与 semantic variables 使用同一身份和 substitution map；
-- 区分纯 FOL、equality 与 set.mm-compatible vocabulary profile。
+- 让 DV contracts 与 semantic variables 使用同一变量标识符和 substitution map；
+- 区分纯 FOL、equality 与 set.mm-compatible vocabulary 语言配置。
 
 验收：
 
 - binder-aware tests 覆盖自由出现、shadowing、capture rejection 和 alpha-renaming；
-- 不合法的跨 sort 构造在 authoring boundary 被拒绝，而非等到 token verifier；
-- 现有 corpus 可以通过明确 compatibility profile 降低，不要求一次性改变全部生成证明。
+- 不合法的跨 sort 构造在写作边界被拒绝，而非等到 token verifier；
+- 现有 corpus 可以通过明确的兼容配置转换为后端表示，不要求一次性改变全部生成证明。
 
 ### Phase 5：复核 primitive `RULES`
 
@@ -617,7 +617,7 @@ System
 - `RULES` 元数据表达 premises、conclusion、judgment sorts 和必要 side conditions；
 - prop 明确包含 modus ponens；
 - fol 明确决定并表达 `ax-gen`；
-- syntax assertions 只通过 `LANGUAGE` 的 lowering metadata 出现；
+- syntax assertions 只通过 `LANGUAGE` 的后端转换元数据出现；
 - derived rules 继续作为可证明 theorem/API，而不是扩大 trusted primitive set。
 
 验收：
@@ -630,24 +630,24 @@ System
 
 交付物：
 
-- 把 `Elem/∈`、`Cv` 等明确归属到 set-domain language 或显式兼容 profile；
-- 下游 set/number-theory packages 声明语言 extension 和 theory profile；
+- 把 `Elem/∈`、`Cv` 等明确归属到 set-domain language 或显式兼容配置；
+- 下游 set/number-theory packages 声明语言 extension 和 theory 配置；
 - 在至少一个发布周期后移除重复 declarations、全局 registry hacks 和过时 aliases；
-- 生成 language catalogue 和 interface digest artifact。
+- 生成 language catalogue 和 interface digest 构建产物。
 
 验收：
 
 - 纯 FOL consumer 不会隐式获得集合论词汇；
-- set-domain consumer 通过显式 extension 获得稳定的相同构造身份；
-- 不再有第二份可独立修改的 `Imp/Not` 或 constructor lowering 声明。
+- set-domain consumer 通过显式 extension 获得相同的稳定构造子标识符；
+- 不再有第二份可独立修改的 `Imp/Not` 或 constructor 后端转换声明。
 
 ---
 
 ## 6. 迁移原则
 
-### 6.1 先投影，后收敛
+### 6.1 先生成视图，后收敛
 
-第一步应从现有运行代码生成 `LANGUAGE` 只读投影，而不是先重写 parser、AST 和 builder。投影能
+第一步应从现有运行代码生成 `LANGUAGE` 只读接口视图，而不是先重写 parser、AST 和 builder。该视图能
 立即暴露重复、冲突和遗漏；在验证等价后，再逐项把事实源收敛到声明式模型。
 
 ### 6.2 先保持证明行为，再调整数学边界
@@ -677,11 +677,11 @@ from logic.prop.core import prove_syl
 这里的模块拼写只是目标形态示例，不在本文中冻结；关键要求是构造子具有正式的非私有入口，
 而不是要求用户导入 `_structures` 或通过 registry 间接调用。
 
-元数据服务于构建、发现、校验和工具；直接函数服务于低心智负担的数学编程。
+元数据服务于构建、发现、校验和工具；直接函数让数学编程保持简单易懂。
 
 ### 6.4 不以生成分区代替语言边界
 
-proof partition 决定实现模块和检索区域，不决定 sort、constructor identity 或 theory extension。
+proof partition 决定实现模块和检索区域，不决定 sort、constructor 标识符或 theory extension。
 移动 theorem 文件不得改变 `LANGUAGE`；移动语言构造子则必须经过语言 ABI 审查。
 
 ---
@@ -690,13 +690,13 @@ proof partition 决定实现模块和检索区域，不决定 sort、constructor
 
 | 风险 | 控制 |
 | --- | --- |
-| 新 `LanguageSpec` 成为又一份重复元数据 | 初期只读投影；每阶段删除或派生旧 registry，禁止长期双写 |
+| 新 `LanguageSpec` 成为又一份重复元数据 | 初期只生成只读接口视图；每阶段删除或派生旧 registry，禁止长期双写 |
 | 过早设计大而全 API | 只实现 prop canary 与一个 binder/DV canary 所需字段 |
-| Foundation ABI 无意变化 | 比较 emitted Prelude LIR、interface digest 和 verifier artifacts |
-| Sort 修正导致 2,675 个证明同时重写 | 提供明确 compatibility lowering profile，分批迁移 authoring terms |
+| Foundation ABI 无意变化 | 比较 emitted Prelude LIR、interface digest 和验证输出 |
+| Sort 修正导致 2,675 个证明同时重写 | 提供明确的后端转换兼容配置，分批迁移写作层项 |
 | 全局 registry 导入副作用难以移除 | 新 API 显式注入 language environment；旧默认值仅作弃用兼容层 |
 | `RULES` 重构扩大项目范围 | 延后到语言和 binder 数据稳定后单独实施 Phase 5 |
-| set.mm 历史顺序与数学包边界冲突 | 区分 semantic ownership 与 emission compatibility profile |
+| set.mm 历史顺序与数学包边界冲突 | 区分 semantic ownership 与 emission 兼容配置 |
 
 ---
 
@@ -710,9 +710,9 @@ proof partition 决定实现模块和检索区域，不决定 sort、constructor
 4. prop 通过 extension 复用 Prelude 的 `Imp/Not`，而不是复制其语义声明；
 5. fol 的 binder、free-variable、substitution 和 DV 契约可被机器检查；
 6. syntax assertion、logical axiom 和 inference rule 在 API 中分类明确；
-7. parser、typed constructor、formatter 与 lowering 不再维护可独立漂移的语言事实；
+7. parser、typed constructor、formatter 与后端转换不再维护可独立漂移的语言事实；
 8. 现有直接 `prove_*` 和 constructor API 在迁移期保持可用；
-9. BuilderV2、linker 和 Metamath verifier 仍是 lowering、链接和最终正确性的权威；
+9. BuilderV2、linker 和 Metamath verifier 仍是后端转换、链接和最终正确性的权威；
 10. 当前完整 corpus 继续通过 Proof coverage、`mmverify`、`metamath` 和 `knife` 验证。
 
 ---
@@ -726,10 +726,10 @@ proof partition 决定实现模块和检索区域，不决定 sort、constructor
 3. `NotationSpec` 与 `MetamathLanguageBinding` 独立并具有各自摘要；
 4. `PRELUDE_LANGUAGE` 提供 `Not/Imp`；
 5. `PROP_LANGUAGE` 显式扩展并提供 `And2/And3`；
-6. `And2/And3` 共享 `/\\` backend token，但具有不同 identity、arity 和 formation assertion；
+6. `And2/And3` 共享 `/\\` backend token，但具有不同的构造子标识符、arity 和 formation assertion；
 7. 建立 judgment-only `CalculusSpec` 与 `Provable(Wff)` canary；
 8. 保持所有现有 build 和 proof APIs 不变；
-9. 验证 digest determinism、notation round-trip、symbolic exact lowering 和 verifier 无回归。
+9. 验证 digest determinism、notation round-trip、精确符号后端转换和 verifier 无回归。
 
 该切片能验证最关键的架构判断——语言是否真的可以成为包间稳定接口——而不必先解决全部 FOL
 binder、规则元数据和领域迁移问题。

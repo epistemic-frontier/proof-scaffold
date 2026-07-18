@@ -240,7 +240,7 @@ def build(ctx: BuildContextV2) -> None:
 
 ### Crux 1：跨包引用的访问控制要不要扩展到 Const/Var？
 
-你们 Stage1 目前只对 proof tokens（Label）做 export 检查，Const/Var 是“全球随便用”。
+你们 Stage1 目前只对 proof tokens（Label）做 export 检查，Const/Var 可在全局范围使用。
 
 * **默认建议：**先不强制（保持现在行为），因为很多系统会把 Const/Var 视作全局字表的一部分。
 * **但风险：**某个包可以偷偷用另一个包的 Const/Var SymbolId，而不显式 import，形成“隐式耦合”。
@@ -252,10 +252,10 @@ def build(ctx: BuildContextV2) -> None:
 
 ### Crux 2：`SymbolInterner` 的 key 里有 `origin_module_id`，那 module_id 到底应该是什么？
 
-你们现在把 `MMBuilder(module_id=project.name)`，这会把发行名（带 `-`）写进符号身份。
+你们现在把 `MMBuilder(module_id=project.name)`，这会把发行名（带 `-`）写进符号标识符。
 
 * **默认建议：**把 `module_id` 定义成“作者侧 import 的模块名”，即 build.py 所在目录名（如 `prelude`、`logic`），并在 toolchain 里保留 `dist_name` 仅用于依赖解析与 CLI。
-* **原因：**这能让符号身份更贴近源代码组织，减少“换个发行名全库符号 id 都变了”的不稳定性。
+* **原因：**这能让符号标识符更贴近源代码组织，减少“换个发行名全库符号 id 都变了”的不稳定性。
 
 ### Crux 3：自动生成 `$f` 的策略会不会掩盖作者错误？
 
@@ -283,12 +283,12 @@ def build(ctx: BuildContextV2) -> None:
 
 3. **加入 ID-mode 写入 + ensure_floating**
 
-   * 这是让 authoring.emit 变干净的关键一步
+   * 这是让 `authoring.emit` 变干净的关键一步
    * 先实现 `f_id/a_id/e_id/p_id`，再重写 `emit_axioms/emit_lemmas`
 
-4. **最后再决定要不要删 global proxies（skfd.mm / skfd.deps）**
+4. **最后再决定要不要删全局代理（skfd.mm / skfd.deps）**
 
-   * 我倾向把它们降级为“脚本模式 sugar”，不是主接口
+   * 我倾向把它们保留为“脚本模式简化接口”，而不是主接口
    * 主接口永远是 `build(ctx)`
 
 ---
@@ -305,7 +305,7 @@ def build(ctx: BuildContextV2) -> None:
 
 =======================
 
-因为我们还在项目初期，没有历史负担，可以单独出一个更“纯”的 BuilderV2。另外，我想清楚了，未来的大部分代码是你们写的不是人类写的；所以，authoring 层可以支持 unicode；同时有机器可读的 mapping 机制到 ascii 码，这样也可以照顾 set.mm 的历史资源。
+因为我们还在项目初期，没有历史负担，可以单独出一个更“纯”的 BuilderV2。另外，我想清楚了，未来的大部分代码是你们写的不是人类写的；所以，写作层可以支持 Unicode；同时有机器可读的 mapping 机制到 ASCII，这样也可以照顾 set.mm 的历史资源。
 
 =======================
 
@@ -313,7 +313,7 @@ def build(ctx: BuildContextV2) -> None:
 
 1. **主入口固定为** `build(ctx)`
 2. **直接新建一个更“纯”的 BuilderV2**（不背历史兼容包袱）
-3. **Authoring 允许 Unicode**，但整个工具链的“真相层”（IR / 链接 / 输出 `.mm`）坚持 **ASCII canonical**，并产出**机器可读的映射**，从而能对齐 `set.mm` 的既有资源
+3. **写作层允许 Unicode**，但整个工具链的事实源（IR / 链接 / 输出 `.mm`）坚持 **ASCII 规范表示**，并产出**机器可读的映射**，从而能对齐 `set.mm` 的既有资源
 
 下面我给出一套 **API v1（面向 BuilderV2）** 的“职责切分 + 接口草案 + 名字/Unicode 映射机制”。我尽量写到你可以直接照着实现的粒度。
 
@@ -324,7 +324,7 @@ def build(ctx: BuildContextV2) -> None:
 核心思想：**作者/库**只描述数学结构；**BuilderV2**只产 IR；**工具链**只负责发现包/依赖/运行 build/link/verify。
 
 ```
-(Authoring, Unicode-friendly)
+(写作层，支持 Unicode)
     Expr / Var / Constructor (→ ¬ ∧ φ …)
              |
              | compile (uses Lexicon: Unicode -> ASCII canonical)
@@ -345,7 +345,7 @@ def build(ctx: BuildContextV2) -> None:
 * **规则 R1：跨包交互只通过 SymbolId（不再通过字符串 token）**
   这样 `import_symbols(**kwargs)` 这种“被 Python 标识符限制”的设计就可以直接消失。
 * **规则 R2：一切输出 `.mm` 的 token/label 都是 ASCII canonical**
-  Unicode 只存在于 authoring 侧（输入/展示），通过 Lexicon 映射进入 canonical 世界。
+  Unicode 只存在于写作侧（输入/展示），通过 Lexicon 映射为 ASCII 规范表示。
 
 ---
 
@@ -362,13 +362,13 @@ class BuildContextV2:
     deps: DepsView              # 依赖的 exports，只读
     unit: UnitMeta              # dist_name / module_name / version / path
     names: NameResolver         # Unicode -> ASCII canonical + 记录映射
-    cfg: BuildConfig            # profile / auto_f / 输出策略等
+    cfg: BuildConfig            # 配置 / auto_f / 输出策略等
     log: Logger                 # 诊断输出（可选）
 ```
 
 * **ctx.mm**：构造 LIR（$f/$e/$a/$p/$d/scope/comment）
 * **ctx.deps**：读依赖导出的 SymbolId（不会再注入 kwargs）
-* **ctx.names**：authoring 和 builder 共享同一个 canonicalization 规则（关键）
+* **ctx.names**：写作层和 builder 共享同一个规范化规则（关键）
 * **ctx.cfg**：你可以在这里放“是否自动 $f”、“label 规范”等开关
 
 > 这样 build 作者永远不需要知道：dist 名怎么变成 kwargs、蛇形命名怎么来、driver 内部状态是什么。
@@ -424,7 +424,7 @@ mm.comment("...")
 #### (B) 产生/引用符号（intern + canonicalize）
 
 ```python
-ph  = mm.sym.var("φ")         # Unicode authoring
+ph  = mm.sym.var("φ")         # Unicode 写作输入
 imp = mm.sym.const("→")       # 或直接用 builtins 产生复合式
 wi  = mm.sym.label("wi")
 ```
@@ -514,9 +514,9 @@ mm.auto.mandatory_f(expr, tc=wff)
 
 ---
 
-## 6. Unicode authoring → ASCII canonical：NameResolver / Lexicon（你要的 C）
+## 6. Unicode 写作输入 → ASCII 规范表示：NameResolver / Lexicon（你要的 C）
 
-这是你新决定的关键：**authoring 允许 Unicode**，但 canonical 世界必须 ASCII。
+这是你新决定的关键：**写作层允许 Unicode**，但规范命名空间必须只使用 ASCII。
 
 ### 6.1 你需要的对象：NameResolver（双向映射 + 记录）
 
@@ -533,7 +533,7 @@ class NameResolver:
 **原则：**
 
 * `interner` 只吃 canonical
-* authoring/build 可以随便传 unicode/alias
+* 写作和构建时可以传入 Unicode/alias
 * resolver 统一翻译并记录“这次 build 里你用了哪些别名”
 
 ### 6.2 Lexicon 的来源与合并策略
@@ -586,7 +586,7 @@ aliases = ["ψ"]
 
 这套表可以同时满足：
 
-* authoring 写 `→`、`¬`、`∧`、`φ`
+* 写作层书写 `→`、`¬`、`∧`、`φ`
 * 输出 `.mm` 始终是 `->`、`-.`、`/\\`、`ph`
 
 ### 6.4 对 Label 的 canonicalize（建议：保守 + 可预测）
@@ -604,7 +604,7 @@ Label 也允许 Unicode（因为 AI 写），但 canonical 输出必须是 Metam
 
 ## 7. 机器可读 mapping 的产物：工具链输出什么
 
-你说“机器可读 mapping 机制到 ASCII”，我建议工具链在 `target/` 里输出一个明确的 artifact，例如：
+你说“机器可读 mapping 机制到 ASCII”，我建议工具链在 `target/` 里输出一个明确的构建产物，例如：
 
 * `logic_full.mm`（ASCII）
 * `logic_full.mm.map`（你现有的 source map）
@@ -716,16 +716,16 @@ def build(ctx: BuildContextV2) -> None:
 * 现有 driver/emit 里哪些可以直接删掉（`import_symbols`, `token_map`, 私有字段访问等）
 * metamath-prelude / metamath-logic 的 build.py 最小改写对照
 
-但就“职责清晰、代码干净”的接口层面，上面这一版已经可以作为 **BuilderV2 + Unicode authoring + ASCII canonical** 的 v1 合同了。
+但就“职责清晰、代码干净”的接口层面，上面这一版已经可以作为 **BuilderV2 + Unicode 写作层 + ASCII 规范表示**的 v1 合同了。
 
 =======================
 
-那让我们把接口“钉死”，然后给出 BuilderV2 + Unicode authoring + ASCII canonical 的 v1 版契约的规范文档。因为业务库并不复杂，我认为你可以给出业务库的新代码；而 BuilderV2 + Unicode authoring + ASCII canonical 的代码你看情况给到什么程度？我们下面就去做迁移
+那让我们把接口“钉死”，然后给出 BuilderV2 + Unicode 写作层 + ASCII 规范表示的 v1 版契约文档。因为业务库并不复杂，我认为你可以给出业务库的新代码；而 BuilderV2 + Unicode 写作层 + ASCII 规范表示的代码你看情况给到什么程度？我们下面就去做迁移。
 
 =======================
 
 很好，这一步非常关键。
-我已经把 **BuilderV2 + Unicode authoring + ASCII canonical 的 v1 契约**完整地“钉死”成了一份**可执行的规范文档**，并同时给出了**业务库（prelude / logic）的新代码写法**以及**BuilderV2 的参考实现骨架**，都已经放在右侧的文档里。
+我已经把 **BuilderV2 + Unicode 写作层 + ASCII 规范表示的 v1 契约**完整地“钉死”成了一份**可执行的规范文档**，并同时给出了**业务库（prelude / logic）的新代码写法**以及**BuilderV2 的参考实现骨架**，都已经放在右侧的文档里。
 
 ### 你现在已经具备的三样东西
 
@@ -738,7 +738,7 @@ def build(ctx: BuildContextV2) -> None:
 2. **可以直接迁移的业务库新写法**
 
    * `build(ctx)` 的最小范式
-   * Unicode 变量/构造子直接 authoring
+   * 直接用 Unicode 变量／构造子写作
    * 不再有 `token_map / import_symbols / 私有字段`
 
 3. **“够用但不臃肿”的 BuilderV2 代码给付策略**
@@ -766,7 +766,7 @@ def build(ctx: BuildContextV2) -> None:
    * 这是最好的试金石
    * 成功后接口就真的“钉死”了
 
-4. **迁移 metamath-logic + authoring emit**
+4. **迁移 metamath-logic + 写作层 emit**
 
    * 删除 token_map 的那一刻，你会明显感觉系统“干净”了
 

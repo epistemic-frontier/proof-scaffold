@@ -56,7 +56,7 @@ Metamath realization，后二者是 calculus 的 primitive inference rules。语
 
 1. **Sort**：例如 `wff`、object variable、class、term；
 2. **变量种类**：每类变量属于哪个 sort，以及是否可以被 binder 绑定；
-3. **构造子和符号**：每个构造子的稳定身份、输入 sorts、输出 sort 和 arity；
+3. **构造子和符号**：每个构造子的稳定标识符、输入 sorts、输出 sort 和 arity；
 4. **抽象语法**：合法表达式由哪些构造子递归生成；
 5. **绑定行为**：哪些参数位置引入 binder，binder 的作用域覆盖哪些参数；
 6. **自由变量与代入所需的结构信息**：使捕获规避和 alpha-renaming 可以由结构导出。
@@ -64,7 +64,7 @@ Metamath realization，后二者是 calculus 的 primitive inference rules。语
 `LanguageSpec` 不得包含 Unicode/ASCII 拼写、parser callback、Metamath token layout、
 `SymbolId` 或 syntax assertion label。这些内容分别属于 `NotationSpec` 和 backend binding。
 
-语言声明变量的**种类**，不枚举所有实际变量名称。实际变量身份属于其声明上下文：
+语言声明变量的**种类**，不枚举所有实际变量名称。实际变量的标识符属于其声明上下文：
 
 ```text
 DeclaredVariableId(owner=language_or_theory_id, local_key=...)
@@ -73,15 +73,15 @@ LocalVariableId(owner=proof_id, local_key=...)
 ```
 
 `φ/ψ/χ` 等偏好名称属于 notation/style；Prelude 中 `ph/ps/ch` 的固定 token pool 属于
-Metamath foundation binding。二者都不得进入抽象 Term 的结构身份。
+Metamath foundation binding。二者都不得进入抽象 Term 的结构内容标识。
 
 语言契约必须区分下列三个对象：
 
 - `Term` 或 `Expr` 是抽象语法树，是作者操作的语义对象；
-- ASCII、Unicode、LaTeX 和字符串是同一语义对象的输入或显示投影；
-- `Wff`/token sequence 是面向 Metamath 后端的降低表示。
+- ASCII、Unicode、LaTeX 和字符串是同一语义对象的输入或显示视图；
+- `Wff`/token sequence 是面向 Metamath 的后端表示。
 
-显示记法不得参与数学身份。`->`、`→` 与 `⇒` 可以解析为同一个构造子，但构造子的稳定身份、
+显示记法不得参与数学内容标识。`->`、`→` 与 `⇒` 可以解析为同一个构造子，但构造子的稳定标识符、
 参数和结果 sort 必须参与项的结构相等性。
 
 ### 1.1 四个不得混合的契约
@@ -125,7 +125,7 @@ Metamath 使用 `$a` 同时编码 syntax assertion 和逻辑公理，因此后�
 (φ → ψ) : wff
 ```
 
-它说明 Metamath 后端如何证明一个降低后的 token sequence 形成良好，属于
+它说明 Metamath 后端如何证明一个转换得到的 token sequence 形成良好，属于
 `MetamathLanguageBinding`，而不是抽象 `LanguageSpec`。
 
 ### 2.2 逻辑公理
@@ -234,10 +234,10 @@ set / number-theory / other domain theories
 ProofScaffold 必须提供与具体数学内容无关的机制，例如：
 
 - sort、variable、constructor 和 binder 的声明类型；
-- 具有结构相等性和稳定身份的 immutable `Term`；
+- 具有结构相等性的 immutable `Term`，其变量和构造子使用稳定标识符；
 - registry 的显式构造与组合；
 - `NotationSpec` 驱动的 parsing/formatting；
-- backend binding 驱动的 symbolic lowering；
+- backend binding 驱动的符号后端转换；
 - substitution、free-variable 与 capture 检查；
 - `LanguageSpec`、`LanguageInterface`、`CalculusSpec` 及分层稳定摘要。
 
@@ -260,7 +260,7 @@ ProofScaffold 不得硬编码 `→`、`∀` 或 `∈` 的数学含义。它是�
 不得声明成对象语言 constructor 或普通 sort。
 
 Prelude 的“基础”是标准对象语言和 foundation scope 的基础，不是通用 DSL 的归宿。通用
-`Var`、`Sort`、`Constructor`、parser framework 和 lowering framework 属于 ProofScaffold；
+`Var`、`Sort`、`Constructor`、parser framework 和后端转换框架属于 ProofScaffold；
 具体的 `Imp`、`Not` 属于 Prelude language；其规范 token layout 属于 Prelude 的
 `MetamathLanguageBinding`。
 
@@ -285,13 +285,13 @@ THEOREMS
 
 ### 4.4 领域包：扩展语言并增加非逻辑公理
 
-领域包必须明确声明继承的语言和理论 profile，并只在自身 `LANGUAGE` 中加入本领域词汇。它
+领域包必须明确声明继承的语言和理论配置，并只在自身 `LANGUAGE` 中加入本领域词汇。它
 可以复用底层 `RULES`，而不必机械复制一份映射；如果更换 calculus，则必须形成不同的逻辑或
-theory profile。
+理论配置。
 
 ---
 
-## 5. 语言组合与身份不变量
+## 5. 语言组合与标识不变量
 
 **L1. 声明显式。** 每个可构建理论必须显式指定语言；不得仅靠模块导入副作用得到构造子。
 
@@ -299,10 +299,10 @@ theory profile。
 Notation 和 backend binding 必须通过稳定 `ConstructorId` 引用它；不得复制 signature 或维护
 可独立漂移的 registry。
 
-**L3. 扩展单调。** 普通语言扩展不得改变继承构造子的身份、sort、arity 或 binder。改变这些
+**L3. 扩展单调。** 普通语言扩展不得改变继承构造子的标识符、sort、arity 或 binder。改变这些
 事实必须被视为不兼容的语义 ABI 变化；backend realization 的变化另由 backend 摘要表达。
 
-**L4. Sort 精确。** 对象变量、class 和 wff 不得仅为降低实现方便而统一伪装成 `Wff`。若后端
+**L4. Sort 精确。** 对象变量、class 和 wff 不得仅为后端转换方便而统一伪装成 `Wff`。若后端
 桥接暂时需要兼容表示，作者层接口仍必须保留真实 sort。
 
 **L5. Binder 完整。** 含 binder 的语言必须提供自由变量、代入和捕获规避契约。只声明量词的
@@ -353,7 +353,7 @@ TheorySpec(
 )
 ```
 
-只读 legacy projection 可以用于迁移盘点，但在旧 globals、last-wins 和 import-order 仍然决定
+只读 legacy 视图可以用于迁移盘点，但在旧全局注册表、last-wins 和 import-order 仍然决定
 语义时，不得把它宣称为稳定 `LANGUAGE`。迁移的最终方向必须反转为由声明生成兼容 registry，
 而不是长期由 registry 生成第二份语言副本。
 
@@ -369,7 +369,7 @@ TheorySpec(
 4. 它采用哪套 primitive inference rules？
 5. 哪些规则只是已证明的 derived rules？
 6. 它如何计算自由变量并执行无捕获代入？
-7. 一个作者层项如何确定性降低到 `.mm`？
+7. 一个作者层项如何确定性转换为 `.mm` 后端表示？
 8. 语言 ABI 改变时，哪些下游接口摘要会失效？
 
 如果一个包无法回答这些问题，它还没有形成完整的理论接口。
@@ -383,5 +383,5 @@ TheorySpec(
 被准确理解为在语言上的 consequence relation，集合论和数论等领域也才能被准确理解为逻辑之上
 的词汇与公理扩展。
 
-这一区分同时降低数学心智负担和工程维护成本：作者看到的是语言、假设和推演；后端继续负责
-符号身份、lowering、链接与验证，但不再反过来决定作者 API 的分类。
+这一区分同时降低数学理解负担和工程维护成本：作者看到的是语言、假设和推演；后端继续负责
+符号标识、后端转换、链接与验证，但不再反过来决定作者 API 的分类。

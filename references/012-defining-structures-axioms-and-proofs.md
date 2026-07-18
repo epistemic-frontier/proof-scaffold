@@ -6,7 +6,7 @@
 
 本文是 [Reference 011：将语言作为第一类元素](011-language-as-first-class.md) 的作者实践规范，
 并以 [Project 024：First-Class Language Refactor](../projects/024-first-class-language-refactor.md)
-当前已经实现的 semantic authoring API 为基准。代码片段为聚焦语义边界而省略了部分 imports。
+当前已经实现的语义化写作 API 为基准。代码片段为聚焦语义边界而省略了部分 imports。
 
 ## 0. 目的与总原则
 
@@ -17,7 +17,7 @@
 3. 如何只通过已登记 assertion 的应用给出证明。
 
 核心纪律是：**数学对象先以 backend-neutral 的语义对象存在，再绑定到 Metamath。** Python
-函数名、Unicode 字符、set.mm token、Metamath label 和运行时 `SymbolId` 都不是数学身份。
+函数名、Unicode 字符、set.mm token、Metamath label 和运行时 `SymbolId` 都不是数学对象的内容标识。
 
 ```text
 LanguageSpec
@@ -43,9 +43,9 @@ CalculusSpec
 
 ## 1. 定义结构：先定义能写什么
 
-### 1.1 使用稳定身份
+### 1.1 使用稳定标识符
 
-每个 sort、variable kind 和 constructor 必须有稳定的 nominal ID：
+每个 sort、variable kind 和 constructor 必须有稳定的名称标识符：
 
 ```python
 from skfd.authoring.ids import ConstructorId, LanguageId, SortId, VariableKindId
@@ -58,7 +58,7 @@ ALL = ConstructorId("example/fol#constructor:all")
 EQ = ConstructorId("example/fol#constructor:equality")
 ```
 
-ID 表示身份；`∀`、`A.`、`All` 只是不同层面的拼写。改变显示字符不得改变 `ALL`。
+ID 是标识符；`∀`、`A.`、`All` 只是不同层面的拼写。改变显示字符不得改变 `ALL`。
 
 推荐的 ID 形式是：
 
@@ -248,7 +248,7 @@ phi = LANGUAGE.variable(PHI_REF)
 x = SetVar(X_REF)
 ```
 
-变量显示名不是身份。不同 assertion 不得因为都使用字符串 `"phi"` 而共享变量身份。
+变量显示名不是标识符。不同 assertion 不得因为都使用字符串 `"phi"` 而共享变量标识符。
 
 ### 2.2 先构造 Term，再包装为 Judgment
 
@@ -280,7 +280,7 @@ DV endpoints，并产生确定性的 digest。
 ### 2.3 `$d` 的 assertion 契约与 source scope
 
 `mandatory_distinct` 是 assertion 的公开应用契约；作者源中的 `$d` 是词法作用域声明。两者应通过
-SourceBlock elaboration 连接：
+`SourceBlock` 详化过程连接：
 
 ```python
 signature = signature_from_axiom(AX5, canonical_label="ax-5")
@@ -295,7 +295,7 @@ assert snapshot.declaration == signature
 ```
 
 Source grouping 与 semantic pair relation 必须分离。多个 `$d` statement 只要展开成同一规范化 pair
-relation，就具有同一 assertion/proof semantic identity。
+relation，其 assertion/proof 语义内容就一致。
 
 ### 2.4 定义不得伪装成 theorem
 
@@ -318,7 +318,7 @@ DF_AN_SIGNATURE = signature_from_definition(DF_AN, canonical_label="df-an")
 assert DF_AN_SIGNATURE.kind == "definition"
 ```
 
-constructor、definition、axiom 与 theorem 必须保持四种不同身份。后端都使用 `$a` 并不能成为在
+constructor、definition、axiom 与 theorem 必须保持四种不同的语义类别。后端都使用 `$a` 并不能成为在
 author API 中合并它们的理由。
 
 ### 2.5 公开 metadata，隔离 legacy adapter
@@ -356,9 +356,9 @@ MP2B_SIGNATURE = AssertionSignature(
 ```
 
 signature 是 theorem 的公开契约；proof body 是该契约的一份实现。更换 proof body 不应改变
-signature identity。
+signature 内容标识。
 
-### 3.2 所有可引用 assertion 必须进入 catalog/profile
+### 3.2 所有可引用 assertion 必须进入 catalog/断言应用许可集
 
 ```python
 MP_ASSERTION = signature_from_primitive_rule(
@@ -381,7 +381,7 @@ ASSERTION_CATALOG = resolve_assertion_catalog(
 )
 ```
 
-profile 明确规定当前证明允许使用哪些公理、定义、primitive rules 和既有定理。证明不得通过未登记
+断言应用许可集（`AssertionProfile`）明确规定当前证明允许使用哪些公理、定义、primitive rules 和既有定理。证明不得通过未登记
 的 Python callable 绕过 catalog。
 
 ### 3.3 证明体只写数学动作
@@ -417,12 +417,12 @@ premise/result 检查与 DV 检查。`proof.qed()` 必须确认 root 等于 theo
 需要消除歧义时，可以显式提供 `target=` 或 `subst=`；它们是约束 kernel 的信息，不是第二套
 proof semantics。
 
-### 3.4 family 与 combinator 必须在 elaboration 前展开
+### 3.4 family 与 combinator 必须在详化前展开
 
 proof family 和 combinator 可以减少重复，但必须确定性地展开为普通 `AssertionSignature` 与
 `proof.use()` 调用。`ElaboratedProof` 中不得保留“family step”或“combinator step”这种第二类步骤。
 
-### 3.5 最后才 lower 到 legacy/Metamath
+### 3.5 最后才转换为 legacy/Metamath 后端表示
 
 ```text
 ElaboratedProof
@@ -435,7 +435,7 @@ legacy Proof / Step
 ```
 
 proof semantic digest 不得包含 `SymbolId`、临时 step label、文件路径或 token spelling。backend
-binding 负责把 stable assertion ID 映射到 Metamath label，把 semantic Term lower 为 token stream。
+binding 负责把 stable assertion ID 映射到 Metamath label，把 semantic Term 转换为 token stream 后端表示。
 
 ---
 
@@ -448,7 +448,7 @@ logic/<domain>/
   metamath_binding.py     typecodes、tokens、formation assertions
   calculus.py             judgment kinds 与 primitive inference rules
   axioms.py               AxiomDecl / DefinitionDecl 与公开 AXIOMS
-  rules.py                primitive rule assertion view 与 catalog/profile
+  rules.py                primitive rule assertion view 与 catalog/断言应用许可集
   theorems.py             公开 prove_* 与 THEOREMS
 
   _builtins.py            legacy runtime/backend adapter
@@ -485,11 +485,11 @@ logic/<domain>/
 ### 给出证明
 
 - [ ] theorem signature 在 proof body 之前定义；
-- [ ] 所有依赖 assertion 位于 catalog/profile；
+- [ ] 所有依赖 assertion 位于 catalog/断言应用许可集；
 - [ ] proof body 只使用 `proof.hypotheses`、`proof.use()` 与 `proof.qed()`；
 - [ ] 没有重复 result formula、内部 label 或可推断 substitution；
 - [ ] DV 来自 scoped source/replay context，而不是隐藏 side effect；
-- [ ] lowering 后三套 verifier 通过，且迁移切片的 `.mm` 输出保持预期不变。
+- [ ] 后端转换后三套 verifier 通过，且迁移切片的 `.mm` 输出保持预期不变。
 
 ---
 
@@ -498,7 +498,7 @@ logic/<domain>/
 以下写法不得成为新的事实源：
 
 ```python
-# 错误：用 token spelling 充当 constructor identity
+# 错误：用 token spelling 充当 constructor 标识符
 Constructor("A.", 2)
 
 # 错误：在数学 constructor 中拼接 backend token
@@ -520,7 +520,7 @@ DEFAULT_BUILDERS.register("A.", ...)
 ```text
 semantic declaration  ──生成──▶  legacy adapter
 
-legacy global state   ──不得──▶  public semantic contract
+legacy 全局状态      ──不得──▶  public semantic contract
 ```
 
 这条单向关系是结构、公理与证明能够规模化迁移，同时保持现有 `.mm` 输出和公开 `prove_*` 兼容性的

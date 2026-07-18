@@ -17,7 +17,7 @@
 
 **I3. 规范化输出**：`.mm` 输出与 IR **始终 ASCII canonical**。
 
-**I4. Unicode 只在 Authoring 层**：通过 `NameResolver/Lexicon` 进入 canonical 世界，并生成**机器可读映射**。
+**I4. Unicode 只在写作层**：通过 `NameResolver/Lexicon` 进入 ASCII 规范命名空间，并生成**机器可读映射**。
 
 **I5. 自动 `$f`**：默认开启；作者侧不写 `$v/$f` 样板。
 
@@ -29,7 +29,7 @@
 
 * **SymbolId**：符号唯一标识（Const/Var/Label/Typecode）。
 * **Canonical Name**：ASCII、Metamath 安全的 `local_name`。
-* **Alias / Display**：Unicode 或其他别名，仅用于 authoring/展示。
+* **Alias / Display**：Unicode 或其他别名，仅用于写作和展示。
 * **IR（LIR/ProofUnitIR）**：工具链消费的中间表示。
 
 ---
@@ -69,7 +69,7 @@ class DepsView:
 
 ### 4.1 职责
 
-* 将 authoring 中的 Unicode/别名 **规范化** 为 ASCII canonical。
+* 将写作层的 Unicode/别名**规范化**为 ASCII 规范名称。
 * 记录**本次 build 使用过的映射**，供工具链输出 `names.json`。
 
 ### 4.2 API
@@ -155,7 +155,7 @@ class Auto:
 * `mm.a/mm.p` 在写入前自动补齐缺失 `$f`，但默认推断只适用于
   typecode canonical name 为 `wff` 的 syntax assertion。
 * `|-` theorem 的 wff mandatory variables 必须通过已有 foundation `$f`
-  或 proof lowering 的 `floating_by_var` 显式提供；BuilderV2 不会从 `|-`
+  或 proof 后端转换的 `floating_by_var` 显式提供；BuilderV2 不会从 `|-`
   typecode 推断出 `wff` floating hypotheses。
 
 ### 6.3 与 foundation `$f` 的关系
@@ -169,7 +169,7 @@ schema variables 和 `$f` labels，应先调用
 
 ---
 
-## 7. 工具链产物（Artifacts）
+## 7. 构建产物
 
 * `*.mm`：ASCII canonical
 * `*.mm.map`：source map
@@ -196,7 +196,7 @@ def build(ctx: BuildContextV2) -> None:
     mm = ctx.mm
 
     wff = mm.sym.const("wff")
-    ph  = mm.sym.var("φ")           # Unicode authoring
+    ph  = mm.sym.var("φ")           # Unicode 写作输入
 
     mm.auto.floating(ph, tc=wff)
     ax1 = mm.a(mm.sym.label("ax-1"), tc=wff, expr=[ph])
@@ -252,4 +252,4 @@ class NameResolver:
 
 ---
 
-**结论**：以上即为 BuilderV2 + Unicode Authoring + ASCII Canonical 的 v1 冻结契约。任何新功能必须在不破坏上述公理的前提下演进。
+**结论**：以上即为 BuilderV2 + Unicode 写作层 + ASCII 规范表示的 v1 冻结契约。任何新功能必须在不破坏上述公理的前提下演进。

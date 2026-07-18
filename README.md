@@ -47,7 +47,8 @@ python -m skfd.cli verify my-proofs
 
 This will:
 
-1. Discover all `build.py` files under `src/`.
+1. Discover package build modules under `src/` (`_build.py` preferred;
+   `build.py` supported for compatibility).
 2. Topologically sort packages by declared deps.
 3. Build each package in memory (LIR).
 4. Emit `target/<project-name>_full.mm` (Transient Monolith).
@@ -108,7 +109,8 @@ For a larger proof that showcases lifting/distribution patterns and origin track
 
 Manages the build lifecycle of logic packages.
 
-* **Explicit dependencies**: packages declare deps in `build.py` (e.g. `metamath-prelude`, `metamath-logic`).
+* **Explicit dependencies**: packages declare deps in `_build.py` or the
+  backwards-compatible `build.py` (e.g. `metamath-prelude`, `metamath-logic`).
 * **No implicit globals**: dependencies are injected by the driver.
 * **Primary command**: `python -m skfd.cli verify <project-name>`
 

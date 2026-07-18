@@ -228,7 +228,6 @@ def test_authoring_parser_distinguishes_ternary_from_nested_binary() -> None:
         precedence=20,
         assoc="left",
     )
-    binary_spec = registry._by_name.pop("op")
     require(
         ternary,
         in_sorts=(WFF, WFF, WFF),
@@ -237,7 +236,11 @@ def test_authoring_parser_distinguishes_ternary_from_nested_binary() -> None:
         precedence=20,
         assoc="left",
     )
-    registry._by_name["op"] = binary_spec
+
+    binary_spec = registry.spec_named("op", arity=2)
+    ternary_spec = registry.spec_named("op", arity=3)
+    assert binary_spec is not None and binary_spec.ctor is binary
+    assert ternary_spec is not None and ternary_spec.ctor is ternary
 
     flat = parse_wff("( ph op ps op ch )", registry)
     bare = parse_wff("ph op ps op ch", registry)

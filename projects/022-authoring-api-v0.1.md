@@ -18,6 +18,32 @@ Normative words such as MUST, SHOULD, and MAY describe the intended v0.1
 contract. Python and action examples are pseudocode. Their semantics are more
 important than their final spelling.
 
+### 2026-07-16 architecture amendment
+
+The first-class-language work in
+[Reference 011](../references/011-language-as-first-class.md) and
+[Project 024](./024-first-class-language-refactor.md) narrows several types in
+this draft before they may be frozen:
+
+- `LanguageSpec` contains only semantic sorts, variable kinds, constructors,
+  and binder structure.
+- Parsing and rendering belong to `NotationSpec`.
+- Metamath typecodes, token templates, syntax assertions, and lowering belong
+  to `MetamathLanguageBinding`.
+- `Judgment` and `CalculusSpec` sit between language and logic. `|-` is not an
+  object-language constructor.
+- `AssertionSignature.premises` and `.conclusion` are judgment patterns, not
+  bare Terms. v0.1 may implement only `Provable(Wff)`, but its public types MUST
+  NOT make that one judgment implicit.
+- Semantic, notation, backend, calculus, and theory-interface digests are
+  separate. Display-only changes MUST NOT invalidate Term or proof identity.
+
+The legacy `Expr`/`App` and global constructor registries are compatibility
+surfaces, not the implementation of these contracts. A structural immutable
+Term v2 MUST precede finalization of `ProofDraft`, `ApplyAssertion`, and
+`ElaboratedProof` public types. The proof operation described by this project
+remains valid; its input types are retargeted to Term v2 and explicit judgments.
+
 ## Executive decision
 
 Authoring v0.1 has one semantic core, not four authoring systems.
@@ -413,25 +439,23 @@ formatter emits one repository-canonical Unicode form and lowering emits one
 canonical ASCII Metamath form. Parser acceptance, repository style, and
 backend serialization are three distinct policies.
 
-### Language declarations
+### Language declarations (amended boundary)
 
-`LanguageSpec` is the authoritative declaration of sorts and constructors. A
-constructor declaration minimally contains:
+`LanguageSpec` is the authoritative declaration of semantic sorts and
+constructors. A constructor declaration minimally contains:
 
 ```text
 SemanticId
 input and output sorts
-canonical Metamath token layout
-accepted parse aliases
-preferred authoring notation
-precedence and associativity
 binder/free-variable behavior when applicable
-syntax assertion linkage required by lowering
 ```
 
-v0.1 need not implement every formatter or binder form, but there MUST NOT be
-independent editable registrations for parser syntax, typed construction, and
-lowering shape.
+`NotationSpec` separately contains accepted aliases, preferred authoring
+notation, precedence and associativity. `MetamathLanguageBinding` separately
+contains canonical token layout and syntax-assertion linkage. Both reference
+the same stable `ConstructorId`; neither repeats its signature. v0.1 need not
+implement every formatter or binder form, but these layers MUST NOT become
+independent declarations of the same semantic fact.
 
 ### Assertion signature
 
@@ -445,8 +469,8 @@ class AssertionSignature:
     canonical_label: str
     kind: AssertionKind
     schema_variables: tuple[VariableDecl, ...]  # mandatory `$f` order
-    essential_hypotheses: tuple[Term, ...]      # mandatory `$e` order
-    conclusion: Term
+    premises: tuple[JudgmentPattern, ...]       # mandatory `$e` order
+    conclusion: JudgmentPattern
     mandatory_dv_pairs: frozenset[DistinctPair]
     binder_constraints: tuple[BinderConstraint, ...]
 ```

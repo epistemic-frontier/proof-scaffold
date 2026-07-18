@@ -13,6 +13,23 @@ on-demand theorem-family materialization.
 Normative words such as MUST, SHOULD, and MAY describe the experiment contract.
 Pseudocode fixes semantic responsibilities, not final public API spelling.
 
+### Dependency on the first-class-language slice
+
+Project 023 remains downstream of the semantic sequence established by
+[Reference 011](../references/011-language-as-first-class.md) and
+[Project 024](./024-first-class-language-refactor.md):
+
+```text
+Term v2 -> Language -> Judgment/Calculus -> apply_assertion -> combinators
+```
+
+This does not change the experiment's role. Family factories and combinators
+MUST still expand to ordinary concrete assertion declarations and applications
+before elaborated proof semantics. They MUST NOT introduce a second Term,
+notation, calculus, substitution model, or lowering path. Their typed
+parameters use the stable Term and judgment contracts supplied by the earlier
+layers.
+
 ## Executive decision
 
 Project 023 will test two mechanisms over existing, concrete, labeled

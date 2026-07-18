@@ -14,16 +14,18 @@ import tomllib
 
 from .types import PackageModule
 
+BUILD_FILENAMES = ("_build.py", "build.py")
+
 
 def load_build_module(path: Path) -> PackageModule:
-    """Load a build.py file as a Python module."""
+    """Load a package build module from its source path."""
     # 1. Try to import as a standard module (supports relative imports)
     try:
         src_root = str(path.parent.parent.resolve())
         if src_root not in sys.path:
             sys.path.insert(0, src_root)
         pkg_name = path.parent.name
-        target_mod = f"{pkg_name}.build"
+        target_mod = f"{pkg_name}.{path.stem}"
         mod = importlib.import_module(target_mod)
         # Verify it loaded the correct file
         if mod.__file__ and Path(mod.__file__).resolve() == path.resolve():
@@ -99,11 +101,12 @@ def load_external_build_module(package_name: str) -> PackageModule | None:
                 continue
 
     for base in candidates:
-        try:
-            module = importlib.import_module(f"{base}.build")
-            return cast(PackageModule, module)
-        except ImportError:
-            continue
+        for module_name in ("_build", "build"):
+            try:
+                module = importlib.import_module(f"{base}.{module_name}")
+                return cast(PackageModule, module)
+            except ImportError:
+                continue
 
     return None
 
@@ -157,7 +160,10 @@ def get_package_name(build_path: Path) -> str | None:
 
 def find_packages(root: Path) -> Iterator[tuple[str, Path, Path]]:
     """
-    Scan root directory for subdirectories containing build.py.
+    Scan root directory for package build modules.
+
+    ``_build.py`` is the preferred internal spelling. ``build.py`` remains
+    supported for existing packages.
     
     Yields:
         (package_name, package_dir, build_path)
@@ -165,10 +171,17 @@ def find_packages(root: Path) -> Iterator[tuple[str, Path, Path]]:
     if not root.is_dir():
         return
 
-    # Recursive scan for build.py
-    for build_file in root.glob("**/build.py"):
+    build_files = sorted(
+        (path for filename in BUILD_FILENAMES for path in root.glob(f"**/{filename}")),
+        key=lambda path: (str(path.parent), BUILD_FILENAMES.index(path.name)),
+    )
+    seen_package_dirs: set[Path] = set()
+    for build_file in build_files:
         if build_file.parent == root:
             continue
+        if build_file.parent in seen_package_dirs:
+            continue
+        seen_package_dirs.add(build_file.parent)
         
         # Resolve canonical package name
         real_name = get_package_name(build_file)

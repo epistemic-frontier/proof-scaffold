@@ -14,6 +14,42 @@ first concrete API draft and its `proof-lab` experiment contract.
 the transpiled-corpus addendum as a bounded concrete-family and proof-combinator
 experiment.
 
+### 2026-07-16 architecture amendment
+
+[Reference 011](../references/011-language-as-first-class.md) and
+[Project 024](./024-first-class-language-refactor.md) refine this project's
+semantic layering. Where later sections of this draft describe one broad
+`LanguageSpec`, the following split is authoritative:
+
+```text
+LanguageSpec             sorts, variable kinds, constructors, binders
+NotationSpec             parsing, rendering, aliases, precedence
+MetamathLanguageBinding  typecodes, tokens, syntax assertions, lowering
+CalculusSpec             judgment kinds and primitive inference rules
+```
+
+`|-` is a backend realization of a judgment such as `Provable(Wff)`, not an
+object-language sort or constructor. `wi/wn/wa` are Metamath formation
+bindings; `ax-mp/ax-gen` are calculus rules; `ax-1/ax-2/ax-3` are logical
+axioms.
+
+This amendment also changes implementation order. The existing legacy `App`
+excludes its constructor and arguments from dataclass comparison, so it MUST
+NOT be frozen as the public semantic IR. Structural Term identity and stable
+sort/constructor/variable IDs MUST land before the public proof API is frozen.
+Notation and backend changes MUST have digests separate from the language
+semantic digest. Existing `Expr`, `Wff`, and global registries are migration
+inputs only, not the new ABI.
+
+The revised dependency order is:
+
+```text
+Term identity and Language semantics
+        -> Judgment and AssertionSignature
+        -> apply_assertion and proof drafts
+        -> human/agent facades and proof combinators
+```
+
 ## Context
 
 `metamath-logic` is the first non-trivial package released on top of
@@ -299,7 +335,12 @@ the semantic digest, and the canonical semantic projection.
 
 ## Target Semantic Model
 
-### `LanguageSpec`
+### `LanguageSpec` (superseded field grouping)
+
+The semantic intent below remains valid, but notation, token layout, syntax
+assertion metadata and LaTeX belong to `NotationSpec` or
+`MetamathLanguageBinding` under the architecture amendment above. They MUST NOT
+be stored as independently editable fields of semantic `LanguageSpec`.
 
 A logical constructor should be declared once. A declaration includes at least:
 

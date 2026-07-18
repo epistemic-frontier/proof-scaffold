@@ -97,8 +97,8 @@ class Parser:
         def infix_of(t: TokenLike) -> InfixOp[Expr] | None:
             if t.type != "NAME":
                 return None
-            spec = self.registry._by_name.get(t.value)
-            if spec is None or spec.ctor.arity != 2:
+            spec = self.registry.spec_named(t.value, arity=2)
+            if spec is None:
                 return None
             assoc: Assoc = spec.assoc
             ctor = spec.ctor
@@ -141,7 +141,7 @@ class Parser:
             elif token.type == "RPAREN":
                 depth -= 1
             elif token.type == "NAME" and depth == 0:
-                spec = self.registry._by_name.get(token.value)
+                spec = self.registry.spec_named(token.value, arity=2)
                 if (
                     spec is not None
                     and spec.ctor.arity == 2
@@ -159,14 +159,7 @@ class Parser:
             and expr.ctor.name == top_level_ops[0]
             and expr.args[0].ctor.name == top_level_ops[0]
         ):
-            ternary_spec = next(
-                (
-                    spec
-                    for spec in self.registry._by_ctor.values()
-                    if spec.ctor.name == top_level_ops[0] and spec.ctor.arity == 3
-                ),
-                None,
-            )
+            ternary_spec = self.registry.spec_named(top_level_ops[0], arity=3)
             if ternary_spec is not None:
                 return ternary_spec.ctor(
                     expr.args[0].args[0], expr.args[0].args[1], expr.args[1]
@@ -186,7 +179,7 @@ class Parser:
             return self._collapse_ternary(expr, i + 1, j), j + 1
 
         if tok.type == "NAME":
-            spec = self.registry._by_name.get(tok.value)
+            spec = self.registry.spec_named(tok.value)
             if spec is None:
                 return Var(tok.value), i + 1
             if spec.ctor.arity == 0:

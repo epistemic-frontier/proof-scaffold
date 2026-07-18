@@ -54,6 +54,7 @@ from skfd.authoring.judgment import (
 )
 from skfd.authoring.language import (
     BinderDecl,
+    BindingClause,
     ConstructorDecl,
     LanguageRequirement,
     LanguageSpec,
@@ -620,8 +621,9 @@ def test_apply_assertion_checks_syntactic_dv_and_instantiates_binder_variables()
             binders=(
                 BinderDecl(
                     constructor=all_,
-                    variable_argument=0,
-                    scoped_arguments=(1,),
+                    bindings=(
+                        BindingClause(variable_argument=0, scoped_arguments=(1,)),
+                    ),
                 ),
             ),
         ),

@@ -219,7 +219,12 @@ def resolve_notation(spec: NotationSpec, language: LanguageInterface, dependenci
             raise AuthoringSemanticError(f"notation arity/target mismatch: {declaration.constructor}")
         if isinstance(declaration.form, BinderForm):
             binder = language.binders.get(declaration.constructor)
-            if binder is None or binder.variable_argument != 0 or binder.scoped_arguments != (1,):
+            if (
+                binder is None
+                or len(binder.bindings) != 1
+                or binder.bindings[0].variable_argument != 0
+                or binder.bindings[0].scoped_arguments != (1,)
+            ):
                 raise AuthoringSemanticError(f"notation binder mismatch: {declaration.constructor}")
         for token in (declaration.form.token, *declaration.aliases):
             if not token or token in tokens:

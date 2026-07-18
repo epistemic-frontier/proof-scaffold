@@ -44,6 +44,7 @@ from skfd.authoring.legacy_metamath import (
 )
 from skfd.authoring.language import (
     BinderDecl,
+    BindingClause,
     ConstructorDecl,
     LanguageInterface,
     LanguageRequirement,
@@ -1014,13 +1015,15 @@ def test_binder_semantics_support_free_variables_alpha_renaming_and_capture_avoi
             binders=(
                 BinderDecl(
                     constructor=all_,
-                    variable_argument=0,
-                    scoped_arguments=(1,),
+                    bindings=(
+                        BindingClause(variable_argument=0, scoped_arguments=(1,)),
+                    ),
                 ),
                 BinderDecl(
                     constructor=contextual,
-                    variable_argument=0,
-                    scoped_arguments=(1,),
+                    bindings=(
+                        BindingClause(variable_argument=0, scoped_arguments=(1,)),
+                    ),
                 ),
             ),
         ),
@@ -1177,10 +1180,394 @@ def test_binder_semantics_support_free_variables_alpha_renaming_and_capture_avoi
                 binders=(
                     BinderDecl(
                         constructor=all_,
-                        variable_argument=0,
-                        scoped_arguments=(1,),
+                        bindings=(
+                            BindingClause(variable_argument=0, scoped_arguments=(1,)),
+                        ),
                     ),
                 ),
             ),
             {unbound_base.id: unbound_base},
+        )
+
+
+def test_setmm_class_abstractions_support_multiple_binding_clauses() -> None:
+    wff = SortId("test#sort:setmm-wff")
+    setvar = SortId("test#sort:setmm-setvar")
+    class_sort = SortId("test#sort:setmm-class")
+    setvar_kind = VariableKindId("test#variable-kind:setmm-setvar")
+    class_kind = VariableKindId("test#variable-kind:setmm-class")
+    relation = ConstructorId("test#constructor:setmm-relation")
+    pair = ConstructorId("test#constructor:setmm-pair")
+    class_of = ConstructorId("test#constructor:setmm-class-of")
+    conjunction = ConstructorId("test#constructor:setmm-conjunction")
+    member = ConstructorId("test#constructor:setmm-member")
+    name = ConstructorId("test#constructor:setmm-name")
+    cab = ConstructorId("test#constructor:cab")
+    crab = ConstructorId("test#constructor:crab")
+    copab = ConstructorId("test#constructor:copab")
+    coprab = ConstructorId("test#constructor:coprab")
+    split = ConstructorId("test#constructor:split-binder")
+    wide = ConstructorId("test#constructor:wide-binder")
+    spec = LanguageSpec(
+        id=LanguageId("test#language:setmm-class-binders"),
+        sorts=(SortDecl(id=wff), SortDecl(id=setvar), SortDecl(id=class_sort)),
+        variable_kinds=(
+            VariableKindDecl(id=setvar_kind, sort=setvar),
+            VariableKindDecl(id=class_kind, sort=class_sort),
+        ),
+        constructors=(
+            ConstructorDecl(id=relation, inputs=(setvar, setvar, setvar), output=wff),
+            ConstructorDecl(id=pair, inputs=(setvar, setvar), output=setvar),
+            ConstructorDecl(id=class_of, inputs=(setvar,), output=class_sort),
+            ConstructorDecl(id=conjunction, inputs=(wff, wff), output=wff),
+            ConstructorDecl(id=member, inputs=(setvar, class_sort), output=wff),
+            ConstructorDecl(id=name, inputs=(), output=setvar),
+            ConstructorDecl(id=cab, inputs=(wff, setvar), output=class_sort),
+            ConstructorDecl(id=crab, inputs=(wff, setvar, class_sort), output=class_sort),
+            ConstructorDecl(id=copab, inputs=(wff, setvar, setvar), output=class_sort),
+            ConstructorDecl(
+                id=coprab,
+                inputs=(wff, setvar, setvar, setvar),
+                output=class_sort,
+            ),
+            ConstructorDecl(
+                id=split,
+                inputs=(wff, wff, setvar, setvar),
+                output=class_sort,
+            ),
+            ConstructorDecl(
+                id=wide,
+                inputs=(wff, wff, setvar),
+                output=class_sort,
+            ),
+        ),
+        binders=(
+            BinderDecl(
+                constructor=cab,
+                bindings=(BindingClause(variable_argument=1, scoped_arguments=(0,)),),
+            ),
+            BinderDecl(
+                constructor=crab,
+                bindings=(
+                    BindingClause(variable_argument=1, scoped_arguments=(0, 2)),
+                ),
+            ),
+            BinderDecl(
+                constructor=copab,
+                bindings=(
+                    BindingClause(variable_argument=2, scoped_arguments=(0,)),
+                    BindingClause(variable_argument=1, scoped_arguments=(0,)),
+                ),
+            ),
+            BinderDecl(
+                constructor=coprab,
+                bindings=(
+                    BindingClause(variable_argument=1, scoped_arguments=(0,)),
+                    BindingClause(variable_argument=2, scoped_arguments=(0,)),
+                    BindingClause(variable_argument=3, scoped_arguments=(0,)),
+                ),
+            ),
+            BinderDecl(
+                constructor=split,
+                bindings=(
+                    BindingClause(variable_argument=2, scoped_arguments=(0,)),
+                    BindingClause(variable_argument=3, scoped_arguments=(1,)),
+                ),
+            ),
+            BinderDecl(
+                constructor=wide,
+                bindings=(
+                    BindingClause(variable_argument=2, scoped_arguments=(1, 0)),
+                ),
+            ),
+        ),
+    )
+    language = resolve_language(spec, {})
+    owner = OwnerId("test#setmm-class-binder:variables")
+    refs = {
+        key: VariableRef("schema", owner, key, setvar_kind)
+        for key in ("x", "y", "z", "w", "u")
+    }
+    x, y, z, w, u = (language.variable(refs[key]) for key in ("x", "y", "z", "w", "u"))
+    class_ref = VariableRef("schema", owner, "A", class_kind)
+    class_var = language.variable(class_ref)
+    body = language.apply(relation, (x, y, z))
+
+    assert free_variables(language.apply(cab, (body, x)), language) == frozenset(
+        (refs["y"], refs["z"])
+    )
+    assert free_variables(language.apply(crab, (body, x, class_var)), language) == frozenset(
+        (refs["y"], refs["z"], class_ref)
+    )
+    restricted = language.apply(crab, (body, x, language.apply(class_of, (x,))))
+    assert substitute(restricted, {refs["x"]: w}, language) == restricted
+    abstraction = language.apply(copab, (body, x, y))
+    assert free_variables(abstraction, language) == frozenset((refs["z"],))
+    assert free_variables(language.apply(coprab, (body, x, y, z)), language) == frozenset()
+
+    with pytest.raises(AuthoringSemanticError, match="requires a variable_argument selector"):
+        alpha_rename(abstraction, refs["u"], language)
+    with pytest.raises(AuthoringSemanticError, match="selector must be an integer"):
+        alpha_rename(abstraction, refs["u"], language, variable_argument=True)
+    renamed = alpha_rename(abstraction, refs["u"], language, variable_argument=1)
+    assert renamed == language.apply(
+        copab,
+        (language.apply(relation, (u, y, z)), u, y),
+    )
+
+    duplicate = language.apply(
+        copab,
+        (language.apply(relation, (x, x, z)), x, x),
+    )
+    assert alpha_rename(duplicate, refs["u"], language, variable_argument=2) == language.apply(
+        copab,
+        (language.apply(relation, (u, u, z)), u, u),
+    )
+
+    nested = language.apply(
+        copab,
+        (
+            language.apply(
+                conjunction,
+                (
+                    body,
+                    language.apply(
+                        member,
+                        (x, language.apply(cab, (body, x))),
+                    ),
+                ),
+            ),
+            x,
+            y,
+        ),
+    )
+    nested_renamed = alpha_rename(nested, refs["u"], language, variable_argument=1)
+    nested_body = nested_renamed.arguments[0]
+    assert isinstance(nested_body, App)
+    assert nested_body.arguments[0] == language.apply(relation, (u, y, z))
+    nested_member = nested_body.arguments[1]
+    assert isinstance(nested_member, App)
+    assert nested_member.arguments == (u, language.apply(cab, (body, x)))
+
+    inner_multi = language.apply(
+        copab,
+        (language.apply(relation, (x, y, z)), x, z),
+    )
+    outer_multi = language.apply(
+        copab,
+        (language.apply(member, (w, inner_multi)), x, y),
+    )
+    outer_multi_renamed = alpha_rename(
+        outer_multi,
+        refs["u"],
+        language,
+        variable_argument=2,
+    )
+    assert outer_multi_renamed.arguments[0] == language.apply(
+        member,
+        (
+            w,
+            language.apply(
+                copab,
+                (language.apply(relation, (x, u, z)), x, z),
+            ),
+        ),
+    )
+
+    capture_one = language.apply(
+        copab,
+        (language.apply(relation, (z, y, w)), x, y),
+    )
+    substituted_one = substitute(capture_one, {refs["z"]: x}, language)
+    x_1_ref = VariableRef("schema", owner, "x_1", setvar_kind)
+    x_1 = language.variable(x_1_ref)
+    assert substituted_one == language.apply(
+        copab,
+        (language.apply(relation, (x, y, w)), x_1, y),
+    )
+    assert free_variables(substituted_one, language) == frozenset((refs["x"], refs["w"]))
+
+    capture_both = language.apply(
+        copab,
+        (language.apply(relation, (z, x, y)), x, y),
+    )
+    substituted_both = substitute(
+        capture_both,
+        {refs["z"]: language.apply(pair, (x, y))},
+        language,
+    )
+    y_1_ref = VariableRef("schema", owner, "y_1", setvar_kind)
+    y_1 = language.variable(y_1_ref)
+    assert substituted_both == language.apply(
+        copab,
+        (
+            language.apply(relation, (language.apply(pair, (x, y)), x_1, y_1)),
+            x_1,
+            y_1,
+        ),
+    )
+
+    duplicate_capture = language.apply(
+        copab,
+        (language.apply(relation, (z, x, x)), x, x),
+    )
+    assert substitute(duplicate_capture, {refs["z"]: x}, language) == language.apply(
+        copab,
+        (language.apply(relation, (x, x_1, x_1)), x_1, x_1),
+    )
+
+    split_capture = language.apply(
+        split,
+        (
+            language.apply(relation, (x, z, w)),
+            language.apply(relation, (y, z, w)),
+            x,
+            y,
+        ),
+    )
+    assert substitute(
+        split_capture,
+        {refs["z"]: language.apply(pair, (x, y))},
+        language,
+    ) == language.apply(
+        split,
+        (
+            language.apply(relation, (x_1, language.apply(pair, (x, y)), w)),
+            language.apply(relation, (y_1, language.apply(pair, (x, y)), w)),
+            x_1,
+            y_1,
+        ),
+    )
+
+    with pytest.raises(AuthoringSemanticError, match="must be a variable"):
+        language.apply(copab, (body, language.apply(name, ()), y))
+    with pytest.raises(AuthoringSemanticError, match="argument 2 must be a variable"):
+        language.apply(copab, (body, x, language.apply(name, ())))
+
+    reordered = resolve_language(
+        replace(
+            spec,
+            id=LanguageId("test#language:setmm-class-binders-reordered"),
+            binders=tuple(
+                replace(
+                    binder,
+                    bindings=tuple(
+                        replace(
+                            binding,
+                            scoped_arguments=tuple(reversed(binding.scoped_arguments)),
+                        )
+                        for binding in reversed(binder.bindings)
+                    ),
+                )
+                for binder in reversed(spec.binders)
+            ),
+        ),
+        {},
+    )
+    assert reordered.semantic_digest == language.semantic_digest
+    assert tuple(
+        binding.variable_argument for binding in language.binders[copab].bindings
+    ) == (1, 2)
+    assert language.binders[wide].bindings[0].scoped_arguments == (0, 1)
+    with pytest.raises(AuthoringSemanticError, match="duplicate binder declaration"):
+        resolve_language(
+            replace(
+                spec,
+                id=LanguageId("test#language:setmm-duplicate-binder"),
+                binders=(spec.binders[0], spec.binders[0]),
+            ),
+            {},
+        )
+    with pytest.raises(AuthoringSemanticError, match="notation arity/target mismatch"):
+        resolve_notation(
+            NotationSpec(
+                id=NotationId("test#notation:setmm-copab-binder"),
+                language=LanguageRequirement(id=language.id),
+                declarations=(
+                    NotationDecl(
+                        constructor=copab,
+                        form=BinderForm(token="setofpairs", precedence=0),
+                    ),
+                ),
+            ),
+            language,
+            {},
+        )
+
+
+@pytest.mark.parametrize(
+    "bindings",
+    (
+        (),
+        (
+            BindingClause(variable_argument=1, scoped_arguments=(0,)),
+            BindingClause(variable_argument=1, scoped_arguments=(0,)),
+        ),
+        (BindingClause(variable_argument=1, scoped_arguments=()),),
+        (BindingClause(variable_argument=1, scoped_arguments=(0, 0)),),
+        (
+            BindingClause(variable_argument=1, scoped_arguments=(0,)),
+            BindingClause(variable_argument=2, scoped_arguments=(1,)),
+        ),
+        (BindingClause(variable_argument=3, scoped_arguments=(0,)),),
+        (BindingClause(variable_argument=-1, scoped_arguments=(0,)),),
+        (BindingClause(variable_argument=1, scoped_arguments=(-1,)),),
+        (BindingClause(variable_argument=1, scoped_arguments=(3,)),),
+        (BindingClause(variable_argument=True, scoped_arguments=(0,)),),
+        (BindingClause(variable_argument=1, scoped_arguments=(False,)),),
+    ),
+)
+def test_binder_declarations_fail_closed(bindings: tuple[BindingClause, ...]) -> None:
+    wff = SortId("test#sort:invalid-binder-wff")
+    setvar = SortId("test#sort:invalid-binder-setvar")
+    setvar_kind = VariableKindId("test#variable-kind:invalid-binder-setvar")
+    constructor = ConstructorId("test#constructor:invalid-binder")
+    with pytest.raises(AuthoringSemanticError, match="invalid binder arguments"):
+        resolve_language(
+            LanguageSpec(
+                id=LanguageId("test#language:invalid-binder"),
+                sorts=(SortDecl(id=wff), SortDecl(id=setvar)),
+                variable_kinds=(VariableKindDecl(id=setvar_kind, sort=setvar),),
+                constructors=(
+                    ConstructorDecl(
+                        id=constructor,
+                        inputs=(wff, setvar, setvar),
+                        output=wff,
+                    ),
+                ),
+                binders=(BinderDecl(constructor=constructor, bindings=bindings),),
+            ),
+            {},
+        )
+
+
+def test_binder_variable_sort_requires_a_variable_kind() -> None:
+    wff = SortId("test#sort:binder-without-kind-wff")
+    setvar = SortId("test#sort:binder-without-kind-setvar")
+    constructor = ConstructorId("test#constructor:binder-without-kind")
+    with pytest.raises(AuthoringSemanticError, match="binder variable has no variable kind"):
+        resolve_language(
+            LanguageSpec(
+                id=LanguageId("test#language:binder-without-kind"),
+                sorts=(SortDecl(id=wff), SortDecl(id=setvar)),
+                constructors=(
+                    ConstructorDecl(
+                        id=constructor,
+                        inputs=(wff, setvar),
+                        output=wff,
+                    ),
+                ),
+                binders=(
+                    BinderDecl(
+                        constructor=constructor,
+                        bindings=(
+                            BindingClause(
+                                variable_argument=1,
+                                scoped_arguments=(0,),
+                            ),
+                        ),
+                    ),
+                ),
+            ),
+            {},
         )

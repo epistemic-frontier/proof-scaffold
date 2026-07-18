@@ -92,6 +92,7 @@ def legacy_symbol_spec(
     constructor: ConstructorId,
     *,
     legacy_sorts: Mapping[SortId, Sort],
+    call_precedence: int | None = None,
 ) -> LegacySymbolSpec:
     """Project semantic declarations into the old name-keyed symbol registry shape."""
     declaration = binding.language.constructors.get(constructor)
@@ -112,7 +113,10 @@ def legacy_symbol_spec(
 
     form = notation_decl.form
     if isinstance(form, CallForm):
-        raise AuthoringSemanticError(f"call notation has no legacy operator projection: {constructor}")
+        if call_precedence is None:
+            raise AuthoringSemanticError(
+                f"call notation requires a legacy precedence: {constructor}"
+            )
     spellings = (form.token, *notation_decl.aliases)
     backend_tokens = {
         part.token.local_name
@@ -131,6 +135,10 @@ def legacy_symbol_spec(
     elif isinstance(form, InfixForm):
         precedence = form.precedence
         associativity = form.associativity
+    elif isinstance(form, CallForm):
+        assert call_precedence is not None
+        precedence = call_precedence
+        associativity = "none"
     else:
         raise AssertionError("unreachable notation form")
     return LegacySymbolSpec(

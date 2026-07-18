@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from types import MappingProxyType
 from typing import TypeAlias
@@ -16,7 +16,12 @@ from .ids import (
     FoundationId,
     SortId,
 )
-from .language import LanguageInterface, LanguageRequirement, is_semantic_subset
+from .language import (
+    ConstructorDecl,
+    LanguageInterface,
+    LanguageRequirement,
+    is_semantic_subset,
+)
 from .term import App, Term, VariableRef
 
 
@@ -100,9 +105,84 @@ class ResolvedMetamathLanguageBinding:
     formations: Mapping[ConstructorId, FormationBinding] = field(compare=False, hash=False, repr=False)
     sort_typecodes: tuple[SortTypecodeBinding, ...] = field(compare=False, hash=False)
     digest: Digest
+    _formations_by_sort: Mapping[
+        SortId,
+        tuple[tuple[FormationBinding, ConstructorDecl], ...],
+    ] = field(init=False, compare=False, hash=False, repr=False)
+    _formations_by_sort_and_leading_literal: Mapping[
+        tuple[SortId, TokenRef],
+        tuple[tuple[FormationBinding, ConstructorDecl], ...],
+    ] = field(init=False, compare=False, hash=False, repr=False)
+    _formations_without_leading_literal: Mapping[
+        SortId,
+        tuple[tuple[FormationBinding, ConstructorDecl], ...],
+    ] = field(init=False, compare=False, hash=False, repr=False)
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "formations", MappingProxyType(dict(self.formations)))
+        by_sort: dict[SortId, list[tuple[FormationBinding, ConstructorDecl]]] = {}
+        for formation in self.formations.values():
+            constructor = self.language.constructors[formation.constructor]
+            by_sort.setdefault(constructor.output, []).append((formation, constructor))
+        formations_by_sort = {
+            sort: tuple(items) for sort, items in by_sort.items()
+        }
+        object.__setattr__(
+            self,
+            "_formations_by_sort",
+            MappingProxyType(formations_by_sort),
+        )
+        without_leading_literal = {
+            sort: tuple(
+                item
+                for item in items
+                if not item[0].template
+                or not isinstance(item[0].template[0], LiteralPart)
+            )
+            for sort, items in formations_by_sort.items()
+        }
+        by_sort_and_literal: dict[
+            tuple[SortId, TokenRef],
+            tuple[tuple[FormationBinding, ConstructorDecl], ...],
+        ] = {}
+        for sort, items in formations_by_sort.items():
+            leading_literals = {
+                part.token
+                for formation, _ in items
+                if formation.template
+                and isinstance((part := formation.template[0]), LiteralPart)
+            }
+            candidates_by_literal: dict[
+                TokenRef,
+                list[tuple[FormationBinding, ConstructorDecl]],
+            ] = {
+                token: [] for token in leading_literals
+            }
+            for item in items:
+                formation = item[0]
+                if formation.template and isinstance(
+                    formation.template[0], LiteralPart
+                ):
+                    candidates_by_literal[formation.template[0].token].append(item)
+                else:
+                    for candidates in candidates_by_literal.values():
+                        candidates.append(item)
+            by_sort_and_literal.update(
+                {
+                    (sort, token): tuple(candidates)
+                    for token, candidates in candidates_by_literal.items()
+                }
+            )
+        object.__setattr__(
+            self,
+            "_formations_without_leading_literal",
+            MappingProxyType(without_leading_literal),
+        )
+        object.__setattr__(
+            self,
+            "_formations_by_sort_and_leading_literal",
+            MappingProxyType(by_sort_and_literal),
+        )
 
     def lower(self, term: Term) -> tuple[MetamathAtom, ...]:
         if not isinstance(term, App):
@@ -141,12 +221,38 @@ class ResolvedMetamathLanguageBinding:
                 if declaration is not None and declaration.sort == sort:
                     found.add(self.language.variable(variable))
             memo[key] = frozenset()
-            for formation in self.formations.values():
-                constructor = self.language.constructors[formation.constructor]
-                if constructor.output != sort:
+            leading_atom = source[start] if start < end else None
+            if isinstance(leading_atom, LiteralAtom):
+                candidates = self._formations_by_sort_and_leading_literal.get(
+                    (sort, leading_atom.token),
+                    self._formations_without_leading_literal.get(sort, ()),
+                )
+            else:
+                candidates = self._formations_without_leading_literal.get(sort, ())
+            for formation, constructor in candidates:
+                template = formation.template
+                if len(template) > end - start:
+                    continue
+                if (
+                    template
+                    and isinstance(template[0], LiteralPart)
+                    and (
+                        start >= end
+                        or source[start] != LiteralAtom(template[0].token)
+                    )
+                ):
+                    continue
+                if (
+                    template
+                    and isinstance(template[-1], LiteralPart)
+                    and (
+                        start >= end
+                        or source[end - 1] != LiteralAtom(template[-1].token)
+                    )
+                ):
                     continue
                 for arguments in match_template(
-                    formation.template,
+                    template,
                     constructor.inputs,
                     start,
                     end,
@@ -182,7 +288,23 @@ class ResolvedMetamathLanguageBinding:
                     return
                 remaining_parts = len(template) - part_index - 1
                 maximum = end - remaining_parts
-                for argument_end in range(position + 1, maximum + 1):
+                next_part = (
+                    template[part_index + 1]
+                    if part_index + 1 < len(template)
+                    else None
+                )
+                if next_part is None:
+                    candidate_ends: Iterable[int] = (end,)
+                elif isinstance(next_part, LiteralPart):
+                    next_literal = LiteralAtom(next_part.token)
+                    candidate_ends = (
+                        candidate
+                        for candidate in range(position + 1, maximum + 1)
+                        if candidate < end and source[candidate] == next_literal
+                    )
+                else:
+                    candidate_ends = range(position + 1, maximum + 1)
+                for argument_end in candidate_ends:
                     for argument in terms(
                         input_sorts[part.index], position, argument_end
                     ):

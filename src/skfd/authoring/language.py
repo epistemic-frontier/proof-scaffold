@@ -30,10 +30,15 @@ class ConstructorDecl:
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
-class BinderDecl:
-    constructor: ConstructorId
+class BindingClause:
     variable_argument: int
     scoped_arguments: tuple[int, ...]
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class BinderDecl:
+    constructor: ConstructorId
+    bindings: tuple[BindingClause, ...]
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -93,10 +98,12 @@ class LanguageInterface:
                     f"constructor {constructor} argument {index} expects {expected}, got {argument.sort}"
                 )
         binder = self.binders.get(constructor)
-        if binder is not None and not isinstance(args[binder.variable_argument], Var):
-            raise AuthoringSemanticError(
-                f"binder {constructor} argument {binder.variable_argument} must be a variable"
-            )
+        if binder is not None:
+            for binding in binder.bindings:
+                if not isinstance(args[binding.variable_argument], Var):
+                    raise AuthoringSemanticError(
+                        f"binder {constructor} argument {binding.variable_argument} must be a variable"
+                    )
         return App(constructor, args, declaration.output)
 
 
@@ -111,6 +118,29 @@ def _merge(target: dict[K, V], values: Iterable[V], key: Callable[[V], K]) -> No
         if old is not None and old != value:
             raise AuthoringSemanticError(f"conflicting declaration: {item_key}")
         target[item_key] = value
+
+
+def _normalize_binder(binder: BinderDecl) -> BinderDecl:
+    for binding in binder.bindings:
+        if type(binding.variable_argument) is not int or any(
+            type(index) is not int for index in binding.scoped_arguments
+        ):
+            raise AuthoringSemanticError(f"invalid binder arguments: {binder.constructor}")
+    return BinderDecl(
+        constructor=binder.constructor,
+        bindings=tuple(
+            sorted(
+                (
+                    BindingClause(
+                        variable_argument=binding.variable_argument,
+                        scoped_arguments=tuple(sorted(binding.scoped_arguments)),
+                    )
+                    for binding in binder.bindings
+                ),
+                key=lambda binding: binding.variable_argument,
+            )
+        ),
+    )
 
 
 def _digest(
@@ -136,12 +166,17 @@ def _digest(
         "binders": [
             {
                 "constructor": str(item.constructor),
-                "variable_argument": item.variable_argument,
-                "scoped_arguments": list(item.scoped_arguments),
+                "bindings": [
+                    {
+                        "variable_argument": binding.variable_argument,
+                        "scoped_arguments": list(binding.scoped_arguments),
+                    }
+                    for binding in item.bindings
+                ],
             }
             for item in sorted(binders.values(), key=lambda item: item.constructor)
         ],
-        "version": "skfd.language.semantic.v2",
+        "version": "skfd.language.semantic.v3",
     }
     return canonical_digest(document)
 
@@ -179,7 +214,11 @@ def resolve_language(spec: LanguageSpec, dependencies: Mapping[LanguageId, Langu
     _merge(sorts, spec.sorts, lambda item: item.id)
     _merge(kinds, spec.variable_kinds, lambda item: item.id)
     _merge(constructors, spec.constructors, lambda item: item.id)
-    _merge(binders, spec.binders, lambda item: item.constructor)
+    normalized_binders = tuple(_normalize_binder(item) for item in spec.binders)
+    binder_constructors = [item.constructor for item in normalized_binders]
+    if len(set(binder_constructors)) != len(binder_constructors):
+        raise AuthoringSemanticError("duplicate binder declaration")
+    _merge(binders, normalized_binders, lambda item: item.constructor)
     for dependency in resolved_dependencies:
         for constructor_id in dependency.constructors:
             if dependency.binders.get(constructor_id) != binders.get(constructor_id):
@@ -195,19 +234,33 @@ def resolve_language(spec: LanguageSpec, dependencies: Mapping[LanguageId, Langu
                 raise AuthoringSemanticError(f"constructor {constructor.id} has unknown sort: {sort}")
     for binder in binders.values():
         binder_constructor = constructors.get(binder.constructor)
-        indexes = (binder.variable_argument, *binder.scoped_arguments)
         if binder_constructor is None:
             raise AuthoringSemanticError(f"binder has unknown constructor: {binder.constructor}")
+        if not binder.bindings:
+            raise AuthoringSemanticError(f"invalid binder arguments: {binder.constructor}")
+        variable_arguments = tuple(binding.variable_argument for binding in binder.bindings)
         if (
-            binder.variable_argument < 0
-            or not binder.scoped_arguments
-            or len(set(indexes)) != len(indexes)
-            or any(index < 0 or index >= len(binder_constructor.inputs) for index in indexes)
+            any(type(index) is not int for index in variable_arguments)
+            or len(set(variable_arguments)) != len(variable_arguments)
         ):
             raise AuthoringSemanticError(f"invalid binder arguments: {binder.constructor}")
-        bound_sort = binder_constructor.inputs[binder.variable_argument]
-        if not any(kind.sort == bound_sort for kind in kinds.values()):
-            raise AuthoringSemanticError(f"binder variable has no variable kind: {binder.constructor}")
+        variable_argument_set = set(variable_arguments)
+        for binding in binder.bindings:
+            scoped_arguments = binding.scoped_arguments
+            indexes = (binding.variable_argument, *scoped_arguments)
+            if (
+                not scoped_arguments
+                or any(type(index) is not int for index in scoped_arguments)
+                or len(set(scoped_arguments)) != len(scoped_arguments)
+                or any(index < 0 or index >= len(binder_constructor.inputs) for index in indexes)
+                or variable_argument_set.intersection(scoped_arguments)
+            ):
+                raise AuthoringSemanticError(f"invalid binder arguments: {binder.constructor}")
+            bound_sort = binder_constructor.inputs[binding.variable_argument]
+            if not any(kind.sort == bound_sort for kind in kinds.values()):
+                raise AuthoringSemanticError(
+                    f"binder variable has no variable kind: {binder.constructor}"
+                )
     return LanguageInterface(
         spec.id,
         _digest(sorts, kinds, constructors, binders),

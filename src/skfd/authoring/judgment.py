@@ -195,10 +195,12 @@ def _validate_term(
     ):
         raise AuthoringSemanticError(f"invalid term: {term.constructor}")
     binder = language.binders.get(term.constructor)
-    if binder is not None and not isinstance(term.arguments[binder.variable_argument], Var):
-        raise AuthoringSemanticError(
-            f"binder {term.constructor} argument {binder.variable_argument} must be a variable"
-        )
+    if binder is not None:
+        for binding in binder.bindings:
+            if not isinstance(term.arguments[binding.variable_argument], Var):
+                raise AuthoringSemanticError(
+                    f"binder {term.constructor} argument {binding.variable_argument} must be a variable"
+                )
     for argument in term.arguments:
         _validate_term(argument, language, schema_variables)
 

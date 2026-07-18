@@ -76,6 +76,7 @@ ID 表示身份；`∀`、`A.`、`All` 只是不同层面的拼写。改变显�
 ```python
 from skfd.authoring.language import (
     BinderDecl,
+    BindingClause,
     ConstructorDecl,
     LanguageSpec,
     SortDecl,
@@ -95,8 +96,9 @@ LANGUAGE_SPEC = LanguageSpec(
     binders=(
         BinderDecl(
             constructor=ALL,
-            variable_argument=0,
-            scoped_arguments=(1,),
+            bindings=(
+                BindingClause(variable_argument=0, scoped_arguments=(1,)),
+            ),
         ),
     ),
 )

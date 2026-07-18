@@ -380,6 +380,14 @@ def _checked_judgment(
         raise AssertionApplicationError(f"invalid {context}: {error}") from error
 
 
+def _validate_assertion_judgments(
+    calculus: CalculusInterface,
+    assertion: AssertionSignature,
+) -> None:
+    for pattern in (*assertion.premises, assertion.conclusion):
+        _checked_judgment(calculus, pattern, context="assertion signature judgment")
+
+
 def _unify_term(
     pattern: Term,
     actual: Term,
@@ -473,15 +481,18 @@ def _step_results(draft: ProofDraft) -> dict[StepId, Judgment]:
     return results
 
 
-def apply_assertion(
+def _apply_assertion_step(
     draft: ProofDraft,
     calculus: CalculusInterface,
     assertion: AssertionSignature,
     premises: Sequence[StepId],
     *,
+    known_results: Mapping[StepId, Judgment] | None,
+    step_index: int,
+    validate_assertion_judgments: bool = True,
     target: Judgment | None = None,
     subst: Mapping[VariableRef, Term] | None = None,
-) -> ApplicationResult:
+) -> ElaboratedStep:
     if draft.calculus_digest != calculus.digest:
         raise AssertionApplicationError("draft calculus digest mismatch")
     if len(premises) != len(assertion.premises):
@@ -489,12 +500,14 @@ def apply_assertion(
     if draft.signature is not None and assertion.id == draft.signature.id:
         raise AssertionApplicationError("a theorem draft cannot cite itself")
 
-    for pattern in (*assertion.premises, assertion.conclusion):
-        _checked_judgment(calculus, pattern, context="assertion signature judgment")
-    for hypothesis in draft.hypotheses:
-        _checked_judgment(calculus, hypothesis.result, context="draft step judgment")
-    for step in draft.steps:
-        _checked_judgment(calculus, step.result, context="draft step judgment")
+    if validate_assertion_judgments:
+        _validate_assertion_judgments(calculus, assertion)
+    if known_results is None:
+        for hypothesis in draft.hypotheses:
+            _checked_judgment(calculus, hypothesis.result, context="draft step judgment")
+        for step in draft.steps:
+            _checked_judgment(calculus, step.result, context="draft step judgment")
+        known_results = _step_results(draft)
 
     schema_variables = frozenset(assertion.schema_variables)
     substitution: dict[VariableRef, Term] = {}
@@ -515,10 +528,9 @@ def apply_assertion(
             )
         substitution[variable] = replacement
 
-    results = _step_results(draft)
     actual_premises: list[Judgment] = []
     for step_id in premises:
-        actual = results.get(step_id)
+        actual = known_results.get(step_id)
         if actual is None:
             raise AssertionApplicationError(f"unknown premise step: {step_id}")
         actual_premises.append(actual)
@@ -565,9 +577,8 @@ def apply_assertion(
                     )
                 satisfied.add(actual_pair)
 
-    index = len(draft.hypotheses) + len(draft.steps)
-    step = ElaboratedStep(
-        id=_step_id(draft.proof_id, index),
+    return ElaboratedStep(
+        id=_step_id(draft.proof_id, step_index),
         assertion=assertion.id,
         premises=tuple(premises),
         substitution=tuple(
@@ -575,6 +586,27 @@ def apply_assertion(
         ),
         result=result,
         satisfied_distinct=normalize_distinct_pairs(tuple(satisfied)),
+    )
+
+
+def apply_assertion(
+    draft: ProofDraft,
+    calculus: CalculusInterface,
+    assertion: AssertionSignature,
+    premises: Sequence[StepId],
+    *,
+    target: Judgment | None = None,
+    subst: Mapping[VariableRef, Term] | None = None,
+) -> ApplicationResult:
+    step = _apply_assertion_step(
+        draft,
+        calculus,
+        assertion,
+        premises,
+        known_results=None,
+        step_index=len(draft.hypotheses) + len(draft.steps),
+        target=target,
+        subst=subst,
     )
     return ApplicationResult(
         ProofDraft(
@@ -589,11 +621,12 @@ def apply_assertion(
     )
 
 
-def finalize_proof(
+def _finalize_proof(
     draft: ProofDraft,
     calculus: CalculusInterface,
     *,
     root: StepId,
+    validate_draft_judgments: bool,
 ) -> ElaboratedProof:
     if draft.calculus_digest != calculus.digest:
         raise AssertionApplicationError("draft calculus digest mismatch")
@@ -602,33 +635,16 @@ def finalize_proof(
         raise AssertionApplicationError("draft has no theorem signature")
     if signature.kind != "theorem":
         raise AssertionApplicationError("only theorem drafts can be finalized")
-    if any(step.assertion == signature.id for step in draft.steps):
-        raise AssertionApplicationError("a theorem proof cannot cite itself")
-    checked_premises = tuple(
-        _checked_judgment(calculus, premise, context="theorem premise")
-        for premise in signature.premises
-    )
-    if tuple(hypothesis.result for hypothesis in draft.hypotheses) != checked_premises:
-        raise AssertionApplicationError(
-            "draft hypotheses do not match the theorem signature premises"
+    if validate_draft_judgments:
+        for premise in signature.premises:
+            _checked_judgment(calculus, premise, context="theorem premise")
+        _checked_judgment(
+            calculus,
+            signature.conclusion,
+            context="theorem conclusion",
         )
-    for step in draft.steps:
-        _checked_judgment(calculus, step.result, context="elaborated proof step")
-    results = _step_results(draft)
-    root_result = results.get(root)
-    if root_result is None:
-        raise AssertionApplicationError(f"unknown proof root: {root}")
-    expected = _checked_judgment(
-        calculus,
-        signature.conclusion,
-        context="theorem conclusion",
-    )
-    if root_result != expected:
-        raise AssertionApplicationError("proof root does not match the theorem conclusion")
-
-    reachable = _reachable_elaborated_steps(draft.hypotheses, draft.steps, root)
-    if reachable != frozenset(step.id for step in draft.steps):
-        raise AssertionApplicationError("proof contains an elaborated step unreachable from its root")
+        for step in draft.steps:
+            _checked_judgment(calculus, step.result, context="elaborated proof step")
     dependencies = tuple(sorted({step.assertion for step in draft.steps}))
     replay_context = AssertionReplayContext(draft.active_distinct)
     return ElaboratedProof(
@@ -639,6 +655,20 @@ def finalize_proof(
         root=root,
         replay_context=replay_context,
         dependency_closure=dependencies,
+    )
+
+
+def finalize_proof(
+    draft: ProofDraft,
+    calculus: CalculusInterface,
+    *,
+    root: StepId,
+) -> ElaboratedProof:
+    return _finalize_proof(
+        draft,
+        calculus,
+        root=root,
+        validate_draft_judgments=True,
     )
 
 

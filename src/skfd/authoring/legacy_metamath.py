@@ -12,7 +12,7 @@ from skfd.core.symbols import SymbolId
 from .errors import AuthoringSemanticError
 from .ids import ConstructorId, SortId
 from .metamath_language import ArgumentPart, LiteralPart, ResolvedMetamathLanguageBinding, TokenRef
-from .notation import CallForm, InfixForm, NotationInterface, PrefixForm
+from .notation import BinderForm, CallForm, InfixForm, NotationInterface, PrefixForm
 
 LegacyFormula = Formula[WffSort] | Formula[ClassSort] | Formula[SetVarSort]
 
@@ -92,6 +92,11 @@ def legacy_symbol_spec(
     constructor: ConstructorId,
     *,
     legacy_sorts: Mapping[SortId, Sort],
+    call_precedence: int = 0,
+    legacy_name: str | None = None,
+    legacy_aliases: tuple[str, ...] | None = None,
+    legacy_associativity: Literal["left", "right", "none"] | None = None,
+    legacy_precedence: int | None = None,
 ) -> LegacySymbolSpec:
     """Project semantic declarations into the old name-keyed symbol registry shape."""
     declaration = binding.language.constructors.get(constructor)
@@ -111,8 +116,6 @@ def legacy_symbol_spec(
         raise AuthoringSemanticError(f"no legacy sort binding for: {error.args[0]}") from error
 
     form = notation_decl.form
-    if isinstance(form, CallForm):
-        raise AuthoringSemanticError(f"call notation has no legacy operator projection: {constructor}")
     spellings = (form.token, *notation_decl.aliases)
     backend_tokens = {
         part.token.local_name
@@ -120,10 +123,19 @@ def legacy_symbol_spec(
         if isinstance(part, LiteralPart)
     }
     backend_spellings = tuple(item for item in spellings if item in backend_tokens)
-    if len(backend_spellings) != 1:
+    if legacy_name is not None:
+        if backend_tokens and legacy_name not in backend_tokens:
+            raise AuthoringSemanticError(f"legacy operator is not in formation: {constructor}")
+        name = legacy_name
+    elif len(backend_spellings) == 1:
+        name = backend_spellings[0]
+    else:
         raise AuthoringSemanticError(f"legacy operator spelling is ambiguous: {constructor}")
-    name = backend_spellings[0]
-    aliases = tuple(item for item in spellings if item != name)
+    aliases = (
+        legacy_aliases
+        if legacy_aliases is not None
+        else tuple(item for item in spellings if item != name)
+    )
     associativity: Literal["left", "right", "none"]
     if isinstance(form, PrefixForm):
         precedence = form.precedence
@@ -131,8 +143,18 @@ def legacy_symbol_spec(
     elif isinstance(form, InfixForm):
         precedence = form.precedence
         associativity = form.associativity
+    elif isinstance(form, CallForm):
+        precedence = call_precedence
+        associativity = "none"
+    elif isinstance(form, BinderForm):
+        precedence = form.precedence
+        associativity = "right"
     else:
         raise AssertionError("unreachable notation form")
+    if legacy_associativity is not None:
+        associativity = legacy_associativity
+    if legacy_precedence is not None:
+        precedence = legacy_precedence
     return LegacySymbolSpec(
         name=name,
         arity=len(declaration.inputs),

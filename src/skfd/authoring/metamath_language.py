@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterator, Mapping, Sequence
 from dataclasses import dataclass, field
 from types import MappingProxyType
 from typing import TypeAlias
@@ -127,6 +127,14 @@ class ResolvedMetamathLanguageBinding:
         """Invert formation templates into one uniquely typed semantic term."""
         source = tuple(atoms)
         memo: dict[tuple[SortId, int, int], frozenset[Term]] = {}
+        formations_by_sort: dict[
+            SortId, list[tuple[FormationBinding, tuple[SortId, ...]]]
+        ] = {}
+        for formation in self.formations.values():
+            constructor = self.language.constructors[formation.constructor]
+            formations_by_sort.setdefault(constructor.output, []).append(
+                (formation, constructor.inputs)
+            )
 
         def terms(sort: SortId, start: int, end: int) -> frozenset[Term]:
             key = (sort, start, end)
@@ -141,13 +149,23 @@ class ResolvedMetamathLanguageBinding:
                 if declaration is not None and declaration.sort == sort:
                     found.add(self.language.variable(variable))
             memo[key] = frozenset()
-            for formation in self.formations.values():
-                constructor = self.language.constructors[formation.constructor]
-                if constructor.output != sort:
+            for formation, input_sorts in formations_by_sort.get(sort, ()):
+                template = formation.template
+                if len(template) > end - start:
+                    continue
+                first = template[0]
+                if isinstance(first, LiteralPart) and source[start] != LiteralAtom(
+                    first.token
+                ):
+                    continue
+                last = template[-1]
+                if isinstance(last, LiteralPart) and source[end - 1] != LiteralAtom(
+                    last.token
+                ):
                     continue
                 for arguments in match_template(
-                    formation.template,
-                    constructor.inputs,
+                    template,
+                    input_sorts,
                     start,
                     end,
                 ):
@@ -182,7 +200,24 @@ class ResolvedMetamathLanguageBinding:
                     return
                 remaining_parts = len(template) - part_index - 1
                 maximum = end - remaining_parts
-                for argument_end in range(position + 1, maximum + 1):
+                next_part = (
+                    template[part_index + 1]
+                    if part_index + 1 < len(template)
+                    else None
+                )
+                argument_ends: Iterator[int]
+                if isinstance(next_part, LiteralPart):
+                    separator = LiteralAtom(next_part.token)
+                    argument_ends = (
+                        index
+                        for index in range(position + 1, maximum + 1)
+                        if source[index] == separator
+                    )
+                elif next_part is None:
+                    argument_ends = iter((end,))
+                else:
+                    argument_ends = iter(range(position + 1, maximum + 1))
+                for argument_end in argument_ends:
                     for argument in terms(
                         input_sorts[part.index], position, argument_end
                     ):

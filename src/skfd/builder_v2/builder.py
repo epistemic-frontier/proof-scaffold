@@ -96,8 +96,8 @@ class SymFacade:
         self._origin_module_id = origin_module_id
         self._names = names
 
-    def const(self, name: str) -> SymbolId:
-        canonical = self._names.canonicalize("Const", name)
+    def const(self, name: str, *, exact: bool = False) -> SymbolId:
+        canonical = name if exact else self._names.canonicalize("Const", name)
         return self._interner.intern(
             origin_module_id=self._origin_module_id,
             local_name=canonical,
@@ -105,8 +105,8 @@ class SymFacade:
             origin_ref=self._origin.here_ref(depth=3),
         )
 
-    def var(self, name: str) -> SymbolId:
-        canonical = self._names.canonicalize("Var", name)
+    def var(self, name: str, *, exact: bool = False) -> SymbolId:
+        canonical = name if exact else self._names.canonicalize("Var", name)
         return self._interner.intern(
             origin_module_id=self._origin_module_id,
             local_name=canonical,
@@ -114,8 +114,8 @@ class SymFacade:
             origin_ref=self._origin.here_ref(depth=3),
         )
 
-    def label(self, name: str) -> SymbolId:
-        canonical = self._names.canonicalize("Label", name)
+    def label(self, name: str, *, exact: bool = False) -> SymbolId:
+        canonical = name if exact else self._names.canonicalize("Label", name)
         return self._interner.intern(
             origin_module_id=self._origin_module_id,
             local_name=canonical,

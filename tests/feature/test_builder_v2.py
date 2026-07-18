@@ -44,6 +44,20 @@ def test_symbol_interner_get_does_not_expose_mutable_table() -> None:
     assert definition.kind == "Const"
 
 
+def test_symbol_facade_exact_names_bypass_authoring_aliases() -> None:
+    mm = _mk_mm()
+    logical_or = mm.sym.const("|")
+    vertical_bar = mm.sym.const("|", exact=True)
+
+    assert logical_or != vertical_bar
+    logical_or_definition = mm.interner.get(logical_or)
+    vertical_bar_definition = mm.interner.get(vertical_bar)
+    assert logical_or_definition is not None
+    assert vertical_bar_definition is not None
+    assert logical_or_definition.local_name == r"\/"
+    assert vertical_bar_definition.local_name == "|"
+
+
 def test_builder_v2_auto_f_reuses_existing_floating_without_emitting_duplicate() -> (
     None
 ):

@@ -7,7 +7,7 @@ import pytest
 from skfd.authoring.assertion import AssertionSignature
 from skfd.authoring.errors import AuthoringSemanticError
 from skfd.authoring.ids import (
-    AssertionSemanticId,
+    AssertionId,
     JudgmentKindId,
     OwnerId,
     SortId,
@@ -37,7 +37,7 @@ Z_REF = VariableRef("schema", OWNER, "z", FORMULA)
 
 def _signature(name: str, *variables: VariableRef) -> AssertionSignature:
     return AssertionSignature(
-        id=AssertionSemanticId(f"test#assertion:{name}"),
+        id=AssertionId(f"test#assertion:{name}"),
         canonical_label=name,
         kind="axiom",
         schema_variables=tuple(variables),

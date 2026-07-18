@@ -6,17 +6,17 @@ from types import MappingProxyType
 
 from ._canonical import canonical_digest
 from .assertion import (
-    ApplicationResult,
+    AssertionApplicationResult,
     AssertionApplicationError,
     AssertionSignature,
-    ProofDraft,
+    CheckedProofPrefix,
     apply_assertion,
     assertion_signature_document,
 )
 from .ids import (
     AssertionCatalogId,
     AssertionProfileId,
-    AssertionSemanticId,
+    AssertionId,
     Digest,
     StepId,
 )
@@ -31,7 +31,7 @@ class AssertionCatalogError(AssertionApplicationError):
 @dataclass(frozen=True, slots=True, kw_only=True)
 class AssertionProfileSpec:
     id: AssertionProfileId
-    allowed: tuple[AssertionSemanticId, ...]
+    allowed: tuple[AssertionId, ...]
 
     def __post_init__(self) -> None:
         if len(frozenset(self.allowed)) != len(self.allowed):
@@ -56,13 +56,13 @@ class AssertionCatalogSpec:
 class AssertionCatalogInterface:
     id: AssertionCatalogId
     digest: Digest
-    assertions: Mapping[AssertionSemanticId, AssertionSignature] = field(
+    assertions: Mapping[AssertionId, AssertionSignature] = field(
         compare=False, hash=False, repr=False
     )
-    labels: Mapping[str, AssertionSemanticId] = field(
+    labels: Mapping[str, AssertionId] = field(
         compare=False, hash=False, repr=False
     )
-    profiles: Mapping[AssertionProfileId, frozenset[AssertionSemanticId]] = field(
+    profiles: Mapping[AssertionProfileId, frozenset[AssertionId]] = field(
         compare=False, hash=False, repr=False
     )
 
@@ -73,7 +73,7 @@ class AssertionCatalogInterface:
 
     def assertion(
         self,
-        assertion_id: AssertionSemanticId,
+        assertion_id: AssertionId,
         *,
         profile: AssertionProfileId,
     ) -> AssertionSignature:
@@ -95,9 +95,9 @@ def resolve_assertion_catalog(
     dependencies: Mapping[AssertionCatalogId, AssertionCatalogInterface] | None = None,
 ) -> AssertionCatalogInterface:
     dependency_map = dependencies or {}
-    assertions: dict[AssertionSemanticId, AssertionSignature] = {}
-    labels: dict[str, AssertionSemanticId] = {}
-    profiles: dict[AssertionProfileId, frozenset[AssertionSemanticId]] = {}
+    assertions: dict[AssertionId, AssertionSignature] = {}
+    labels: dict[str, AssertionId] = {}
+    profiles: dict[AssertionProfileId, frozenset[AssertionId]] = {}
 
     def merge_assertion(assertion: AssertionSignature) -> None:
         old = assertions.get(assertion.id)
@@ -125,7 +125,7 @@ def resolve_assertion_catalog(
                 raise AssertionCatalogError(f"conflicting assertion profile: {profile_id}")
             profiles[profile_id] = allowed
 
-    local_assertion_ids: set[AssertionSemanticId] = set()
+    local_assertion_ids: set[AssertionId] = set()
     local_assertion_labels: set[str] = set()
     for assertion in spec.assertions:
         if assertion.id in local_assertion_ids:
@@ -177,18 +177,18 @@ def resolve_assertion_catalog(
 
 
 def apply_assertion_by_id(
-    draft: ProofDraft,
+    prefix: CheckedProofPrefix,
     calculus: CalculusInterface,
     catalog: AssertionCatalogInterface,
     profile: AssertionProfileId,
-    assertion_id: AssertionSemanticId,
+    assertion_id: AssertionId,
     premises: Sequence[StepId],
     *,
     target: Judgment | None = None,
     subst: Mapping[VariableRef, Term] | None = None,
-) -> ApplicationResult:
+) -> AssertionApplicationResult:
     return apply_assertion(
-        draft,
+        prefix,
         calculus,
         catalog.assertion(assertion_id, profile=profile),
         premises,

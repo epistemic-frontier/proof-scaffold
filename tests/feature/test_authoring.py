@@ -87,7 +87,7 @@ def test_require_registry_conflict() -> None:
         reg.require(ctor, RuleSig(("wff", "wff"), "wff"))
 
 
-def test_compile_wff_var_and_app() -> None:
+def test_lower_expr_to_wff_var_and_app() -> None:
     reg = dsl.RequireRegistry()
     Imp = dsl.Constructor("IMP", 2)
     reg.require(Imp, RuleSig(("wff", "wff"), "wff"))
@@ -97,12 +97,12 @@ def test_compile_wff_var_and_app() -> None:
     b = dsl.Var("b")
     expr = Imp(a, b)
 
-    out = dsl.compile_wff(expr, env=env, registry=reg)
+    out = dsl.lower_expr_to_wff(expr, env=env, registry=reg)
     assert out.sort == "wff"
     assert len(out.tokens) == 2
 
 
-def test_compile_wff_missing_builder() -> None:
+def test_lower_expr_to_wff_missing_builder() -> None:
     reg = dsl.RequireRegistry()
     And = dsl.Constructor("AND", 2)
     reg.require(And, RuleSig(("wff", "wff"), "wff"))
@@ -115,7 +115,7 @@ def test_compile_wff_missing_builder() -> None:
     )
 
     with pytest.raises(PreludeTypingError):
-        dsl.compile_wff(And(dsl.Var("a"), dsl.Var("b")), env=env, registry=reg)
+        dsl.lower_expr_to_wff(And(dsl.Var("a"), dsl.Var("b")), env=env, registry=reg)
 
 
 def test_context_require_and_sort_checks() -> None:

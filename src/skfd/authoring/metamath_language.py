@@ -8,7 +8,7 @@ from typing import TypeAlias
 from ._canonical import JsonValue, canonical_digest
 from .errors import AuthoringSemanticError
 from .ids import (
-    AssertionSemanticId,
+    AssertionId,
     BackendBindingId,
     BackendVocabularyId,
     ConstructorId,
@@ -51,7 +51,7 @@ TemplatePart: TypeAlias = LiteralPart | ArgumentPart
 @dataclass(frozen=True, slots=True, kw_only=True)
 class FormationBinding:
     constructor: ConstructorId
-    syntax_assertion: AssertionSemanticId
+    syntax_assertion: AssertionId
     syntax_assertion_label: str
     template: tuple[TemplatePart, ...]
 

@@ -56,8 +56,12 @@ class BackendVocabularyId(_Id):
 
 
 @dataclass(frozen=True, order=True, slots=True)
-class AssertionSemanticId(_Id):
+class AssertionId(_Id):
     pass
+
+
+# Compatibility name; both APIs intentionally denote the exact same runtime type.
+AssertionSemanticId = AssertionId
 
 
 @dataclass(frozen=True, order=True, slots=True)

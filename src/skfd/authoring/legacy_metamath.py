@@ -152,7 +152,7 @@ def legacy_symbol_spec(
     )
 
 
-def build_legacy_formula(
+def apply_legacy_formation(
     binding: ResolvedMetamathLanguageBinding,
     constructor: ConstructorId,
     arguments: Sequence[LegacyFormula],
@@ -201,8 +201,12 @@ __all__ = [
     "LegacyBinaryFormation",
     "LegacyPrefixFormation",
     "LegacySymbolSpec",
+    "apply_legacy_formation",
     "build_legacy_formula",
     "legacy_binary_formation",
     "legacy_prefix_formation",
     "legacy_symbol_spec",
 ]
+
+
+build_legacy_formula = apply_legacy_formation

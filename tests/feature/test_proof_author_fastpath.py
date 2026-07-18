@@ -18,7 +18,7 @@ from skfd.authoring.catalog import (
 from skfd.authoring.ids import (
     AssertionCatalogId,
     AssertionProfileId,
-    AssertionSemanticId,
+    AssertionId,
     CalculusId,
     JudgmentKindId,
     LanguageId,
@@ -87,11 +87,11 @@ def _identity_author(
     )
     identity = signature_from_primitive_rule(
         calculus.rule(rule_id),
-        assertion_id=AssertionSemanticId("test#assertion:fast-author-identity"),
+        assertion_id=AssertionId("test#assertion:fast-author-identity"),
         canonical_label="fast-author-identity",
     )
     theorem = AssertionSignature(
-        id=AssertionSemanticId("test#theorem:fast-author"),
+        id=AssertionId("test#theorem:fast-author"),
         canonical_label="fast-author-theorem",
         kind="theorem",
         schema_variables=(phi_ref,),
@@ -119,23 +119,24 @@ def _identity_author(
     )
 
 
-def test_proof_author_caches_drafts_and_keeps_prior_snapshots_immutable() -> None:
+def test_proof_author_caches_prefixes_and_keeps_prior_snapshots_immutable() -> None:
     author, identity, _ = _identity_author(ProofId("test#proof:fast-author-cache"))
 
-    initial = author.draft
-    assert author.draft is initial
+    initial = author.checked_prefix
+    assert author.checked_prefix is initial
+    assert author.draft is author.checked_prefix
 
     first = author.use(identity, author.hypotheses[0])
     assert initial.steps == ()
-    first_snapshot = author.draft
+    first_snapshot = author.checked_prefix
     assert first_snapshot.steps == (first,)
-    assert author.draft is first_snapshot
+    assert author.checked_prefix is first_snapshot
 
     second = author.use(identity, first)
     assert first_snapshot.steps == (first,)
-    second_snapshot = author.draft
+    second_snapshot = author.checked_prefix
     assert second_snapshot.steps == (first, second)
-    assert second_snapshot is author.draft
+    assert second_snapshot is author.checked_prefix
     assert second_snapshot is not first_snapshot
 
 
@@ -146,7 +147,7 @@ def test_proof_author_accepts_only_steps_created_by_that_author() -> None:
     assert cloned_hypothesis == author.hypotheses[0]
     assert cloned_hypothesis is not author.hypotheses[0]
 
-    with pytest.raises(AssertionApplicationError, match="created by this author"):
+    with pytest.raises(AssertionApplicationError, match="ProofAuthor arguments"):
         author.use(identity, cloned_hypothesis)
 
     own_root = author.use(identity, author.hypotheses[0])
@@ -158,9 +159,9 @@ def test_proof_author_accepts_only_steps_created_by_that_author() -> None:
     assert foreign_root == own_root
     assert foreign_root is not own_root
 
-    with pytest.raises(AssertionApplicationError, match="created by this author"):
+    with pytest.raises(AssertionApplicationError, match="ProofAuthor arguments"):
         author.qed(foreign_root)
-    with pytest.raises(AssertionApplicationError, match="created by this author"):
+    with pytest.raises(AssertionApplicationError, match="ProofAuthor arguments"):
         author.qed(replace(own_root))
 
 
@@ -168,12 +169,12 @@ def test_failed_use_is_atomic_and_matches_public_apply_assertion() -> None:
     author, identity, calculus = _identity_author(
         ProofId("test#proof:fast-author-atomic")
     )
-    before = author.draft
+    before = author.checked_prefix
 
     with pytest.raises(AssertionApplicationError, match="premise count mismatch"):
         author.use(identity)
 
-    assert author.draft is before
+    assert author.checked_prefix is before
     expected = apply_assertion(
         before,
         calculus,
@@ -183,4 +184,4 @@ def test_failed_use_is_atomic_and_matches_public_apply_assertion() -> None:
     actual = author.use(identity, author.hypotheses[0])
 
     assert actual == expected.step
-    assert author.draft == expected.draft
+    assert author.checked_prefix == expected.prefix

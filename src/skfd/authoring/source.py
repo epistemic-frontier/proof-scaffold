@@ -8,9 +8,9 @@ from typing import TypeAlias
 from ._canonical import JsonValue, canonical_digest
 from .assertion import (
     AssertionSignature,
-    ProofDraft,
+    CheckedProofPrefix,
     normalize_distinct_pairs,
-    start_draft,
+    create_proof_prefix,
 )
 from .errors import AuthoringSemanticError
 from .ids import Digest, ProofId
@@ -239,18 +239,22 @@ def elaborate_block(
     return ElaboratedSourceBlock(block, assertions, source_digest, semantic_digest)
 
 
-def start_draft_from_snapshot(
+def create_proof_prefix_from_snapshot(
     proof_id: ProofId,
     calculus: CalculusInterface,
     snapshot: AssertionSourceSnapshot,
-) -> ProofDraft:
-    return start_draft(
+) -> CheckedProofPrefix:
+    return create_proof_prefix(
         proof_id,
         calculus,
         snapshot.declaration.premises,
         active_distinct=snapshot.active_distinct,
         signature=snapshot.declaration,
     )
+
+
+# Compatibility alias; the prefix name is the implementation source.
+start_draft_from_snapshot = create_proof_prefix_from_snapshot
 
 
 class _BlockContext(AbstractContextManager["_BlockContext"]):

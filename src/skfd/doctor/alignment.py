@@ -6,7 +6,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from skfd.authoring.dsl import compile_wff
+from skfd.authoring.dsl import lower_expr_to_wff
 from skfd.authoring.formula import Formula, Wff, render
 
 SETMM_PATH = Path("set.mm/set.mm")
@@ -170,7 +170,7 @@ def compile_zfc_expr(pred: Any, expr: Any, ctx: str) -> Any:
     env.ctor_builders["\\"] = lambda b, xs: Formula("class", (lp, *xs[0].tokens, dif, *xs[1].tokens, rp))
     
     # 4. Compile
-    return compile_wff(expr, env=env, registry=registry)
+    return lower_expr_to_wff(expr, env=env, registry=registry)
 
 def check_alignment() -> None:
     print("Checking alignment between set.mm and Hilbert system...")

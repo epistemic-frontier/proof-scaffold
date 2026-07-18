@@ -6,14 +6,14 @@ from .assertion import (
     AssertionKind,
     AssertionReplayContext,
     AssertionSignature,
-    ElaboratedProof,
+    CompleteProof,
     apply_assertion,
-    start_draft,
+    create_proof_prefix,
 )
 from .catalog import AssertionCatalogError, AssertionCatalogInterface
 from .ids import (
     AssertionProfileId,
-    AssertionSemanticId,
+    AssertionId,
     ProofId,
     StepId,
 )
@@ -30,7 +30,7 @@ class ReplayHypothesis:
 @dataclass(frozen=True, slots=True)
 class ReplayApplication:
     position: int
-    assertion: AssertionSemanticId
+    assertion: AssertionId
     canonical_label: str
     kind: AssertionKind
     premise_positions: tuple[int, ...]
@@ -41,18 +41,22 @@ class ReplayApplication:
 
 @dataclass(frozen=True, slots=True)
 class ResolvedDependency:
-    assertion: AssertionSemanticId
+    assertion: AssertionId
     kind: AssertionKind
 
 
 @dataclass(frozen=True, slots=True)
-class SemanticReplayPlan:
+class ReplaySequence:
     signature: AssertionSignature
     hypotheses: tuple[ReplayHypothesis, ...]
     applications: tuple[ReplayApplication, ...]
     root_position: int
     replay_context: AssertionReplayContext
-    dependency_closure: tuple[ResolvedDependency, ...]
+    direct_dependencies: tuple[ResolvedDependency, ...]
+
+    @property
+    def dependency_closure(self) -> tuple[ResolvedDependency, ...]:
+        return self.direct_dependencies
 
     def __post_init__(self) -> None:
         if tuple(item.result for item in self.hypotheses) != self.signature.premises:
@@ -101,23 +105,23 @@ class SemanticReplayPlan:
                 }
             )
         )
-        if self.dependency_closure != expected_dependencies:
-            raise AssertionCatalogError("replay dependency closure is not canonical")
+        if self.direct_dependencies != expected_dependencies:
+            raise AssertionCatalogError("replay direct dependencies are not canonical")
 
 
-def build_semantic_replay_plan(
-    proof: ElaboratedProof,
+def replay_proof(
+    proof: CompleteProof,
     calculus: CalculusInterface,
     catalog: AssertionCatalogInterface,
     profile: AssertionProfileId,
-) -> SemanticReplayPlan:
+) -> ReplaySequence:
     if proof.calculus_digest != calculus.digest:
         raise AssertionCatalogError("proof calculus digest mismatch")
 
     positions = {
         hypothesis.id: index for index, hypothesis in enumerate(proof.hypotheses)
     }
-    draft = start_draft(
+    prefix = create_proof_prefix(
         _proof_id(proof.root),
         calculus,
         tuple(hypothesis.result for hypothesis in proof.hypotheses),
@@ -125,12 +129,12 @@ def build_semantic_replay_plan(
         signature=proof.signature,
     )
     applications: list[ReplayApplication] = []
-    resolved: dict[AssertionSemanticId, AssertionKind] = {}
+    resolved: dict[AssertionId, AssertionKind] = {}
     offset = len(proof.hypotheses)
     for index, step in enumerate(proof.steps, start=offset):
         assertion = catalog.assertion(step.assertion, profile=profile)
         applied = apply_assertion(
-            draft,
+            prefix,
             calculus,
             assertion,
             step.premises,
@@ -141,7 +145,7 @@ def build_semantic_replay_plan(
             raise AssertionCatalogError(
                 f"proof step does not match catalog assertion: {step.assertion}"
             )
-        draft = applied.draft
+        prefix = applied.prefix
         positions[step.id] = index
         resolved[assertion.id] = assertion.kind
         applications.append(
@@ -159,9 +163,9 @@ def build_semantic_replay_plan(
 
     dependencies = tuple(
         ResolvedDependency(assertion, resolved[assertion])
-        for assertion in proof.dependency_closure
+        for assertion in proof.direct_dependencies
     )
-    return SemanticReplayPlan(
+    return ReplaySequence(
         signature=proof.signature,
         hypotheses=tuple(
             ReplayHypothesis(index, hypothesis.result)
@@ -170,7 +174,7 @@ def build_semantic_replay_plan(
         applications=tuple(applications),
         root_position=positions[proof.root],
         replay_context=proof.replay_context,
-        dependency_closure=dependencies,
+        direct_dependencies=dependencies,
     )
 
 
@@ -179,3 +183,8 @@ def _proof_id(step_id: StepId) -> ProofId:
     if not separator:
         raise AssertionCatalogError(f"noncanonical proof step id: {step_id}")
     return ProofId(prefix)
+
+
+# Compatibility aliases for callers using the original terminology.
+SemanticReplayPlan = ReplaySequence
+build_semantic_replay_plan = replay_proof

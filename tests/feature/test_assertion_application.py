@@ -9,10 +9,10 @@ from skfd.authoring.assertion import (
     AssertionApplicationError,
     AssertionSignature,
     apply_assertion,
+    create_proof_prefix,
     finalize_proof,
     signature_from_axiom,
     signature_from_primitive_rule,
-    start_draft,
 )
 from skfd.authoring.catalog import (
     AssertionCatalogError,
@@ -25,8 +25,8 @@ from skfd.authoring.catalog import (
 from skfd.authoring.errors import AuthoringSemanticError
 from skfd.authoring.ids import (
     AssertionCatalogId,
+    AssertionId,
     AssertionProfileId,
-    AssertionSemanticId,
     BackendBindingId,
     BackendVocabularyId,
     CalculusId,
@@ -62,11 +62,11 @@ from skfd.authoring.language import (
     VariableKindDecl,
     resolve_language,
 )
-from skfd.authoring.legacy_replay import (
-    LegacyAssertionReplayBinding,
-    LegacyReplayBinding,
-    LegacyReplayOperation,
-    lower_semantic_replay_plan,
+from skfd.authoring.metamath_lowering import (
+    MetamathAssertionBinding,
+    MetamathProofBinding,
+    MetamathProofOperation,
+    lower_replay_to_metamath_proof,
 )
 from skfd.authoring.metamath_language import (
     ArgumentPart,
@@ -78,14 +78,59 @@ from skfd.authoring.metamath_language import (
     resolve_metamath_language,
 )
 from skfd.authoring.proof_author import ProofAuthor
-from skfd.authoring.replay import ResolvedDependency, build_semantic_replay_plan
-from skfd.authoring.source import SourceBuilder, elaborate_block, start_draft_from_snapshot
+from skfd.authoring.replay import ResolvedDependency, replay_proof
+from skfd.authoring.source import (
+    SourceBuilder,
+    create_proof_prefix_from_snapshot,
+    elaborate_block,
+)
 from skfd.authoring.term import Var, VariableRef
 from skfd.core.symbols import SymbolInterner
 from skfd.proof import Proof, Step
 
+def test_renamed_api_compatibility_aliases_are_identical() -> None:
+    from skfd.authoring.assertion import (
+        ApplicationResult,
+        AssertionApplicationResult,
+        AssertionStep,
+        CheckedProofPrefix,
+        CompleteProof,
+        ElaboratedProof,
+        ElaboratedStep,
+        ProofDraft,
+        start_draft,
+    )
+    from skfd.authoring.ids import AssertionId, AssertionSemanticId
+    from skfd.authoring.legacy_replay import (
+        LegacyAssertionReplayBinding,
+        LegacyReplayBinding,
+        LegacyReplayOperation,
+        lower_semantic_replay_plan,
+    )
+    from skfd.authoring.metamath_lowering import MetamathProofOperation
+    from skfd.authoring.replay import (
+        ReplaySequence,
+        SemanticReplayPlan,
+        build_semantic_replay_plan,
+    )
+    from skfd.authoring.source import start_draft_from_snapshot
 
-def test_apply_assertion_elaborates_mp_and_preserves_failed_draft() -> None:
+    assert AssertionSemanticId is AssertionId
+    assert ProofDraft is CheckedProofPrefix
+    assert ElaboratedStep is AssertionStep
+    assert ApplicationResult is AssertionApplicationResult
+    assert ElaboratedProof is CompleteProof
+    assert SemanticReplayPlan is ReplaySequence
+    assert LegacyAssertionReplayBinding is MetamathAssertionBinding
+    assert LegacyReplayBinding is MetamathProofBinding
+    assert LegacyReplayOperation is MetamathProofOperation
+    assert start_draft is create_proof_prefix
+    assert start_draft_from_snapshot is create_proof_prefix_from_snapshot
+    assert build_semantic_replay_plan is replay_proof
+    assert lower_semantic_replay_plan is lower_replay_to_metamath_proof
+
+
+def test_apply_assertion_elaborates_mp_and_preserves_failed_prefix() -> None:
     wff = SortId("test#sort:wff")
     formula_kind = VariableKindId("test#variable-kind:formula")
     imp = ConstructorId("test#constructor:imp")
@@ -124,7 +169,7 @@ def test_apply_assertion_elaborates_mp_and_preserves_failed_draft() -> None:
     )
     signature = signature_from_primitive_rule(
         calculus.rule(rule_id),
-        assertion_id=AssertionSemanticId("test#assertion:ax-mp"),
+        assertion_id=AssertionId("test#assertion:ax-mp"),
         canonical_label="ax-mp",
     )
 
@@ -132,7 +177,7 @@ def test_apply_assertion_elaborates_mp_and_preserves_failed_draft() -> None:
     p_ref = VariableRef("local", actual_owner, "p", formula_kind)
     q_ref = VariableRef("local", actual_owner, "q", formula_kind)
     p, q = language.variable(p_ref), language.variable(q_ref)
-    draft = start_draft(
+    prefix = create_proof_prefix(
         ProofId("test#proof:mp"),
         calculus,
         (
@@ -141,19 +186,20 @@ def test_apply_assertion_elaborates_mp_and_preserves_failed_draft() -> None:
         ),
     )
     applied = apply_assertion(
-        draft,
+        prefix,
         calculus,
         signature,
-        tuple(step.id for step in draft.hypotheses),
+        tuple(step.id for step in prefix.hypotheses),
     )
 
     assert applied.step.result == Judgment(provable, (q,))
     assert applied.step.substitution == ((phi_ref, p), (psi_ref, q))
-    assert applied.draft.steps == (applied.step,)
-    assert draft.steps == ()
+    assert applied.prefix.steps == (applied.step,)
+    assert prefix.steps == ()
+    assert applied.draft is applied.prefix
 
     theorem_signature = AssertionSignature(
-        id=AssertionSemanticId("test#theorem:mp-instance"),
+        id=AssertionId("test#theorem:mp-instance"),
         canonical_label="mp-instance",
         kind="theorem",
         schema_variables=rule.schema_variables,
@@ -163,19 +209,19 @@ def test_apply_assertion_elaborates_mp_and_preserves_failed_draft() -> None:
     theorem_source = SourceBuilder()
     with theorem_source.block() as block:
         block.assertion(theorem_signature)
-    theorem_draft = start_draft_from_snapshot(
+    theorem_prefix = create_proof_prefix_from_snapshot(
         ProofId("test#proof:mp-finalized"),
         calculus,
         elaborate_block(theorem_source.build()).assertions[0],
     )
     theorem_application = apply_assertion(
-        theorem_draft,
+        theorem_prefix,
         calculus,
         signature,
-        tuple(step.id for step in theorem_draft.hypotheses),
+        tuple(step.id for step in theorem_prefix.hypotheses),
     )
     proof = finalize_proof(
-        theorem_application.draft,
+        theorem_application.prefix,
         calculus,
         root=theorem_application.step.id,
     )
@@ -184,7 +230,7 @@ def test_apply_assertion_elaborates_mp_and_preserves_failed_draft() -> None:
     assert proof.dependency_closure == (signature.id,)
     assert proof.replay_context.active_distinct == ()
     assert proof.semantic_digest == finalize_proof(
-        theorem_application.draft,
+        theorem_application.prefix,
         calculus,
         root=theorem_application.step.id,
     ).semantic_digest
@@ -269,7 +315,7 @@ def test_apply_assertion_elaborates_mp_and_preserves_failed_draft() -> None:
                 ),
             )
         )
-    replay = build_semantic_replay_plan(proof, calculus, catalog, profile_id)
+    replay = replay_proof(proof, calculus, catalog, profile_id)
     assert replay.root_position == 2
     assert replay.applications[0].canonical_label == "ax-mp"
     assert replay.applications[0].premise_positions == (0, 1)
@@ -295,21 +341,21 @@ def test_apply_assertion_elaborates_mp_and_preserves_failed_draft() -> None:
         catalog=catalog,
         profile=profile_id,
     )
-    with pytest.raises(AssertionApplicationError, match="created by this author"):
+    with pytest.raises(AssertionApplicationError, match="ProofAuthor arguments"):
         author.use(signature, *foreign_author.hypotheses)
     with pytest.raises(AssertionApplicationError, match="positions are not canonical"):
         replace(
             replay,
             applications=(replace(replay.applications[0], position=3),),
         )
-    with pytest.raises(AuthoringSemanticError, match="unsupported legacy replay"):
-        LegacyAssertionReplayBinding(
+    with pytest.raises(AuthoringSemanticError, match="unsupported Metamath proof"):
+        MetamathAssertionBinding(
             assertion=signature.id,
             backend_label="ax-mp",
-            operation=cast(LegacyReplayOperation, "raw"),
+            operation=cast(MetamathProofOperation, "raw"),
         )
     with pytest.raises(AuthoringSemanticError, match="only supports the mp"):
-        LegacyAssertionReplayBinding(
+        MetamathAssertionBinding(
             assertion=signature.id,
             backend_label="other",
             operation="apply",
@@ -331,7 +377,7 @@ def test_apply_assertion_elaborates_mp_and_preserves_failed_draft() -> None:
             formations=(
                 FormationBinding(
                     constructor=imp,
-                    syntax_assertion=AssertionSemanticId("test#formation:imp"),
+                    syntax_assertion=AssertionId("test#formation:imp"),
                     syntax_assertion_label="wi",
                     template=(
                         LiteralPart(left_token),
@@ -365,13 +411,13 @@ def test_apply_assertion_elaborates_mp_and_preserves_failed_draft() -> None:
         )
         for variable in theorem_signature.schema_variables
     }
-    legacy = lower_semantic_replay_plan(
+    legacy = lower_replay_to_metamath_proof(
         replay,
-        LegacyReplayBinding(
+        MetamathProofBinding(
             language=backend,
             provable_judgment=provable,
             assertions=(
-                LegacyAssertionReplayBinding(
+                MetamathAssertionBinding(
                     assertion=signature.id,
                     backend_label="ax-mp",
                     operation="apply",
@@ -414,34 +460,34 @@ def test_apply_assertion_elaborates_mp_and_preserves_failed_draft() -> None:
     assert legacy.steps[1].wff.tokens == implication
 
     hypothesis_root_signature = AssertionSignature(
-        id=AssertionSemanticId("test#theorem:hypothesis-root"),
+        id=AssertionId("test#theorem:hypothesis-root"),
         canonical_label="hypothesis-root",
         kind="theorem",
         schema_variables=(phi_ref, psi_ref),
         premises=(Judgment(provable, (phi,)), Judgment(provable, (psi,))),
         conclusion=Judgment(provable, (phi,)),
     )
-    hypothesis_root_draft = start_draft(
+    hypothesis_root_prefix = create_proof_prefix(
         ProofId("test#proof:hypothesis-root"),
         calculus,
         hypothesis_root_signature.premises,
         signature=hypothesis_root_signature,
     )
     hypothesis_root_proof = finalize_proof(
-        hypothesis_root_draft,
+        hypothesis_root_prefix,
         calculus,
-        root=hypothesis_root_draft.hypotheses[0].id,
+        root=hypothesis_root_prefix.hypotheses[0].id,
     )
-    hypothesis_root_replay = build_semantic_replay_plan(
+    hypothesis_root_replay = replay_proof(
         hypothesis_root_proof,
         calculus,
         catalog,
         profile_id,
     )
     with pytest.raises(AuthoringSemanticError, match="root to be the final"):
-        lower_semantic_replay_plan(
+        lower_replay_to_metamath_proof(
             hypothesis_root_replay,
-            LegacyReplayBinding(
+            MetamathProofBinding(
                 language=backend,
                 provable_judgment=provable,
                 assertions=(),
@@ -462,70 +508,70 @@ def test_apply_assertion_elaborates_mp_and_preserves_failed_draft() -> None:
         )
     )
     with pytest.raises(AssertionCatalogError, match="not allowed"):
-        build_semantic_replay_plan(proof, calculus, denied_catalog, denied_profile)
+        replay_proof(proof, calculus, denied_catalog, denied_profile)
 
-    catalog_draft = start_draft(
+    catalog_prefix = create_proof_prefix(
         ProofId("test#proof:catalog-application"),
         calculus,
         theorem_signature.premises,
     )
     catalog_application = apply_assertion_by_id(
-        catalog_draft,
+        catalog_prefix,
         calculus,
         catalog,
         profile_id,
         signature.id,
-        tuple(step.id for step in catalog_draft.hypotheses),
+        tuple(step.id for step in catalog_prefix.hypotheses),
     )
     assert catalog_application.step.assertion == signature.id
     with pytest.raises(AssertionApplicationError, match="cannot cite itself"):
         apply_assertion(
-            theorem_draft,
+            theorem_prefix,
             calculus,
             theorem_signature,
-            tuple(step.id for step in theorem_draft.hypotheses),
+            tuple(step.id for step in theorem_prefix.hypotheses),
         )
-    unsigned_draft = start_draft(
+    unsigned_prefix = create_proof_prefix(
         ProofId("test#proof:late-signature"),
         calculus,
         theorem_signature.premises,
     )
     unsigned_self_application = apply_assertion(
-        unsigned_draft,
+        unsigned_prefix,
         calculus,
         theorem_signature,
-        tuple(step.id for step in unsigned_draft.hypotheses),
+        tuple(step.id for step in unsigned_prefix.hypotheses),
     )
     with pytest.raises(AssertionApplicationError, match="cannot cite itself"):
-        replace(unsigned_self_application.draft, signature=theorem_signature)
+        replace(unsigned_self_application.prefix, signature=theorem_signature)
     extra_application = apply_assertion(
-        theorem_application.draft,
+        theorem_application.prefix,
         calculus,
         signature,
-        tuple(step.id for step in theorem_draft.hypotheses),
+        tuple(step.id for step in theorem_prefix.hypotheses),
     )
     with pytest.raises(AssertionApplicationError, match="unreachable"):
         finalize_proof(
-            extra_application.draft,
+            extra_application.prefix,
             calculus,
             root=theorem_application.step.id,
         )
 
     relabeled_signature = replace(theorem_signature, canonical_label="display-only-change")
-    relabeled_draft = start_draft(
+    relabeled_prefix = create_proof_prefix(
         ProofId("test#proof:different-nominal-id"),
         calculus,
         relabeled_signature.premises,
         signature=relabeled_signature,
     )
     relabeled_application = apply_assertion(
-        relabeled_draft,
+        relabeled_prefix,
         calculus,
         signature,
-        tuple(step.id for step in relabeled_draft.hypotheses),
+        tuple(step.id for step in relabeled_prefix.hypotheses),
     )
     relabeled_proof = finalize_proof(
-        relabeled_application.draft,
+        relabeled_application.prefix,
         calculus,
         root=relabeled_application.step.id,
     )
@@ -535,34 +581,34 @@ def test_apply_assertion_elaborates_mp_and_preserves_failed_draft() -> None:
         calculus_digest=Digest("0" * 64),
     ).semantic_digest != proof.semantic_digest
     with pytest.raises(AssertionApplicationError, match="must be a theorem"):
-        replace(theorem_draft, signature=signature)
+        replace(theorem_prefix, signature=signature)
     with pytest.raises(AssertionApplicationError, match="does not match"):
         finalize_proof(
-            theorem_application.draft,
+            theorem_application.prefix,
             calculus,
-            root=theorem_draft.hypotheses[0].id,
+            root=theorem_prefix.hypotheses[0].id,
         )
 
     with pytest.raises(AssertionApplicationError):
         apply_assertion(
-            draft,
+            prefix,
             calculus,
             signature,
-            tuple(reversed(tuple(step.id for step in draft.hypotheses))),
+            tuple(reversed(tuple(step.id for step in prefix.hypotheses))),
         )
-    assert draft.steps == ()
+    assert prefix.steps == ()
 
     unused_ref = replace(psi_ref, local_key="unused")
     with pytest.raises(AssertionApplicationError, match="exactly match"):
         signature_from_primitive_rule(
             replace(rule, schema_variables=(*rule.schema_variables, unused_ref)),
-            assertion_id=AssertionSemanticId("test#assertion:invalid"),
+            assertion_id=AssertionId("test#assertion:invalid"),
             canonical_label="invalid",
         )
 
     with pytest.raises(AssertionApplicationError, match="exactly match"):
         AssertionSignature(
-            id=AssertionSemanticId("test#assertion:open"),
+            id=AssertionId("test#assertion:open"),
             canonical_label="open",
             kind="theorem",
             schema_variables=(),
@@ -570,7 +616,7 @@ def test_apply_assertion_elaborates_mp_and_preserves_failed_draft() -> None:
             conclusion=Judgment(provable, (phi,)),
         )
     malformed = AssertionSignature(
-        id=AssertionSemanticId("test#assertion:malformed-sort"),
+        id=AssertionId("test#assertion:malformed-sort"),
         canonical_label="malformed-sort",
         kind="theorem",
         schema_variables=(phi_ref,),
@@ -579,20 +625,20 @@ def test_apply_assertion_elaborates_mp_and_preserves_failed_draft() -> None:
     )
     with pytest.raises(AssertionApplicationError, match="invalid assertion signature"):
         apply_assertion(
-            start_draft(ProofId("test#proof:malformed"), calculus, ()),
+            create_proof_prefix(ProofId("test#proof:malformed"), calculus, ()),
             calculus,
             malformed,
             (),
             subst={phi_ref: p},
         )
 
-    first_hypothesis = draft.hypotheses[0]
+    first_hypothesis = prefix.hypotheses[0]
     with pytest.raises(AssertionApplicationError, match="noncanonical hypothesis"):
         replace(
-            draft,
+            prefix,
             hypotheses=(
                 replace(first_hypothesis, id=StepId("test#proof:mp/step:9")),
-                draft.hypotheses[1],
+                prefix.hypotheses[1],
             ),
         )
 
@@ -638,7 +684,7 @@ def test_apply_assertion_checks_syntactic_dv_and_instantiates_binder_variables()
         ),
         language,
     )
-    axiom_id = AssertionSemanticId("test#axiom:ax-5")
+    axiom_id = AssertionId("test#axiom:ax-5")
     owner = OwnerId(str(axiom_id))
     phi_ref = VariableRef("schema", owner, "phi", formula_kind)
     x_ref = VariableRef("schema", owner, "x", setvar_kind)
@@ -663,14 +709,14 @@ def test_apply_assertion_checks_syntactic_dv_and_instantiates_binder_variables()
     y, z = language.variable(y_ref), language.variable(z_ref)
     bound_formula = language.apply(all_, (y, language.apply(pred, (y,))))
     active = DistinctPair(y_ref, z_ref)
-    draft = start_draft(
+    prefix = create_proof_prefix(
         ProofId("test#proof:ax-5"),
         calculus,
         (),
         active_distinct=(active,),
     )
     applied = apply_assertion(
-        draft,
+        prefix,
         calculus,
         signature,
         (),
@@ -684,7 +730,7 @@ def test_apply_assertion_checks_syntactic_dv_and_instantiates_binder_variables()
     assert applied.step.satisfied_distinct == (active,)
 
     theorem_signature = AssertionSignature(
-        id=AssertionSemanticId("test#theorem:ax-5-instance"),
+        id=AssertionId("test#theorem:ax-5-instance"),
         canonical_label="ax-5-instance",
         kind="theorem",
         schema_variables=(phi_ref, x_ref),
@@ -696,54 +742,54 @@ def test_apply_assertion_checks_syntactic_dv_and_instantiates_binder_variables()
         block.d(phi_ref, x_ref)
         block.assertion(theorem_signature)
     snapshot = elaborate_block(theorem_source.build()).assertions[0]
-    theorem_draft = start_draft_from_snapshot(
+    theorem_prefix = create_proof_prefix_from_snapshot(
         ProofId("test#proof:ax-5-finalized"),
         calculus,
         snapshot,
     )
     theorem_application = apply_assertion(
-        theorem_draft,
+        theorem_prefix,
         calculus,
         signature,
         (),
         subst={phi_ref: phi, x_ref: x},
     )
     proof = finalize_proof(
-        theorem_application.draft,
+        theorem_application.prefix,
         calculus,
         root=theorem_application.step.id,
     )
     assert proof.replay_context.active_distinct == (DistinctPair(phi_ref, x_ref),)
     assert proof.signature.mandatory_distinct == (DistinctPair(phi_ref, x_ref),)
 
-    reversed_draft = replace(
-        draft,
+    reversed_prefix = replace(
+        prefix,
         active_distinct=(DistinctPair(z_ref, y_ref),),
     )
-    assert reversed_draft.active_distinct == (active,)
+    assert reversed_prefix.active_distinct == (active,)
     assert apply_assertion(
-        reversed_draft,
+        reversed_prefix,
         calculus,
         signature,
         (),
         subst={phi_ref: bound_formula, x_ref: z},
     ).step.result == Judgment(provable, (expected,))
 
-    no_dv_draft = start_draft(ProofId("test#proof:no-dv"), calculus, ())
+    no_dv_prefix = create_proof_prefix(ProofId("test#proof:no-dv"), calculus, ())
     with pytest.raises(AssertionApplicationError, match="missing active"):
         apply_assertion(
-            no_dv_draft,
+            no_dv_prefix,
             calculus,
             signature,
             (),
             subst={phi_ref: bound_formula, x_ref: z},
         )
-    assert no_dv_draft.steps == ()
+    assert no_dv_prefix.steps == ()
 
     overlapping = language.apply(all_, (z, language.apply(pred, (z,))))
     with pytest.raises(AssertionApplicationError, match="overlap"):
         apply_assertion(
-            draft,
+            prefix,
             calculus,
             signature,
             (),

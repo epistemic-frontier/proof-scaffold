@@ -11,7 +11,7 @@ from skfd.authoring.formula import Formula
 from skfd.authoring.ids import (
     BackendBindingId,
     BackendVocabularyId,
-    AssertionSemanticId,
+    AssertionId,
     CalculusId,
     ConstructorId,
     Digest,
@@ -38,7 +38,7 @@ from skfd.authoring.judgment import (
     resolve_definition,
 )
 from skfd.authoring.legacy_metamath import (
-    build_legacy_formula,
+    apply_legacy_formation,
     legacy_binary_formation,
     legacy_symbol_spec,
 )
@@ -151,7 +151,7 @@ def test_end_to_end_semantic_core() -> None:
             formations=(
                 FormationBinding(
                     constructor=imp,
-                    syntax_assertion=AssertionSemanticId("wi"),
+                    syntax_assertion=AssertionId("wi"),
                     syntax_assertion_label="wi",
                     template=(LiteralPart(token), ArgumentPart(0), ArgumentPart(1)),
                 ),
@@ -534,7 +534,7 @@ def test_same_backend_token_supports_distinct_binary_and_ternary_constructors() 
             formations=(
                 FormationBinding(
                     constructor=and2,
-                    syntax_assertion=AssertionSemanticId("test#formation:wa"),
+                    syntax_assertion=AssertionId("test#formation:wa"),
                     syntax_assertion_label="wa",
                     template=(
                         LiteralPart(lp),
@@ -546,7 +546,7 @@ def test_same_backend_token_supports_distinct_binary_and_ternary_constructors() 
                 ),
                 FormationBinding(
                     constructor=and3,
-                    syntax_assertion=AssertionSemanticId("test#formation:w3a"),
+                    syntax_assertion=AssertionId("test#formation:w3a"),
                     syntax_assertion_label="w3a",
                     template=(
                         LiteralPart(lp),
@@ -592,7 +592,7 @@ def test_backend_digest_is_separate_and_template_coverage_is_checked() -> None:
                 formations=(
                     FormationBinding(
                         constructor=and2,
-                        syntax_assertion=AssertionSemanticId(f"test#formation:{assertion}"),
+                        syntax_assertion=AssertionId(f"test#formation:{assertion}"),
                         syntax_assertion_label=assertion,
                         template=(ArgumentPart(0), LiteralPart(token), ArgumentPart(1)),
                     ),
@@ -615,7 +615,7 @@ def test_backend_digest_is_separate_and_template_coverage_is_checked() -> None:
                 formations=(
                     FormationBinding(
                         constructor=and2,
-                        syntax_assertion=AssertionSemanticId("test#formation:invalid"),
+                        syntax_assertion=AssertionId("test#formation:invalid"),
                         syntax_assertion_label="invalid",
                         template=(ArgumentPart(0), LiteralPart(token), ArgumentPart(0)),
                     ),
@@ -653,7 +653,7 @@ def test_legacy_formula_adapter_applies_the_resolved_formation() -> None:
             formations=(
                 FormationBinding(
                     constructor=and2,
-                    syntax_assertion=AssertionSemanticId("test#formation:wa"),
+                    syntax_assertion=AssertionId("test#formation:wa"),
                     syntax_assertion_label="wa",
                     template=(
                         LiteralPart(lp),
@@ -668,7 +668,7 @@ def test_legacy_formula_adapter_applies_the_resolved_formation() -> None:
         language,
         {},
     )
-    formula = build_legacy_formula(
+    formula = apply_legacy_formation(
         binding,
         and2,
         (Formula("wff", (10,)), Formula("wff", (11,))),
@@ -773,7 +773,7 @@ def test_legacy_formula_adapter_applies_the_resolved_formation() -> None:
         )
 
     with pytest.raises(AuthoringSemanticError, match="expects 2 arguments"):
-        build_legacy_formula(
+        apply_legacy_formation(
             binding,
             and2,
             (),
@@ -781,7 +781,7 @@ def test_legacy_formula_adapter_applies_the_resolved_formation() -> None:
             legacy_sorts={SortId("test#sort:wff"): "wff"},
         )
     with pytest.raises(AuthoringSemanticError, match="no legacy symbol binding"):
-        build_legacy_formula(
+        apply_legacy_formation(
             binding,
             and2,
             (Formula("wff", (10,)), Formula("wff", (11,))),
@@ -889,7 +889,7 @@ def test_minimal_calculus_makes_provability_an_explicit_judgment() -> None:
 
     axiom = resolve_axiom(
         AxiomDecl(
-            id=AssertionSemanticId("test#axiom:distinct-canary"),
+            id=AssertionId("test#axiom:distinct-canary"),
             schema_variables=(refs["q"], refs["p"]),
             conclusion=Judgment(provable, (implication,)),
             mandatory_distinct=(DistinctPair(refs["q"], refs["p"]),),
@@ -899,7 +899,7 @@ def test_minimal_calculus_makes_provability_an_explicit_judgment() -> None:
     assert axiom.declaration.schema_variables == (refs["p"], refs["q"])
     definition = resolve_definition(
         DefinitionDecl(
-            id=AssertionSemanticId("test#definition:distinct-canary"),
+            id=AssertionId("test#definition:distinct-canary"),
             schema_variables=(refs["q"], refs["p"]),
             conclusion=Judgment(provable, (implication,)),
             mandatory_distinct=(DistinctPair(refs["q"], refs["p"]),),
@@ -1119,7 +1119,7 @@ def test_binder_semantics_support_free_variables_alpha_renaming_and_capture_avoi
     with pytest.raises(AuthoringSemanticError, match="must be a variable"):
         resolve_axiom(
             AxiomDecl(
-                id=AssertionSemanticId("test#axiom:forged-binder"),
+                id=AssertionId("test#axiom:forged-binder"),
                 schema_variables=(phi_ref,),
                 conclusion=Judgment(provable, (forged_quantifier,)),
             ),

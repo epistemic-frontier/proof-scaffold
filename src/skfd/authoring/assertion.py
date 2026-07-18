@@ -6,7 +6,7 @@ from typing import Literal, TypeAlias
 
 from ._canonical import JsonValue, canonical_digest
 from .errors import AuthoringSemanticError
-from .ids import AssertionSemanticId, Digest, ProofId, StepId
+from .ids import AssertionId, Digest, ProofId, StepId
 from .judgment import (
     AxiomInterface,
     CalculusInterface,
@@ -27,7 +27,7 @@ class AssertionApplicationError(AuthoringSemanticError):
 
 @dataclass(frozen=True, slots=True, kw_only=True)
 class AssertionSignature:
-    id: AssertionSemanticId
+    id: AssertionId
     canonical_label: str
     kind: AssertionKind
     schema_variables: tuple[VariableRef, ...]
@@ -70,9 +70,9 @@ class HypothesisStep:
 
 
 @dataclass(frozen=True, slots=True)
-class ElaboratedStep:
+class AssertionStep:
     id: StepId
-    assertion: AssertionSemanticId
+    assertion: AssertionId
     premises: tuple[StepId, ...]
     substitution: tuple[tuple[VariableRef, Term], ...]
     result: Judgment
@@ -80,12 +80,12 @@ class ElaboratedStep:
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
-class ProofDraft:
+class CheckedProofPrefix:
     proof_id: ProofId
     calculus_digest: Digest
     signature: AssertionSignature | None = None
     hypotheses: tuple[HypothesisStep, ...] = ()
-    steps: tuple[ElaboratedStep, ...] = ()
+    steps: tuple[AssertionStep, ...] = ()
     active_distinct: tuple[DistinctPair, ...] = ()
 
     def __post_init__(self) -> None:
@@ -96,10 +96,10 @@ class ProofDraft:
         )
         if self.signature is not None:
             if self.signature.kind != "theorem":
-                raise AssertionApplicationError("proof draft signature must be a theorem")
+                raise AssertionApplicationError("checked proof prefix signature must be a theorem")
             if tuple(step.result for step in self.hypotheses) != self.signature.premises:
                 raise AssertionApplicationError(
-                    "draft hypotheses do not match the theorem signature premises"
+                    "checked proof prefix hypotheses do not match the theorem signature premises"
                 )
             mandatory_variables = frozenset(self.signature.schema_variables)
             expected_mandatory = tuple(
@@ -112,7 +112,7 @@ class ProofDraft:
                     "theorem mandatory distinct relation does not match its active scope"
                 )
             if any(step.assertion == self.signature.id for step in self.steps):
-                raise AssertionApplicationError("a theorem draft cannot cite itself")
+                raise AssertionApplicationError("a theorem checked proof prefix cannot cite itself")
         prior: set[StepId] = set()
         for index, hypothesis in enumerate(self.hypotheses):
             expected = _step_id(self.proof_id, index)
@@ -126,19 +126,23 @@ class ProofDraft:
             expected = _step_id(self.proof_id, index)
             if step.id != expected:
                 raise AssertionApplicationError(
-                    f"noncanonical elaborated step id: {step.id}"
+                    f"noncanonical assertion step id: {step.id}"
                 )
             if any(premise not in prior for premise in step.premises):
                 raise AssertionApplicationError(
-                    f"elaborated step has foreign or forward premise: {step.id}"
+                    f"assertion step has foreign or forward premise: {step.id}"
                 )
             prior.add(step.id)
 
 
 @dataclass(frozen=True, slots=True)
-class ApplicationResult:
-    draft: ProofDraft
-    step: ElaboratedStep
+class AssertionApplicationResult:
+    prefix: CheckedProofPrefix
+    step: AssertionStep
+
+    @property
+    def draft(self) -> CheckedProofPrefix:
+        return self.prefix
 
 
 @dataclass(frozen=True, slots=True)
@@ -154,19 +158,23 @@ class AssertionReplayContext:
 
 
 @dataclass(frozen=True, slots=True)
-class ElaboratedProof:
+class CompleteProof:
     calculus_digest: Digest
     signature: AssertionSignature
     hypotheses: tuple[HypothesisStep, ...]
-    steps: tuple[ElaboratedStep, ...]
+    steps: tuple[AssertionStep, ...]
     root: StepId
     replay_context: AssertionReplayContext
-    dependency_closure: tuple[AssertionSemanticId, ...]
+    direct_dependencies: tuple[AssertionId, ...]
     semantic_digest: Digest = field(init=False)
 
     def __post_init__(self) -> None:
-        _validate_elaborated_proof(self)
-        object.__setattr__(self, "semantic_digest", _elaborated_proof_digest(self))
+        _validate_complete_proof(self)
+        object.__setattr__(self, "semantic_digest", _complete_proof_digest(self))
+
+    @property
+    def dependency_closure(self) -> tuple[AssertionId, ...]:
+        return self.direct_dependencies
 
 
 def _variable_key(variable: VariableRef) -> tuple[str, str, str, str]:
@@ -247,7 +255,7 @@ def _judgment_variables(judgment: Judgment) -> frozenset[VariableRef]:
 
 def _make_signature(
     *,
-    assertion_id: AssertionSemanticId,
+    assertion_id: AssertionId,
     canonical_label: str,
     kind: AssertionKind,
     schema_variables: tuple[VariableRef, ...],
@@ -303,7 +311,7 @@ def signature_from_definition(
 def signature_from_primitive_rule(
     rule: PrimitiveRuleDecl,
     *,
-    assertion_id: AssertionSemanticId,
+    assertion_id: AssertionId,
     canonical_label: str,
 ) -> AssertionSignature:
     return _make_signature(
@@ -317,14 +325,14 @@ def signature_from_primitive_rule(
     )
 
 
-def start_draft(
+def create_proof_prefix(
     proof_id: ProofId,
     calculus: CalculusInterface,
     hypotheses: Sequence[Judgment],
     *,
     active_distinct: Sequence[DistinctPair] = (),
     signature: AssertionSignature | None = None,
-) -> ProofDraft:
+) -> CheckedProofPrefix:
     checked_hypotheses = tuple(
         _checked_judgment(calculus, hypothesis, context="hypothesis")
         for hypothesis in hypotheses
@@ -338,21 +346,25 @@ def start_draft(
                 )
     if signature is not None:
         if signature.kind != "theorem":
-            raise AssertionApplicationError("only theorem signatures can start proof drafts")
+            raise AssertionApplicationError(
+                "only theorem signatures can start checked proof prefixes"
+            )
         checked_signature_premises = tuple(
-            _checked_judgment(calculus, premise, context="draft signature premise")
+            _checked_judgment(
+                calculus, premise, context="checked proof prefix signature premise"
+            )
             for premise in signature.premises
         )
         _checked_judgment(
             calculus,
             signature.conclusion,
-            context="draft signature conclusion",
+            context="checked proof prefix signature conclusion",
         )
         if checked_hypotheses != checked_signature_premises:
             raise AssertionApplicationError(
-                "draft hypotheses do not match the theorem signature premises"
+                "checked proof prefix hypotheses do not match the theorem signature premises"
             )
-    return ProofDraft(
+    return CheckedProofPrefix(
         proof_id=proof_id,
         calculus_digest=calculus.digest,
         signature=signature,
@@ -475,14 +487,14 @@ def _instantiate_judgment(
     )
 
 
-def _step_results(draft: ProofDraft) -> dict[StepId, Judgment]:
-    results = {step.id: step.result for step in draft.hypotheses}
-    results.update((step.id, step.result) for step in draft.steps)
+def _step_results(prefix: CheckedProofPrefix) -> dict[StepId, Judgment]:
+    results = {step.id: step.result for step in prefix.hypotheses}
+    results.update((step.id, step.result) for step in prefix.steps)
     return results
 
 
 def _apply_assertion_step(
-    draft: ProofDraft,
+    prefix: CheckedProofPrefix,
     calculus: CalculusInterface,
     assertion: AssertionSignature,
     premises: Sequence[StepId],
@@ -492,22 +504,28 @@ def _apply_assertion_step(
     validate_assertion_judgments: bool = True,
     target: Judgment | None = None,
     subst: Mapping[VariableRef, Term] | None = None,
-) -> ElaboratedStep:
-    if draft.calculus_digest != calculus.digest:
-        raise AssertionApplicationError("draft calculus digest mismatch")
+) -> AssertionStep:
+    if prefix.calculus_digest != calculus.digest:
+        raise AssertionApplicationError("checked proof prefix calculus digest mismatch")
     if len(premises) != len(assertion.premises):
         raise AssertionApplicationError("assertion premise count mismatch")
-    if draft.signature is not None and assertion.id == draft.signature.id:
-        raise AssertionApplicationError("a theorem draft cannot cite itself")
+    if prefix.signature is not None and assertion.id == prefix.signature.id:
+        raise AssertionApplicationError("a theorem checked proof prefix cannot cite itself")
 
     if validate_assertion_judgments:
         _validate_assertion_judgments(calculus, assertion)
     if known_results is None:
-        for hypothesis in draft.hypotheses:
-            _checked_judgment(calculus, hypothesis.result, context="draft step judgment")
-        for step in draft.steps:
-            _checked_judgment(calculus, step.result, context="draft step judgment")
-        known_results = _step_results(draft)
+        for hypothesis in prefix.hypotheses:
+            _checked_judgment(
+                calculus,
+                hypothesis.result,
+                context="checked proof prefix step judgment",
+            )
+        for step in prefix.steps:
+            _checked_judgment(
+                calculus, step.result, context="checked proof prefix step judgment"
+            )
+        known_results = _step_results(prefix)
 
     schema_variables = frozenset(assertion.schema_variables)
     substitution: dict[VariableRef, Term] = {}
@@ -560,7 +578,7 @@ def _apply_assertion_step(
     if target is not None and result != target:
         raise AssertionApplicationError("assertion result does not match explicit target")
 
-    active_distinct = frozenset(draft.active_distinct)
+    active_distinct = frozenset(prefix.active_distinct)
     satisfied: set[DistinctPair] = set()
     for required in assertion.mandatory_distinct:
         left_variables = variables(substitution[required.left])
@@ -577,8 +595,8 @@ def _apply_assertion_step(
                     )
                 satisfied.add(actual_pair)
 
-    return ElaboratedStep(
-        id=_step_id(draft.proof_id, step_index),
+    return AssertionStep(
+        id=_step_id(prefix.proof_id, step_index),
         assertion=assertion.id,
         premises=tuple(premises),
         substitution=tuple(
@@ -590,52 +608,52 @@ def _apply_assertion_step(
 
 
 def apply_assertion(
-    draft: ProofDraft,
+    prefix: CheckedProofPrefix,
     calculus: CalculusInterface,
     assertion: AssertionSignature,
     premises: Sequence[StepId],
     *,
     target: Judgment | None = None,
     subst: Mapping[VariableRef, Term] | None = None,
-) -> ApplicationResult:
+) -> AssertionApplicationResult:
     step = _apply_assertion_step(
-        draft,
+        prefix,
         calculus,
         assertion,
         premises,
         known_results=None,
-        step_index=len(draft.hypotheses) + len(draft.steps),
+        step_index=len(prefix.hypotheses) + len(prefix.steps),
         target=target,
         subst=subst,
     )
-    return ApplicationResult(
-        ProofDraft(
-            proof_id=draft.proof_id,
-            calculus_digest=draft.calculus_digest,
-            signature=draft.signature,
-            hypotheses=draft.hypotheses,
-            steps=(*draft.steps, step),
-            active_distinct=draft.active_distinct,
+    return AssertionApplicationResult(
+        CheckedProofPrefix(
+            proof_id=prefix.proof_id,
+            calculus_digest=prefix.calculus_digest,
+            signature=prefix.signature,
+            hypotheses=prefix.hypotheses,
+            steps=(*prefix.steps, step),
+            active_distinct=prefix.active_distinct,
         ),
         step,
     )
 
 
 def _finalize_proof(
-    draft: ProofDraft,
+    prefix: CheckedProofPrefix,
     calculus: CalculusInterface,
     *,
     root: StepId,
-    validate_draft_judgments: bool,
-) -> ElaboratedProof:
-    if draft.calculus_digest != calculus.digest:
-        raise AssertionApplicationError("draft calculus digest mismatch")
-    signature = draft.signature
+    validate_prefix_judgments: bool,
+) -> CompleteProof:
+    if prefix.calculus_digest != calculus.digest:
+        raise AssertionApplicationError("checked proof prefix calculus digest mismatch")
+    signature = prefix.signature
     if signature is None:
-        raise AssertionApplicationError("draft has no theorem signature")
+        raise AssertionApplicationError("checked proof prefix has no theorem signature")
     if signature.kind != "theorem":
-        raise AssertionApplicationError("only theorem drafts can be finalized")
-    if validate_draft_judgments:
+        raise AssertionApplicationError("only theorem checked proof prefixes can be finalized")
+    if validate_prefix_judgments:
         for premise in signature.premises:
             _checked_judgment(calculus, premise, context="theorem premise")
         _checked_judgment(
@@ -643,38 +661,38 @@ def _finalize_proof(
             signature.conclusion,
             context="theorem conclusion",
         )
-        for step in draft.steps:
-            _checked_judgment(calculus, step.result, context="elaborated proof step")
-    dependencies = tuple(sorted({step.assertion for step in draft.steps}))
-    replay_context = AssertionReplayContext(draft.active_distinct)
-    return ElaboratedProof(
+        for step in prefix.steps:
+            _checked_judgment(calculus, step.result, context="complete proof assertion step")
+    dependencies = tuple(sorted({step.assertion for step in prefix.steps}))
+    replay_context = AssertionReplayContext(prefix.active_distinct)
+    return CompleteProof(
         calculus_digest=calculus.digest,
         signature=signature,
-        hypotheses=draft.hypotheses,
-        steps=draft.steps,
+        hypotheses=prefix.hypotheses,
+        steps=prefix.steps,
         root=root,
         replay_context=replay_context,
-        dependency_closure=dependencies,
+        direct_dependencies=dependencies,
     )
 
 
 def finalize_proof(
-    draft: ProofDraft,
+    prefix: CheckedProofPrefix,
     calculus: CalculusInterface,
     *,
     root: StepId,
-) -> ElaboratedProof:
+) -> CompleteProof:
     return _finalize_proof(
-        draft,
+        prefix,
         calculus,
         root=root,
-        validate_draft_judgments=True,
+        validate_prefix_judgments=True,
     )
 
 
-def _reachable_elaborated_steps(
+def _reachable_assertion_steps(
     hypotheses: tuple[HypothesisStep, ...],
-    steps: tuple[ElaboratedStep, ...],
+    steps: tuple[AssertionStep, ...],
     root: StepId,
 ) -> frozenset[StepId]:
     hypothesis_ids = frozenset(hypothesis.id for hypothesis in hypotheses)
@@ -693,38 +711,38 @@ def _reachable_elaborated_steps(
     return frozenset(reachable)
 
 
-def _validate_elaborated_proof(proof: ElaboratedProof) -> None:
+def _validate_complete_proof(proof: CompleteProof) -> None:
     if proof.signature.kind != "theorem":
-        raise AssertionApplicationError("elaborated proof signature must be a theorem")
+        raise AssertionApplicationError("complete proof signature must be a theorem")
     if any(step.assertion == proof.signature.id for step in proof.steps):
-        raise AssertionApplicationError("an elaborated theorem cannot cite itself")
+        raise AssertionApplicationError("a complete theorem proof cannot cite itself")
     if tuple(hypothesis.result for hypothesis in proof.hypotheses) != proof.signature.premises:
         raise AssertionApplicationError(
-            "elaborated proof hypotheses do not match its signature"
+            "complete proof hypotheses do not match its signature"
         )
     prior: set[StepId] = set()
     for hypothesis in proof.hypotheses:
         if hypothesis.id in prior:
-            raise AssertionApplicationError("elaborated proof has duplicate step ids")
+            raise AssertionApplicationError("complete proof has duplicate step ids")
         prior.add(hypothesis.id)
     for step in proof.steps:
         if step.id in prior:
-            raise AssertionApplicationError("elaborated proof has duplicate step ids")
+            raise AssertionApplicationError("complete proof has duplicate step ids")
         if any(premise not in prior for premise in step.premises):
             raise AssertionApplicationError(
-                "elaborated proof has a foreign or forward premise"
+                "complete proof has a foreign or forward premise"
             )
         prior.add(step.id)
     results = {hypothesis.id: hypothesis.result for hypothesis in proof.hypotheses}
     results.update((step.id, step.result) for step in proof.steps)
     if results.get(proof.root) != proof.signature.conclusion:
-        raise AssertionApplicationError("elaborated proof root does not match its conclusion")
-    reachable = _reachable_elaborated_steps(proof.hypotheses, proof.steps, proof.root)
+        raise AssertionApplicationError("complete proof root does not match its conclusion")
+    reachable = _reachable_assertion_steps(proof.hypotheses, proof.steps, proof.root)
     if reachable != frozenset(step.id for step in proof.steps):
-        raise AssertionApplicationError("elaborated proof contains unreachable steps")
+        raise AssertionApplicationError("complete proof contains unreachable steps")
     dependencies = tuple(sorted({step.assertion for step in proof.steps}))
-    if proof.dependency_closure != dependencies:
-        raise AssertionApplicationError("elaborated proof dependency closure is not canonical")
+    if proof.direct_dependencies != dependencies:
+        raise AssertionApplicationError("complete proof direct dependencies are not canonical")
     mandatory_variables = frozenset(proof.signature.schema_variables)
     expected_mandatory = tuple(
         pair
@@ -733,11 +751,11 @@ def _validate_elaborated_proof(proof: ElaboratedProof) -> None:
     )
     if proof.signature.mandatory_distinct != expected_mandatory:
         raise AssertionApplicationError(
-            "elaborated proof mandatory distinct relation does not match replay context"
+            "complete proof mandatory distinct relation does not match replay context"
         )
 
 
-def _elaborated_proof_digest(proof: ElaboratedProof) -> Digest:
+def _complete_proof_digest(proof: CompleteProof) -> Digest:
     positions = {
         hypothesis.id: index for index, hypothesis in enumerate(proof.hypotheses)
     }
@@ -773,8 +791,18 @@ def _elaborated_proof_digest(proof: ElaboratedProof) -> Digest:
             "active_distinct": [
                 _pair_document(pair) for pair in proof.replay_context.active_distinct
             ],
+            # Keep the v2 key stable so existing semantic digests do not drift.
             "dependency_closure": [
-                str(dependency) for dependency in proof.dependency_closure
+                str(dependency) for dependency in proof.direct_dependencies
             ],
         }
     )
+
+
+# Module-level compatibility aliases. New names above are the implementation source.
+AssertionSemanticId = AssertionId
+ElaboratedStep = AssertionStep
+ProofDraft = CheckedProofPrefix
+ApplicationResult = AssertionApplicationResult
+ElaboratedProof = CompleteProof
+start_draft = create_proof_prefix

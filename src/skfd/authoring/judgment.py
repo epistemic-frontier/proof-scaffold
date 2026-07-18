@@ -6,7 +6,7 @@ from types import MappingProxyType
 
 from ._canonical import JsonValue, canonical_digest
 from .errors import AuthoringSemanticError
-from .ids import AssertionSemanticId, CalculusId, Digest, JudgmentKindId, RuleId, SortId
+from .ids import AssertionId, CalculusId, Digest, JudgmentKindId, RuleId, SortId
 from .language import (
     LanguageInterface,
     LanguageRequirement,
@@ -48,7 +48,7 @@ class DistinctPair:
 
 @dataclass(frozen=True, slots=True, kw_only=True)
 class AxiomDecl:
-    id: AssertionSemanticId
+    id: AssertionId
     schema_variables: tuple[VariableRef, ...]
     conclusion: Judgment
     mandatory_distinct: tuple[DistinctPair, ...] = ()
@@ -62,7 +62,7 @@ class AxiomInterface:
 
 @dataclass(frozen=True, slots=True, kw_only=True)
 class DefinitionDecl:
-    id: AssertionSemanticId
+    id: AssertionId
     schema_variables: tuple[VariableRef, ...]
     conclusion: Judgment
     mandatory_distinct: tuple[DistinctPair, ...] = ()

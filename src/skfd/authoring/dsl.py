@@ -416,7 +416,7 @@ class CompileEnv:
     origin_ref: Any = None
 
 
-def compile_wff(
+def lower_expr_to_wff(
     expr: Expr,
     *,
     env: CompileEnv,
@@ -460,7 +460,7 @@ def compile_wff(
                 f"compile: no builder for constructor {expr.ctor.name!r}"
             )
 
-        args_wff = [compile_wff(a, env=env, registry=registry) for a in expr.args]
+        args_wff = [lower_expr_to_wff(a, env=env, registry=registry) for a in expr.args]
         return builder(env.builtins, args_wff)
 
     raise PreludeTypingError(f"compile: unknown Expr node: {type(expr).__name__}")
@@ -517,6 +517,7 @@ __all__ = [
     "require",
     # compile
     "CompileEnv",
+    "lower_expr_to_wff",
     "compile_wff",
     # util
     "pretty",
@@ -531,3 +532,6 @@ __all__ = [
     "OperatorRegistry",
     "register_operator",
 ]
+
+
+compile_wff = lower_expr_to_wff

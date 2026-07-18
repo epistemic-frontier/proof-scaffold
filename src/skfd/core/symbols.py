@@ -68,3 +68,7 @@ class SymbolInterner:
 
     def symbol_table(self) -> dict[SymbolId, SymbolDef]:
         return dict(self._defs)
+
+    def get(self, symbol_id: SymbolId) -> SymbolDef | None:
+        """Return one immutable symbol definition without copying the full table."""
+        return self._defs.get(symbol_id)

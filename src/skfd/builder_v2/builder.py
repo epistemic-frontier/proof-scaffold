@@ -129,10 +129,9 @@ class Auto:
         self._mm = mm
 
     def vars_in(self, expr: Sequence[SymbolId]) -> list[SymbolId]:
-        symtab = self._mm.interner.symbol_table()
         vars_: set[SymbolId] = set()
         for t in expr:
-            d = symtab.get(t)
+            d = self._mm.interner.get(t)
             if d is None:
                 raise LinkerDiagError(
                     Diagnostic(
@@ -153,8 +152,7 @@ class Auto:
         if existing is not None:
             return existing
 
-        symtab = self._mm.interner.symbol_table()
-        var_def = symtab.get(var)
+        var_def = self._mm.interner.get(var)
         if var_def is None or var_def.kind != "Var":
             raise LinkerDiagError(
                 Diagnostic(
@@ -283,8 +281,7 @@ class MMBuilderV2:
         )
 
     def _require_kind(self, sid: SymbolId, kind: SymbolKind) -> SymbolDef:
-        symtab = self.interner.symbol_table()
-        d = symtab.get(sid)
+        d = self.interner.get(sid)
         if d is None or d.kind != kind:
             raise LinkerDiagError(
                 Diagnostic(
@@ -416,8 +413,7 @@ class MMBuilderV2:
         self._scope.register_local_label_name(label_name)
 
         if self.cfg.auto_f:
-            symtab = self.interner.symbol_table()
-            tc_def = symtab.get(tc)
+            tc_def = self.interner.get(tc)
             if (
                 tc_def is not None
                 and tc_def.kind == "Const"
@@ -450,8 +446,7 @@ class MMBuilderV2:
         self._scope.register_local_label_name(label_name)
 
         if self.cfg.auto_f:
-            symtab = self.interner.symbol_table()
-            tc_def = symtab.get(tc)
+            tc_def = self.interner.get(tc)
             if (
                 tc_def is not None
                 and tc_def.kind == "Const"
@@ -474,15 +469,13 @@ class MMBuilderV2:
         return label
 
     def _is_const(self, sid: SymbolId) -> bool:
-        symtab = self.interner.symbol_table()
-        d = symtab.get(sid)
+        d = self.interner.get(sid)
         if d is None:
             return False
         return d.kind == "Const"
 
     def _require_token(self, sid: SymbolId) -> None:
-        symtab = self.interner.symbol_table()
-        d = symtab.get(sid)
+        d = self.interner.get(sid)
         if d is None or d.kind not in ("Const", "Var"):
             raise LinkerDiagError(
                 Diagnostic(

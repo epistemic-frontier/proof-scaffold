@@ -34,6 +34,16 @@ def test_builder_v2_auto_f_emits_single_floating_per_scope() -> None:
     assert len(floatings) == 1
 
 
+def test_symbol_interner_get_does_not_expose_mutable_table() -> None:
+    mm = _mk_mm()
+    symbol = mm.sym.const("wff")
+    definition = mm.interner.get(symbol)
+
+    assert definition is not None
+    assert definition.local_name == "wff"
+    assert definition.kind == "Const"
+
+
 def test_builder_v2_auto_f_reuses_existing_floating_without_emitting_duplicate() -> (
     None
 ):

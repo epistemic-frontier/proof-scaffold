@@ -39,10 +39,17 @@ class AssertionProfileSpec:
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
+class AssertionCatalogRequirement:
+    id: AssertionCatalogId
+    digest: Digest | None = None
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
 class AssertionCatalogSpec:
     id: AssertionCatalogId
     assertions: tuple[AssertionSignature, ...]
     profiles: tuple[AssertionProfileSpec, ...]
+    extends: tuple[AssertionCatalogRequirement, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -83,29 +90,69 @@ class AssertionCatalogInterface:
         return assertion
 
 
-def resolve_assertion_catalog(spec: AssertionCatalogSpec) -> AssertionCatalogInterface:
+def resolve_assertion_catalog(
+    spec: AssertionCatalogSpec,
+    dependencies: Mapping[AssertionCatalogId, AssertionCatalogInterface] | None = None,
+) -> AssertionCatalogInterface:
+    dependency_map = dependencies or {}
     assertions: dict[AssertionSemanticId, AssertionSignature] = {}
     labels: dict[str, AssertionSemanticId] = {}
-    for assertion in spec.assertions:
-        if assertion.id in assertions:
-            raise AssertionCatalogError(f"duplicate assertion id: {assertion.id}")
-        if assertion.canonical_label in labels:
+    profiles: dict[AssertionProfileId, frozenset[AssertionSemanticId]] = {}
+
+    def merge_assertion(assertion: AssertionSignature) -> None:
+        old = assertions.get(assertion.id)
+        if old is not None and old != assertion:
+            raise AssertionCatalogError(f"conflicting assertion id: {assertion.id}")
+        old_id = labels.get(assertion.canonical_label)
+        if old_id is not None and old_id != assertion.id:
             raise AssertionCatalogError(
-                f"duplicate assertion label: {assertion.canonical_label}"
+                f"conflicting assertion label: {assertion.canonical_label}"
             )
         assertions[assertion.id] = assertion
         labels[assertion.canonical_label] = assertion.id
 
-    profiles: dict[AssertionProfileId, frozenset[AssertionSemanticId]] = {}
+    for requirement in sorted(spec.extends, key=lambda item: item.id):
+        dependency = dependency_map.get(requirement.id)
+        if dependency is None:
+            raise AssertionCatalogError(f"missing assertion catalog dependency: {requirement.id}")
+        if requirement.digest is not None and requirement.digest != dependency.digest:
+            raise AssertionCatalogError(f"assertion catalog digest mismatch: {requirement.id}")
+        for assertion in dependency.assertions.values():
+            merge_assertion(assertion)
+        for profile_id, allowed in dependency.profiles.items():
+            old = profiles.get(profile_id)
+            if old is not None and old != allowed:
+                raise AssertionCatalogError(f"conflicting assertion profile: {profile_id}")
+            profiles[profile_id] = allowed
+
+    local_assertion_ids: set[AssertionSemanticId] = set()
+    local_assertion_labels: set[str] = set()
+    for assertion in spec.assertions:
+        if assertion.id in local_assertion_ids:
+            raise AssertionCatalogError(f"duplicate assertion id: {assertion.id}")
+        if assertion.canonical_label in local_assertion_labels:
+            raise AssertionCatalogError(
+                f"duplicate assertion label: {assertion.canonical_label}"
+            )
+        local_assertion_ids.add(assertion.id)
+        local_assertion_labels.add(assertion.canonical_label)
+        merge_assertion(assertion)
+
+    local_profile_ids: set[AssertionProfileId] = set()
     for profile in spec.profiles:
-        if profile.id in profiles:
+        if profile.id in local_profile_ids:
             raise AssertionCatalogError(f"duplicate assertion profile: {profile.id}")
+        local_profile_ids.add(profile.id)
+        old = profiles.get(profile.id)
+        allowed = frozenset(profile.allowed)
+        if old is not None and old != allowed:
+            raise AssertionCatalogError(f"conflicting assertion profile: {profile.id}")
         missing = frozenset(profile.allowed) - assertions.keys()
         if missing:
             raise AssertionCatalogError(
                 f"profile {profile.id} references unknown assertion: {min(missing)}"
             )
-        profiles[profile.id] = frozenset(profile.allowed)
+        profiles[profile.id] = allowed
 
     digest = canonical_digest(
         {

@@ -7,7 +7,11 @@ from types import MappingProxyType
 from ._canonical import JsonValue, canonical_digest
 from .errors import AuthoringSemanticError
 from .ids import AssertionSemanticId, CalculusId, Digest, JudgmentKindId, RuleId, SortId
-from .language import LanguageInterface, LanguageRequirement
+from .language import (
+    LanguageInterface,
+    LanguageRequirement,
+    is_semantic_subset,
+)
 from .term import App, Term, Var, VariableRef
 
 
@@ -29,6 +33,7 @@ class PrimitiveRuleDecl:
     schema_variables: tuple[VariableRef, ...]
     premises: tuple[Judgment, ...]
     conclusion: Judgment
+    mandatory_distinct: tuple[DistinctPair, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -56,9 +61,30 @@ class AxiomInterface:
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
+class DefinitionDecl:
+    id: AssertionSemanticId
+    schema_variables: tuple[VariableRef, ...]
+    conclusion: Judgment
+    mandatory_distinct: tuple[DistinctPair, ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
+class DefinitionInterface:
+    declaration: DefinitionDecl
+    digest: Digest
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class CalculusRequirement:
+    id: CalculusId
+    digest: Digest | None = None
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
 class CalculusSpec:
     id: CalculusId
     language: LanguageRequirement
+    extends: tuple[CalculusRequirement, ...] = ()
     judgments: tuple[JudgmentKindDecl, ...] = ()
     rules: tuple[PrimitiveRuleDecl, ...] = ()
 
@@ -192,10 +218,38 @@ def _validate_judgment(
         _validate_term(argument, language, schema_variables)
 
 
-def resolve_calculus(spec: CalculusSpec, language: LanguageInterface) -> CalculusInterface:
+def resolve_calculus(
+    spec: CalculusSpec,
+    language: LanguageInterface,
+    dependencies: Mapping[CalculusId, CalculusInterface] | None = None,
+) -> CalculusInterface:
     if spec.language.id != language.id or (spec.language.semantic_digest is not None and spec.language.semantic_digest != language.semantic_digest):
         raise AuthoringSemanticError("calculus language requirement mismatch")
     judgments: dict[JudgmentKindId, JudgmentKindDecl] = {}
+    rules: dict[RuleId, PrimitiveRuleDecl] = {}
+    dependency_map = dependencies or {}
+    for requirement in sorted(spec.extends, key=lambda item: item.id):
+        dependency = dependency_map.get(requirement.id)
+        if dependency is None:
+            raise AuthoringSemanticError(f"missing calculus dependency: {requirement.id}")
+        if requirement.digest is not None and requirement.digest != dependency.digest:
+            raise AuthoringSemanticError(f"calculus digest mismatch: {requirement.id}")
+        if not is_semantic_subset(dependency.language, language):
+            raise AuthoringSemanticError(f"calculus dependency language mismatch: {requirement.id}")
+        for judgment_declaration in dependency.judgments.values():
+            old = judgments.get(judgment_declaration.id)
+            if old is not None and old != judgment_declaration:
+                raise AuthoringSemanticError(
+                    f"conflicting inherited judgment kind: {judgment_declaration.id}"
+                )
+            judgments[judgment_declaration.id] = judgment_declaration
+        for rule_declaration in dependency.rules.values():
+            old_rule = rules.get(rule_declaration.id)
+            if old_rule is not None and old_rule != rule_declaration:
+                raise AuthoringSemanticError(
+                    f"conflicting inherited primitive rule: {rule_declaration.id}"
+                )
+            rules[rule_declaration.id] = rule_declaration
     for judgment_declaration in spec.judgments:
         old = judgments.get(judgment_declaration.id)
         if old is not None and old != judgment_declaration:
@@ -203,7 +257,6 @@ def resolve_calculus(spec: CalculusSpec, language: LanguageInterface) -> Calculu
         if any(sort not in language.sorts for sort in judgment_declaration.arguments):
             raise AuthoringSemanticError(f"judgment {judgment_declaration.id} has unknown sort")
         judgments[judgment_declaration.id] = judgment_declaration
-    rules: dict[RuleId, PrimitiveRuleDecl] = {}
     for rule_declaration in spec.rules:
         if rule_declaration.id in rules:
             raise AuthoringSemanticError(f"duplicate primitive rule: {rule_declaration.id}")
@@ -226,10 +279,28 @@ def resolve_calculus(spec: CalculusSpec, language: LanguageInterface) -> Calculu
         for premise in rule_declaration.premises:
             _validate_judgment(premise, judgments, language, schema_variables)
         _validate_judgment(rule_declaration.conclusion, judgments, language, schema_variables)
+        pairs: set[DistinctPair] = set()
+        for pair in rule_declaration.mandatory_distinct:
+            if pair.left not in schema_variables or pair.right not in schema_variables:
+                raise AuthoringSemanticError(
+                    f"undeclared distinct-variable endpoint in rule: {rule_declaration.id}"
+                )
+            pairs.add(_canonical_distinct_pair(pair))
+        canonical_pairs = tuple(
+            sorted(
+                pairs,
+                key=lambda pair: (_variable_key(pair.left), _variable_key(pair.right)),
+            )
+        )
+        if canonical_pairs != rule_declaration.mandatory_distinct:
+            rule_declaration = replace(
+                rule_declaration,
+                mandatory_distinct=canonical_pairs,
+            )
         rules[rule_declaration.id] = rule_declaration
     digest = canonical_digest(
         {
-            "version": "skfd.calculus.v2",
+            "version": "skfd.calculus.v3",
             "language_semantic_digest": str(language.semantic_digest),
             "judgments": [
                 {"id": str(item.id), "arguments": [str(sort) for sort in item.arguments]}
@@ -244,6 +315,13 @@ def resolve_calculus(spec: CalculusSpec, language: LanguageInterface) -> Calculu
                     ],
                     "premises": [_judgment_document(premise) for premise in item.premises],
                     "conclusion": _judgment_document(item.conclusion),
+                    "mandatory_distinct": [
+                        [
+                            _variable_document(pair.left),
+                            _variable_document(pair.right),
+                        ]
+                        for pair in item.mandatory_distinct
+                    ],
                 }
                 for item in sorted(rules.values(), key=lambda item: item.id)
             ],
@@ -301,3 +379,41 @@ def resolve_axiom(declaration: AxiomDecl, calculus: CalculusInterface) -> AxiomI
         }
     )
     return AxiomInterface(declaration, digest)
+
+
+def resolve_definition(
+    declaration: DefinitionDecl,
+    calculus: CalculusInterface,
+) -> DefinitionInterface:
+    """Resolve a conservative definition through the assertion validation core."""
+    resolved = resolve_axiom(
+        AxiomDecl(
+            id=declaration.id,
+            schema_variables=declaration.schema_variables,
+            conclusion=declaration.conclusion,
+            mandatory_distinct=declaration.mandatory_distinct,
+        ),
+        calculus,
+    )
+    canonical = DefinitionDecl(
+        id=resolved.declaration.id,
+        schema_variables=resolved.declaration.schema_variables,
+        conclusion=resolved.declaration.conclusion,
+        mandatory_distinct=resolved.declaration.mandatory_distinct,
+    )
+    digest = canonical_digest(
+        {
+            "version": "skfd.definition.v1",
+            "calculus_digest": str(calculus.digest),
+            "id": str(canonical.id),
+            "schema_variables": [
+                _variable_document(variable) for variable in canonical.schema_variables
+            ],
+            "conclusion": _judgment_document(canonical.conclusion),
+            "mandatory_distinct": [
+                [_variable_document(pair.left), _variable_document(pair.right)]
+                for pair in canonical.mandatory_distinct
+            ],
+        }
+    )
+    return DefinitionInterface(canonical, digest)

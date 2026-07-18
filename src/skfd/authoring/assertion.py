@@ -10,6 +10,7 @@ from .ids import AssertionSemanticId, Digest, ProofId, StepId
 from .judgment import (
     AxiomInterface,
     CalculusInterface,
+    DefinitionInterface,
     DistinctPair,
     Judgment,
     PrimitiveRuleDecl,
@@ -17,7 +18,7 @@ from .judgment import (
 from .term import Term, Var, VariableRef
 from .term_ops import variables
 
-AssertionKind: TypeAlias = Literal["axiom", "primitive_rule", "theorem"]
+AssertionKind: TypeAlias = Literal["axiom", "definition", "primitive_rule", "theorem"]
 
 
 class AssertionApplicationError(AuthoringSemanticError):
@@ -35,7 +36,7 @@ class AssertionSignature:
     mandatory_distinct: tuple[DistinctPair, ...] = ()
 
     def __post_init__(self) -> None:
-        if self.kind not in ("axiom", "primitive_rule", "theorem"):
+        if self.kind not in ("axiom", "definition", "primitive_rule", "theorem"):
             raise AssertionApplicationError(f"invalid assertion kind: {self.kind}")
         if not self.canonical_label:
             raise AssertionApplicationError("assertion canonical label must be non-empty")
@@ -282,6 +283,23 @@ def signature_from_axiom(
     )
 
 
+def signature_from_definition(
+    definition: DefinitionInterface,
+    *,
+    canonical_label: str,
+) -> AssertionSignature:
+    declaration = definition.declaration
+    return _make_signature(
+        assertion_id=declaration.id,
+        canonical_label=canonical_label,
+        kind="definition",
+        schema_variables=declaration.schema_variables,
+        premises=(),
+        conclusion=declaration.conclusion,
+        mandatory_distinct=declaration.mandatory_distinct,
+    )
+
+
 def signature_from_primitive_rule(
     rule: PrimitiveRuleDecl,
     *,
@@ -295,7 +313,7 @@ def signature_from_primitive_rule(
         schema_variables=rule.schema_variables,
         premises=rule.premises,
         conclusion=rule.conclusion,
-        mandatory_distinct=(),
+        mandatory_distinct=rule.mandatory_distinct,
     )
 
 

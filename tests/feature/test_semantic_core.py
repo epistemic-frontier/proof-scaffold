@@ -26,13 +26,16 @@ from skfd.authoring.ids import (
 )
 from skfd.authoring.judgment import (
     AxiomDecl,
+    CalculusRequirement,
     CalculusSpec,
+    DefinitionDecl,
     DistinctPair,
     Judgment,
     JudgmentKindDecl,
     PrimitiveRuleDecl,
     resolve_axiom,
     resolve_calculus,
+    resolve_definition,
 )
 from skfd.authoring.legacy_metamath import (
     build_legacy_formula,
@@ -161,6 +164,12 @@ def test_end_to_end_semantic_core() -> None:
         VariableAtom(refs["p"]),
         VariableAtom(refs["q"]),
     )
+    lowered = backend.lower(language.apply(imp, (variables["p"], variables["q"])))
+    assert backend.parse(lowered, expected_sort=wff) == language.apply(
+        imp, (variables["p"], variables["q"])
+    )
+    with pytest.raises(AuthoringSemanticError, match="do not parse"):
+        backend.parse((LiteralAtom(token),), expected_sort=wff)
     calculus = resolve_calculus(
         CalculusSpec(
             id=CalculusId("prop"),
@@ -698,6 +707,33 @@ def test_legacy_formula_adapter_applies_the_resolved_formation() -> None:
         type(binary_shape)(left_delimiter=lp, operator=conjunction, right_delimiter=rp)
     )
 
+    call_notation = resolve_notation(
+        NotationSpec(
+            id=NotationId("test#notation:legacy-call"),
+            language=LanguageRequirement(id=language.id),
+            declarations=(
+                NotationDecl(
+                    constructor=and2,
+                    form=CallForm(token="and"),
+                    aliases=("/\\",),
+                ),
+            ),
+        ),
+        language,
+        {},
+    )
+    call_spec = legacy_symbol_spec(
+        binding,
+        call_notation,
+        and2,
+        legacy_sorts={SortId("test#sort:wff"): "wff"},
+        call_precedence=30,
+    )
+    assert call_spec.name == "/\\"
+    assert call_spec.precedence == 30
+    assert call_spec.associativity == "none"
+    assert call_spec.aliases == ("and",)
+
     conflicting_language = resolve_language(
         LanguageSpec(
             id=LanguageId("test#language:conflicting-notation"),
@@ -802,6 +838,54 @@ def test_minimal_calculus_makes_provability_an_explicit_judgment() -> None:
     assert reordered.digest == calculus.digest
     assert reordered.rule(mp).schema_variables == (refs["p"], refs["q"])
 
+    distinct_rule = replace(
+        modus_ponens,
+        id=RuleId("test#rule:distinct"),
+        mandatory_distinct=(DistinctPair(refs["q"], refs["p"]),),
+    )
+    distinct_calculus = resolve_calculus(
+        replace(
+            CalculusSpec(
+                id=CalculusId("test#calculus:distinct"),
+                language=LanguageRequirement(id=language.id),
+                judgments=(
+                    JudgmentKindDecl(id=provable, arguments=(SortId("test#sort:wff"),)),
+                ),
+            ),
+            rules=(distinct_rule,),
+        ),
+        language,
+    )
+    assert distinct_calculus.rule(distinct_rule.id).mandatory_distinct == (
+        DistinctPair(refs["p"], refs["q"]),
+    )
+    extended_calculus = resolve_calculus(
+        CalculusSpec(
+            id=CalculusId("test#calculus:extended"),
+            language=LanguageRequirement(id=language.id),
+            extends=(CalculusRequirement(id=calculus.id, digest=calculus.digest),),
+        ),
+        language,
+        {calculus.id: calculus},
+    )
+    assert extended_calculus.judgments == calculus.judgments
+    assert extended_calculus.rules == calculus.rules
+    assert extended_calculus.digest == calculus.digest
+    with pytest.raises(AuthoringSemanticError, match="calculus digest mismatch"):
+        resolve_calculus(
+            replace(
+                CalculusSpec(
+                    id=CalculusId("test#calculus:bad-extension"),
+                    language=LanguageRequirement(id=language.id),
+                ),
+                extends=(
+                    CalculusRequirement(id=calculus.id, digest=Digest("0" * 64)),
+                ),
+            ),
+            language,
+            {calculus.id: calculus},
+        )
+
     axiom = resolve_axiom(
         AxiomDecl(
             id=AssertionSemanticId("test#axiom:distinct-canary"),
@@ -812,6 +896,17 @@ def test_minimal_calculus_makes_provability_an_explicit_judgment() -> None:
         calculus,
     )
     assert axiom.declaration.schema_variables == (refs["p"], refs["q"])
+    definition = resolve_definition(
+        DefinitionDecl(
+            id=AssertionSemanticId("test#definition:distinct-canary"),
+            schema_variables=(refs["q"], refs["p"]),
+            conclusion=Judgment(provable, (implication,)),
+            mandatory_distinct=(DistinctPair(refs["q"], refs["p"]),),
+        ),
+        calculus,
+    )
+    assert definition.declaration.schema_variables == (refs["p"], refs["q"])
+    assert definition.digest != axiom.digest
     assert axiom.declaration.mandatory_distinct == (DistinctPair(refs["p"], refs["q"]),)
     assert axiom.digest == resolve_axiom(
         replace(

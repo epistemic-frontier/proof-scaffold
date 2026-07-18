@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from types import MappingProxyType
 from typing import TypeAlias
@@ -117,6 +117,97 @@ class ResolvedMetamathLanguageBinding:
             else:
                 atoms.extend(self.lower(term.arguments[part.index]))
         return tuple(atoms)
+
+    def parse(
+        self,
+        atoms: Sequence[MetamathAtom],
+        *,
+        expected_sort: SortId,
+    ) -> Term:
+        """Invert formation templates into one uniquely typed semantic term."""
+        source = tuple(atoms)
+        memo: dict[tuple[SortId, int, int], frozenset[Term]] = {}
+
+        def terms(sort: SortId, start: int, end: int) -> frozenset[Term]:
+            key = (sort, start, end)
+            cached = memo.get(key)
+            if cached is not None:
+                return cached
+            found: set[Term] = set()
+            atom = source[start] if end == start + 1 else None
+            if isinstance(atom, VariableAtom):
+                variable = atom.variable
+                declaration = self.language.variable_kinds.get(variable.kind)
+                if declaration is not None and declaration.sort == sort:
+                    found.add(self.language.variable(variable))
+            memo[key] = frozenset()
+            for formation in self.formations.values():
+                constructor = self.language.constructors[formation.constructor]
+                if constructor.output != sort:
+                    continue
+                for arguments in match_template(
+                    formation.template,
+                    constructor.inputs,
+                    start,
+                    end,
+                ):
+                    found.add(self.language.apply(formation.constructor, arguments))
+            result = frozenset(found)
+            memo[key] = result
+            return result
+
+        def match_template(
+            template: tuple[TemplatePart, ...],
+            input_sorts: tuple[SortId, ...],
+            start: int,
+            end: int,
+        ) -> tuple[tuple[Term, ...], ...]:
+            matches: list[tuple[Term, ...]] = []
+
+            def visit(
+                part_index: int,
+                position: int,
+                arguments: dict[int, Term],
+            ) -> None:
+                if part_index == len(template):
+                    if position == end and len(arguments) == len(input_sorts):
+                        matches.append(
+                            tuple(arguments[index] for index in range(len(input_sorts)))
+                        )
+                    return
+                part = template[part_index]
+                if isinstance(part, LiteralPart):
+                    if position < end and source[position] == LiteralAtom(part.token):
+                        visit(part_index + 1, position + 1, arguments)
+                    return
+                remaining_parts = len(template) - part_index - 1
+                maximum = end - remaining_parts
+                for argument_end in range(position + 1, maximum + 1):
+                    for argument in terms(
+                        input_sorts[part.index], position, argument_end
+                    ):
+                        visit(
+                            part_index + 1,
+                            argument_end,
+                            {**arguments, part.index: argument},
+                        )
+
+            visit(0, start, {})
+            return tuple(matches)
+
+        parsed = terms(expected_sort, 0, len(source))
+        if not parsed:
+            raise AuthoringSemanticError(
+                f"Metamath atoms do not parse as sort {expected_sort}"
+            )
+        if len(parsed) != 1:
+            raise AuthoringSemanticError(
+                f"ambiguous Metamath term for sort {expected_sort}: {len(parsed)} parses"
+            )
+        term = next(iter(parsed))
+        if self.lower(term) != source:
+            raise AuthoringSemanticError("Metamath term parse/lower round-trip mismatch")
+        return term
 
 
 def resolve_metamath_language(binding: MetamathLanguageBinding, language: LanguageInterface, dependencies: Mapping[BackendBindingId, ResolvedMetamathLanguageBinding]) -> ResolvedMetamathLanguageBinding:

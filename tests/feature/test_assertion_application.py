@@ -16,6 +16,7 @@ from skfd.authoring.assertion import (
 )
 from skfd.authoring.catalog import (
     AssertionCatalogError,
+    AssertionCatalogRequirement,
     AssertionCatalogSpec,
     AssertionProfileSpec,
     apply_assertion_by_id,
@@ -195,6 +196,46 @@ def test_apply_assertion_elaborates_mp_and_preserves_failed_draft() -> None:
             profiles=(AssertionProfileSpec(id=profile_id, allowed=(signature.id,)),),
         )
     )
+    extended_profile = AssertionProfileId("test#profile:extended")
+    extended_catalog = resolve_assertion_catalog(
+        AssertionCatalogSpec(
+            id=AssertionCatalogId("test#catalog:extended"),
+            assertions=(theorem_signature,),
+            profiles=(
+                AssertionProfileSpec(
+                    id=extended_profile,
+                    allowed=(signature.id, theorem_signature.id),
+                ),
+            ),
+            extends=(
+                AssertionCatalogRequirement(id=catalog.id, digest=catalog.digest),
+            ),
+        ),
+        {catalog.id: catalog},
+    )
+    assert extended_catalog.assertion(signature.id, profile=extended_profile) == signature
+    assert extended_catalog.assertion(
+        theorem_signature.id,
+        profile=extended_profile,
+    ) == theorem_signature
+    assert profile_id in extended_catalog.profiles
+    with pytest.raises(AssertionCatalogError, match="digest mismatch"):
+        resolve_assertion_catalog(
+            replace(
+                AssertionCatalogSpec(
+                    id=AssertionCatalogId("test#catalog:bad-dependency"),
+                    assertions=(),
+                    profiles=(),
+                ),
+                extends=(
+                    AssertionCatalogRequirement(
+                        id=catalog.id,
+                        digest=Digest("0" * 64),
+                    ),
+                ),
+            ),
+            {catalog.id: catalog},
+        )
     with pytest.raises(AssertionCatalogError, match="duplicate assertion id"):
         resolve_assertion_catalog(
             AssertionCatalogSpec(

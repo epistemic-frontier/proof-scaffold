@@ -154,6 +154,11 @@ prelude"本就不是目标）；`metamath-program-foundation` 定义状态、
 堆、转移系统和 separation algebra 等**本体**。依赖仍然浅，且
 程序逻辑特有本体不固化进所有数学包。
 
+**注意**：本节只界定"程序方法需要什么、不需要什么"；
+program foundation 与 program profile **如何进入**包结构
+（作为发布包还是领域、聚合哪些成员、与集论/数领域的依赖
+形态）保留为开放问题（§12），不随本 RFC 定案。
+
 ## 7. 候选生成与选择指标
 
 set.mm 依赖频率**只能作候选生成机制，不得直接决定 prelude**。
@@ -226,6 +231,10 @@ metamath-learning-profile
 **profile 只是稳定的聚合依赖，不得拥有底层定义。**既提供
 开箱即用体验，又不破坏理论边界。
 
+程序方法一支（`program-foundation` / `hoare-logic` /
+`separation-logic` / `program-profile`）的进入方式是开放问题
+（§12），此处仅为示意。
+
 ## 10. 实证计划（裁决量化边界前必须完成）
 
 在 partition 仓的全语料图（及后续扩展语料）上：
@@ -266,7 +275,12 @@ metamath-learning-profile
   替代方案一并裁决；
 - `df-map`（函数空间）是否随关系函数簇纳入：纳入则公理承诺
   +`ax-un`/`ax-pow`（闭包 1370→1632 节点、18→20 公理，见
-  试点报告后记）。
+  试点报告后记）；
+- **program foundation / program profile 的进入方式**（用户
+  指定保留为开放问题）：`metamath-program-foundation` 是独立
+  发布包还是某发布包内的领域、其对集论/数领域的依赖形态、
+  `metamath-program-profile` 聚合哪些成员及版本策略——§6/§9
+  中的相关条目仅为示意草图，不构成裁决。
 
 已裁决（2026-07-19 二次裁决，原§12 两项）：**自然数不入
 prelude**——ω 系与算术 ℕ 均下沉（§4.1 后注）；有限序列/fold
@@ -294,3 +308,6 @@ prelude**——ω 系与算术 ℕ 均下沉（§4.1 后注）；有限序列/fo
   实证基线：1370 节点（8.0%）、18 公理（无 `ax-un`/`ax-pow`/
   `ax-inf`）；含 `df-map` 变体 1632 节点、20 公理（数据见
   partition 仓试点报告后记）。
+- 2026-07-19：program foundation / program profile 的进入方式
+  经用户指定**保留为开放问题**（§12）；§6/§9 相关条目降为
+  示意草图。

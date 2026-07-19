@@ -152,13 +152,23 @@ def lower_replay_to_metamath_proof(
     if not proof_name:
         raise AuthoringSemanticError("Metamath proof name must be non-empty")
     final_position = len(plan.hypotheses) + len(plan.applications) - 1
-    if plan.root_position != final_position:
+    hypothesis_positions = {
+        hypothesis.position for hypothesis in plan.hypotheses
+    }
+    if (
+        plan.root_position != final_position
+        and plan.root_position not in hypothesis_positions
+    ):
         raise AuthoringSemanticError(
-            "Metamath lowering requires the root to be the final position"
+            "Metamath lowering requires an application root to be the final position"
         )
 
     labels: dict[int, str] = {
-        hypothesis.position: f"{proof_name}.{index}"
+        hypothesis.position: (
+            "res"
+            if hypothesis.position == plan.root_position
+            else f"{proof_name}.{index}"
+        )
         for index, hypothesis in enumerate(plan.hypotheses, start=1)
     }
     next_step = 1

@@ -484,20 +484,30 @@ def test_apply_assertion_elaborates_mp_and_preserves_failed_prefix() -> None:
         catalog,
         profile_id,
     )
-    with pytest.raises(AuthoringSemanticError, match="root to be the final"):
-        lower_replay_to_metamath_proof(
-            hypothesis_root_replay,
-            MetamathProofBinding(
-                language=backend,
-                provable_judgment=provable,
-                assertions=(),
-                token_symbols=token_symbols,
-                variable_symbols=variable_symbols,
-                legacy_sorts={wff: "wff"},
-                symbol_table=interner.symbol_table(),
-            ),
-            proof_name="hypothesis-root",
-        )
+    lowered_hypothesis_root = lower_replay_to_metamath_proof(
+        hypothesis_root_replay,
+        MetamathProofBinding(
+            language=backend,
+            provable_judgment=provable,
+            assertions=(),
+            token_symbols=token_symbols,
+            variable_symbols=variable_symbols,
+            legacy_sorts={wff: "wff"},
+            symbol_table=interner.symbol_table(),
+        ),
+        proof_name="hypothesis-root",
+    )
+    assert lowered_hypothesis_root.statement.tokens == (phi_symbol,)
+    assert lowered_hypothesis_root.steps == (
+        Step("res", lowered_hypothesis_root.statement, "Hypothesis", op="hyp"),
+        Step(
+            "hypothesis-root.2",
+            lowered_hypothesis_root.steps[1].wff,
+            "Hypothesis",
+            op="hyp",
+        ),
+    )
+    assert lowered_hypothesis_root.steps[1].wff.tokens == (psi_symbol,)
 
     denied_profile = AssertionProfileId("test#profile:denied")
     denied_catalog = resolve_assertion_catalog(

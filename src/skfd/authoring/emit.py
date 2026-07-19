@@ -963,7 +963,7 @@ def emit_lowered_lemmas(
             if not lemma.steps:
                 raise ValueError(f"lemma {lemma.name!r}: has no steps")
 
-            last = lemma.steps[-1].label
+            last = "res" if "res" in step_by_label_v2 else lemma.steps[-1].label
             try:
                 proof = v2_emit_step(
                     last,

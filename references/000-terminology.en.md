@@ -287,6 +287,19 @@ This layer defines how proofs are saved, transferred, and reverified as pure dat
 | Fail closed | 出错即拒绝 | The policy of rejecting input by default on unknown, missing, conflicting, unresolved, or over-limit conditions. | A security principle for loading untrusted artifacts and resolving dependencies. |
 | Resource limit | 资源限制 | A hard limit on total bytes, term depth, step count, string length, collection size, and similar resources. | Prevents malformed or malicious artifacts from exhausting memory, CPU, or recursion depth. |
 
+### 11.1 Generated Source Surface
+
+| English term / code name | Preferred Chinese | Definition | Role in the system |
+| --- | --- | --- | --- |
+| Generated source surface | 生成源码表面 | The public authoring shape presented by generated Python source; it is concrete syntax rather than a semantic source of truth. | Supports IDE navigation, completion, review, and handwritten extensions while terms and assertion interfaces remain the basis of identity. |
+| Lazy elaboration | 惰性详化 | An elaboration strategy that registers a proof body and executes it only on first implementation access, explicit verification, or build emission. | Prevents proof execution during package import; the first elaboration result is cached. |
+| Step-result comment | 步骤结论注释 | An end-of-line comment rendered by the generator from an already checked proof-step result. | Provides derived, non-semantic readability information; regeneration recomputes it, and it is neither parsed back nor included in digests. |
+| Header/local import rule | 头部/局部导入规则 | A deterministic rule under which file headers import framework public objects only, while cross-module assertion references are imported inside proof functions. | Keeps module import compatible with lazy elaboration and makes proof dependencies explicit through Python imports. |
+| Assertion handle | 断言句柄 | A module-level binding returned by an assertion declaration, carrying the assertion signature, proof-body registration entry point, and lazy implementation property. | Serves as the authoritative assertion-reference channel in generated proofs; string-label indexes are derived views only. |
+| Emission binding | 发射绑定 | Versioned declaration-level Metamath emission data mechanically derived from a profile and source database. | Fixes constants, variables, formations, interleaved order, and hypothesis-label policy without carrying proof content. |
+| Frame-equivalence gate | 帧等价门 | An acceptance gate that independently parses two Metamath outputs and compares assertion order, expressions, mandatory hypotheses, and distinct constraints. | Ignores positionally normalized hypothesis-label text and incidental proof-token differences while otherwise rejecting semantic differences. |
+| Derived syntax theorem | 派生语法定理 | A source `$p` assertion whose result typecode is a language term typecode and is not any judgment typecode. | Represents concrete-syntax convenience replayable from formations; the comparator classifies it mechanically from the profile only. |
+
 ## 12. Layer 8: Backend Execution and Proof Search
 
 Execution representations are derived from complete proofs, while search algorithms are an external control layer over proof states. Neither should contaminate core mathematical objects.

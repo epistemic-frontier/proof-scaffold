@@ -1,6 +1,6 @@
 # ProofScaffold Terminology
 
-> Status: Draft v0.1, 2026-07-18.  
+> Status: Draft v0.2, 2026-07-19 (added Layer 9: Knowledge Organization and Release).  
 > Chinese version: [ProofScaffold 术语规范](000-terminology.zh.md)  
 > Scope: ProofScaffold design documents, public API documentation, code review, exchange-format specifications, and related bilingual material.  
 > This document defines preferred project terminology but does not freeze Python class names, file-format names, or serialization protocols.
@@ -322,7 +322,20 @@ Execution representations are derived from complete proofs, while search algorit
 | Semantic diff | 语义差异 | A comparison of changes in the canonical semantic content of two proof or theory objects. | Supports review, migration, and repair and is distinct from textual or formatting differences. |
 | Dependency minimization | 依赖最小化 | Removal of unnecessary assertion or theory dependencies while preserving proof validity. | Supports audit, publication, slicing, and smaller self-contained artifacts. |
 
-## 13. Expressions to Avoid or Rewrite
+## 13. Layer 9: Knowledge Organization and Release
+
+This layer fixes the vocabulary for partitioning and releasing the
+knowledge base (adjudicated in Project 026, 2026-07-19).
+
+| English term / code name | Preferred Chinese | Meaning or definition | Role in the architecture |
+| --- | --- | --- | --- |
+| Release package | 发布包 | The unit of release and installation for the knowledge base, versioned as a whole; may contain multiple mathematical domains. | Engineering boundary: build, versioning, and distribution operate on this unit; the top-level distribution unit emitted by the transpiler. |
+| Mathematical domain | 数学领域 | A first-level subpackage of a release package, giving a mathematical discipline (including bridge domains) its namespace and community boundary. | Knowledge boundary: within one release package, domain-to-domain dependencies MUST form a DAG (026 P7). A domain is not a dependency layer: its concrete layering order is a snapshot of the current corpus and shifts as knowledge grows. |
+| Bridge domain | 桥领域 | A mathematical domain whose content inherently couples two or more core domains, named after mathematical tradition (e.g. arithmetic combinatorics, analytic number theory). | Absorbs cross-domain entanglement so core domains keep narrow boundaries; the mechanism that keeps the domain DAG satisfiable despite entangled knowledge. |
+| Module | 模块 | The smallest organizational unit inside a domain (a file or subpackage): its path and name come from classification, its dependencies from import declarations. | The granularity of hard dependency constraints: the module import graph must be acyclic and complete (026 P3/P4); statement placement follows proof dependencies. |
+| Prelude | 前导包（暂定） | The globally, implicitly visible base layer inside a release package. | Content standard pending adjudication (constructor vocabulary vs. base layer including glue lemmas, see 026 §2.1); marked provisional until frozen. |
+
+## 14. Expressions to Avoid or Rewrite
 
 | Expression | Preferred wording | Reason |
 | --- | --- | --- |
@@ -341,7 +354,7 @@ Execution representations are derived from complete proofs, while search algorit
 | progressive disclosure | Expose complexity on demand / 按需呈现复杂性 | Prefer a direct statement. |
 | low ceremony | Low user burden or concise invocation / 使用负担低、调用简洁 | Avoid translating the metaphor. |
 
-## 14. Maintenance Rules
+## 15. Maintenance Rules
 
 1. Before adding a new public type to a design document, check whether the concept already exists here.
 2. Every new term must include an English name, preferred Chinese name, definition, and role in the system.
@@ -350,7 +363,7 @@ Execution representations are derived from complete proofs, while search algorit
 5. Mark disputed terms as provisional until frozen. A post-freeze change is a documentation and API compatibility change.
 6. This document is organized by conceptual layer. Alphabetical English and Chinese indexes may later be generated from the same terminology data.
 
-## 15. Related Design Documents
+## 16. Related Design Documents
 
 - [Reference 011: Language as a First-Class Element](011-language-as-first-class.md)
 - [Reference 012: Semantic Definition of Structures, Axioms, and Proofs](012-defining-structures-axioms-and-proofs.md)

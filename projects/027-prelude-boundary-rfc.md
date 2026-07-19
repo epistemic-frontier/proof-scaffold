@@ -243,9 +243,30 @@ metamath-learning-profile
 - 等价关系与商构造是否首批纳入（表中"可纳入"）；
 - `metamath-discrete` 与 `metamath-algebra` 对有理数的归属；
 - 接口稳定性评级的操作化定义；
-- profile 的版本策略（锁定成员版本 vs 浮动）。
+- profile 的版本策略（锁定成员版本 vs 浮动）；
+- **§4.1"自然数"行拆分**（试点实证上报，partition 仓
+  `reports/corpus/prelude-naturals-pilot.md`）：ω 系（有限序数
+  + 归纳 + `rdg` 有限递归，闭包公理 19 条、无 `ax-inf`、纯
+  ch0–1）纳入；算术 ℕ（`df-nn`，闭包含全套 ℂ/ℝ 公理 21 条）
+  留 numbers 领域，`om2uz` 桥归 numbers；
+- **§4.1"有限序列/索引族"与"fold"行的归属**：set.mm 实践
+  基础设施（`seq`/`fz`/`word`）是 ℕ 基（1847/1755/372 个传递
+  依赖者），ω 基 `seqom` 仅 95 个——prelude 薄版自建（A）
+  vs 下沉 numbers 领域（B）待裁决；
+- "定义代数结构 vocabulary"簇（`df-struct` 族）在当前语料
+  `[0, cstr)` 之外，实证待语料扩展。
 
 ## 13. 实施进展
 
 - 2026-07-19：RFC 依据用户裁决起草；定性边界（§0–§9）定案，
   实证计划（§10）排入 partition 仓下一轮。
+- 2026-07-19：§10 首个试点完成（自然数能力簇，partition 仓
+  `reports/corpus/prelude-naturals-pilot.md`）。回答用户裁决
+  问题"能否安全把自然数放入 prelude 且编译结果与 set.mm 开头
+  吻合"：**ω 系可以**（19 公理、无 `ax-inf`、发射为 set.mm
+  开头的保序子序列，前缀密度 32.6%——吻合只在子序列意义下
+  成立，与"mm 是 DAG 的线索化"判断一致）；**算术 ℕ 不可以**
+  （闭包拖入全套 ℂ 公理化与 ch4 素材）。副产物：215 标签频率
+  prelude 泄漏 28 个 ch4–5 标签（`cc`/`cr`/`cn`/`ax-1cn`…），
+  公理成本指标一票否决频率定标，验证 §7 成因 2/3 预言。
+  新增三项待裁决（§12）。

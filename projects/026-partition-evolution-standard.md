@@ -41,7 +41,67 @@ Reference 015 给出了结构性解释：
 
 ## 1. 规范模型
 
-三层解耦（继承 Reference 014 §0）：
+### 1.1 学科是命名空间，层是快照（2026-07-19 裁决）
+
+成熟数学中，学科商图**有环**：数、组合学、数论两两之间都有双向
+知识流动（necklace 计数证 Fermat 小定理方向、生成函数用分析、
+Ramsey 数构造性下界用数论）。数学社区对此的承认方式是给桥领域
+起专名：*arithmetic combinatorics*、*combinatorial number theory*、
+*analytic number theory*、*additive combinatorics*。无环的只有
+语句图，以及（划得好时）模块图。因此：
+
+- **学科包 = 命名空间与社区边界**，不是依赖层；
+- **层 = 当前语料的快照属性**，随语料生长而改变，不得作为全局
+  不变量强制（全局包级无环曾被提议为 P7，已否决并降级为报告项）；
+- **局部分层是可行的妥协**（P7，见 §3）：对包树每个节点，其直接
+  子包之间的依赖商图必须是 DAG。学科名在顶层完整保留，工程分层
+  在每个局部视图内成立，跨学科缠绕被逼入显式桥子包。
+
+两个实证锚点（2026-07-19，set.mm `e514bf2`）：
+
+1. **叶子会变成基础设施**。语料截至 `cstr` 时词论簇（16 模块
+   ~300 条）零消费者、零 number_theory 依赖，是纯叶子；但完整
+   set.mm 中图论把闭途径直接定义为词（`clwwlk` 系列 600+ 处），
+   necklace 引理 `cshwshash` 被 `hashecclwwlkn1`（闭途径等价类
+   计数）消费，链条通向友谊定理。"层"是语料截断点的函数。
+2. **同一学科名跨越多个层**。完整 set.mm 已有 `pnt`（素数定理）、
+   `dirith`（Dirichlet）、`bpos`（Bertrand）——解析数论坐落在
+   复分析之后，与初等数论（divides/gcd/primes，紧邻 numbers）
+   相距一整个分析栈。number_theory 必然分叉为 `elementary` 与
+   `analytic` 两个一级子包，由 P7 保证二者无环。
+
+静态最优布局不存在；架构优化的目标是**让重新分层便宜**：模块
+粒度足够细 + 桥包吸收缠绕 + split/promote 低成本。
+
+### 1.2 归属与分类的两条编辑规则
+
+1. **归属跟随证明依赖**。Metamath 依赖是证明依赖，存在"初等
+   陈述、解析证明"的定理（`bpos` 即是）。定理的物理归属不得
+   低于其证明所需的层；其传统分类身份记入 taxonomy 元数据供
+   检索呈现。否则会制造 `elementary → analytic` 上行边。
+2. **桥子包是一等公民**。A⊗B 内容不摊派给任一核心包，进显式
+   桥包（沿用数学传统命名）。核心包边界保持窄且稳定，缠绕全部
+   显式化。mathbox 膜（016）的晋升路径与此衔接：前沿内容孵化
+   成熟后晋升为桥包或核心包成员。
+
+案例裁决（2026-07-19，边数为语句级实测）：
+
+- `number_theory` 区重开的 `decimal_arithmetic` section **不得**
+  并入 numbers 同名模块：它有 14 条边依赖 gcd/divides/除法算法/
+  素数性质，消费者是 `specific_prime_numbers`(20 边) 与
+  `very_large_primes`(37 边)——它是大素数认证的十进制引理库，
+  与 numbers 的同名 section **同名不同知**。留在 number_theory，
+  按定义性改名（如 `primes.decimal_certificates`）。
+- `cyclical_shifts_of_words`（nt 区重开 section）：纯移位引理归
+  `combinatorics.words.shifts`；necklace 引理（`cshwshash` 系列，
+  9 条边依赖素数谓词）属算术组合学桥内容。
+- Ramsey / van der Waerden：零消费者叶子，归组合学。Ramsey 对
+  nt 的唯一依赖 `ramcl → sumhash` 是错误归档（`sumhash` 是一般
+  有限求和引理，被归在素数计数 section），重分类后零依赖。
+- 词论簇整体抽出为 `combinatorics` 包，当前语料下分层
+  `numbers → combinatorics → number_theory` 干净成立。
+
+### 1.3 三层解耦（继承 Reference 014 §0）
 
 - **L1 分类骨架**：分类树给出模块**路径与名字**（如
   `logic.implication`）。分类树是命名空间，不是依赖图。
@@ -92,6 +152,25 @@ partition 向 transpiler 的交接工件。规范形态：
 - 成员：`sections`（引用图工件 section id）与 `labels`（显式标签）取并集。
 - `imports`：L2 声明；**prelude 不出现在 imports 中**（全局隐式可见）。
 
+### 2.1 prelude 内容标准（待裁决，2026-07-19 提出）
+
+用户方向性意见：**prelude 只放数学构造（语法构造子），不放定理；
+公理或许也不需要**。当前实证 prelude（215 标签 = 90 构造子/公理
++ 125 胶水引理）由单一"引用吸收率"指标选出，混入了大量高频
+定理，与该方向冲突。待专门讨论裁决的问题：
+
+- prelude 的角色定位：全局**词汇表**（构造子 only，回答"能说
+  什么"）vs 全局**基础层**（含高频推理胶水，回答"怎么说得省"）；
+- 若构造子 only：125 条胶水引理（`idi`、`syl` 类）落回各自
+  物理归属模块后，吸收率指标失效，P6 需要新的报告口径；
+  高频胶水的可见性改由 import 或分层机制解决；
+- 公理是否入 prelude：公理是知识声明而非词汇，倾向随其学科
+  模块（`set_theory.axioms.*`）；但 `ax-mp`/`ax-gen` 类推理
+  规则与语法构造子的边界需要明确判据；
+- 该裁决直接影响 `--prelude-floor` 定标机制的存废。
+
+裁决前，实证 prelude（吸收率定标）仅作压力测试基线使用。
+
 ## 3. 不变量（校验器 MUST 全部执行）
 
 | # | 不变量 | 依据 |
@@ -102,13 +181,34 @@ partition 向 transpiler 的交接工件。规范形态：
 | P4 | 每条依赖边 u→v：同模块，或 v∈prelude，或 module(u) 直接声明 import module(v) | L2 完备 |
 | P5 | 膜：core 不得 import frontier；frontier 不得 import frontier | 016 §6.1 |
 | P6 | （报告项）模块规模、prelude 吸收率、枢纽过滤后模块内边占比 | 015 F3 |
+| P7 | 局部分层：对包树每个节点，其直接子包间的依赖商图（只计两端都在该节点内部的边）必须是 DAG | §1.1 裁决 |
 
 P6 为报告项不阻塞：容量约束由 L3 分片处理（同一分类节点内
 split-only），不得为满足规模而跨主题合并。
 
+P7 说明：
+
+- **全局包级无环不是不变量**（会被解析数论一类内容击穿，§1.1），
+  跨顶层包的分层快照仅输出为报告；
+- 结构性保证：mm 源是线性的、语句依赖恒指向物理前方，故**只要
+  成员归属是区间，任何商图自动无环**——当前区间式五区 draft
+  平凡满足 P7。P7 真正的约束力出现在引入**非连续的分类式归属**
+  （如把词论从 numbers 区间抽入 combinatorics）之后：分类可以
+  偏离物理顺序，每偏离一步，校验器在正确的层级上报告是否成环；
+- P7 永远可通过重新分组满足（极端情形子包退化为单模块，商图
+  退化为模块 DAG 诱导子图），问题只在分组是否仍有知识意义——
+  桥子包（§1.2）是有意义的分组方式；
+- 校验实现：沿路径树逐层商图环检测，O(E × 深度)。**validator
+  实现待落地**（当前实现覆盖 P1–P6）。
+
+成员归属模型升级（待实现）：zone 的区间声明降级为 **bootstrap
+默认值**；正式归属由分类声明（模块 → 包路径的显式映射）给出，
+允许非连续。combinatorics 包（词论簇 + Ramsey/vdW + 桥内容）是
+第一个非连续归属用例。
+
 ## 4. 演化操作（Phase 2/3 落地）
 
-所有操作必须保持 P1–P5 不变量，并在方案工件中留下可审计记录：
+所有操作必须保持 P1–P5、P7 不变量，并在方案工件中留下可审计记录：
 
 - **create**：新建 frontier 模块（作者/agent 命名空间）。
 - **promote**：frontier → core。触发条件为需求拉动（出现第二个消费者，
@@ -124,6 +224,22 @@ split-only），不得为满足规模而跨主题合并。
 
 ## 5. 命名标准（Phase 1 审计口径）
 
+- **叶子名收敛为单名词**（或最短名词短语）；**共享前缀映射为
+  子包**。当前 draft 路径是 section 标题的自动 slug，仅为占位；
+  正式路径为策展产物，authored 标题保留在 `title` 元数据。实例
+  （2026-07-19，来自五区 draft 审阅）：
+  - `logic.axiom_scheme_ax_4_quantified_implication` … `ax_13`
+    （10 个）→ `logic.axiom_schemes.ax04` … `ax13`；
+  - `logic.derive_the_lukasiewicz_axioms_from_*`（9 个历史叙事
+    模块）→ `logic.derivations.*`；
+  - `logic.logical_*` → `logic.connectives.{implication, negation,
+    conjunction, …}`；
+  - `set_theory.introduce_the_axiom_of_*`（7 个）→
+    `set_theory.axioms.{extensionality, replacement, …}`；
+  - 词论 16 模块 → `combinatorics.words.{concatenation, subwords,
+    prefixes, shifts, …}`。
+- 路径唯一性（P2）按父包作用域检查；跨包同名叶子合法（但注意
+  §1.2 案例：同名 section 未必同一知识单元，归属以依赖实证为准）。
 - 模块名必须是成员的**定义性特征**：能写出一句"凡满足 X 者属之"。
 - 反模式（拒收）：非定义性聚合（"misc"、"other"、"additional"）；
   多主题交叉筐（除非有独立 definingness）；容量驱动的语义碎片
@@ -232,3 +348,22 @@ transpiler 消费 `modules[].path` 生成子包结构，消费 `imports`
   - 工件：`domains/corpus/artifacts/classification-plan-v3.draft.json`
     （五区）；四域单域 draft 保留作对照。zones 由 domain config 的
     `zones` 字段声明，`--prelude-floor` 触发定标。
+  - 流水线耗时实测：mono 冷启动 ~2.6s；export 全图 2.9s；
+    plan-draft（含定标扫描）0.31s；plan-validate 0.18s——常驻
+    mono 下全程 ~3.5s，"每次 set.mm 更新 → 重导 → 重定标 →
+    重校验"可作为 CI 廉价常规操作，无需缓存或增量化。
+- 2026-07-19（第二轮）：五包 draft 人工审阅 + 全库视角分析，
+  规范正文更新（§1.1/§1.2/§2.1/§3-P7/§5）：
+  - 审阅发现：numbers 有 **1883 节点巨型模块**（section 级 SCC
+    缩点产物，占该包 35%，路径为 ~20 个标题拼接），需语句粒度
+    实证是否可分层；61/274 模块 ≤10 条（长尾微模块待审计裁决）；
+    词论簇挂在 numbers 下、跨包同名 section 两例（见 §1.2 案例）。
+  - **P7 局部分层不变量定案**（全局包级无环否决），学科=命名
+    空间、层=快照的模型与实证锚点写入 §1.1；归属跟随证明依赖、
+    桥子包一等公民两条编辑规则与四个案例裁决写入 §1.2。
+  - 命名标准补充：单名词叶子 + 共享前缀→子包 + 策展路径覆盖
+    slug（§5，含五组实例映射）。
+  - prelude 内容标准立项待裁决（§2.1）：用户方向为构造子 only、
+    排除定理、公理存疑；影响 P6 口径与 `--prelude-floor` 存废。
+  - 待实现（下一轮 partition 仓）：P7 校验器、分类式非连续归属
+    （区间降级为 bootstrap）、combinatorics 包抽取用例。

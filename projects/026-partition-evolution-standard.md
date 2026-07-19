@@ -1,0 +1,178 @@
+# Project 026：划分演化标准（Partition Evolution Standard）
+
+> 状态：Phase 0 进行中（2026-07-19 立项）。
+>
+> 规范性依据：[Reference 014](../references/014-module-partition-and-knowledge-classification.md)
+> （跨领域治理调研）、[Reference 015](../references/015-setmm-linearization-empirics.md)
+> （set.mm 线索化实证）、[Reference 016](../references/016-mathbox-community-practice.md)
+> （mathbox 社群实践）、[术语规范 000](../references/000-terminology.zh.md)。
+>
+> 上游项目：[Project 025](025-semantic-source-surface.md)（语义源码表面，已全门通过）。
+> 交接对象：partition 仓（plan 生产与校验）与 transpiler 仓（plan 消费）。
+>
+> 本文中的"必须（MUST）""不得（MUST NOT）""应当（SHOULD）"具有规范性含义。
+> **执行者遇到本文未覆盖的决策点时，必须停止并上报，不得自行发明。**
+
+---
+
+## 0. 目标与动机
+
+partition 仓向 transpiler 交付划分方案。旧交付物（`proof-partition-result-v2`）
+是拓扑序区间上的 cut 最优 DP 解，其命名与知识分类质量已被否决；
+Reference 015 给出了结构性解释：
+
+- **F1**：本图上 cut 目标几乎无主题信号（人工边界内部边占比仅 7–11%），
+  cut 最优边界由枢纽落点驱动，与知识分类无关；
+- **F3**：引用高度集中于少数胶水引理（前 500 名吸收 54% 逻辑引用），
+  任何把枢纽边与主题边同权的目标函数都会被枢纽支配；
+- **F5**：已定语料每年约 4% 证明重连、约 1% 语句迁移，静态最优解持续漂移。
+
+因此本项目规定的不是"一个划分结果"，而是**划分的表示、必须满足的不变量、
+与随知识生长而演化的操作**。两大支柱：
+
+1. **分类主导**：模块边界与命名由知识分类（L1）声明，结构指标只做验证器；
+2. **mathbox 机制化**：把 set.mm 已验证 25 年的前沿/核心单向膜
+   （Reference 016）上升为包划分的一等机制，并提供写作工具链。
+
+成功判据：logic、set-theory、numbers、number-theory 四域的 plan-v3 方案
+全部通过第 3 节全部不变量校验，且命名通过 definingness 审计。
+
+## 1. 规范模型
+
+三层解耦（继承 Reference 014 §0）：
+
+- **L1 分类骨架**：分类树给出模块**路径与名字**（如
+  `logic.implication`）。分类树是命名空间，不是依赖图。
+- **L2 模块 ABI**：模块间依赖是显式声明的 **import DAG**。
+  L1 树形与 L2 DAG 相互独立，不得由一方推导另一方（015 F2：
+  72% 的 section 对无依赖先后，文件顺序属 L3 渲染）。
+- **L3 物理分片**：文件布局、.mm 线索化顺序均为派生物，无规范内容。
+
+两区一层（继承 Reference 016）：
+
+- **prelude 层**：被全域引用的胶水引理集合，全局可见，
+  豁免 import 记账与 cut 类指标（015 F3）。
+- **core 区**：分类主导的主题模块，严格评审，ABI 稳定。
+- **frontier 区**：按作者/agent 组织的前沿模块（mathbox 的等价物），
+  宽松评审；**单向膜**：frontier 只能 import core 与 prelude，
+  core 不得 import frontier，frontier 之间不得互相 import。
+
+## 2. 交付物：`proof-partition-plan-v3`
+
+partition 向 transpiler 的交接工件。规范形态：
+
+```json
+{
+  "schema": "proof-partition-plan-v3",
+  "domain": "logic",
+  "source_hash": "…",
+  "graph_schema": "proof-partition-metadata-v2",
+  "draft": true,
+  "prelude": {"path": "logic.prelude", "labels": ["idi", "…"]},
+  "modules": [
+    {
+      "path": "logic.implication",
+      "title": "Logical implication",
+      "definingness": "一句话成员判据",
+      "kind": "core",
+      "sections": [3],
+      "labels": [],
+      "imports": ["logic.negation"]
+    }
+  ]
+}
+```
+
+- `path`：小写点分路径，即生成包的子包路径（L1 投影）。
+- `definingness`：一句话成员判据（Reference 014 §5.2 的存在性检验）。
+  `draft: true` 时允许为占位文本；正式方案必须通过人工审计。
+- `kind`：`core` 或 `frontier`；prelude 单列。
+- 成员：`sections`（引用图工件 section id）与 `labels`（显式标签）取并集。
+- `imports`：L2 声明；**prelude 不出现在 imports 中**（全局隐式可见）。
+
+## 3. 不变量（校验器 MUST 全部执行）
+
+| # | 不变量 | 依据 |
+|---|--------|------|
+| P1 | 覆盖且不重：每个目标节点恰属一个模块（或 prelude） | 划分定义 |
+| P2 | 路径合法且唯一；`title`、`definingness` 非空 | L1 命名 |
+| P3 | 声明 imports 构成 DAG；被引用路径存在 | L2 无环 |
+| P4 | 每条依赖边 u→v：同模块，或 v∈prelude，或 module(u) 直接声明 import module(v) | L2 完备 |
+| P5 | 膜：core 不得 import frontier；frontier 不得 import frontier | 016 §6.1 |
+| P6 | （报告项）模块规模、prelude 吸收率、枢纽过滤后模块内边占比 | 015 F3 |
+
+P6 为报告项不阻塞：容量约束由 L3 分片处理（同一分类节点内
+split-only），不得为满足规模而跨主题合并。
+
+## 4. 演化操作（Phase 2/3 落地）
+
+所有操作必须保持 P1–P5 不变量，并在方案工件中留下可审计记录：
+
+- **create**：新建 frontier 模块（作者/agent 命名空间）。
+- **promote**：frontier → core。触发条件为需求拉动（出现第二个消费者，
+  016 §6.2）。操作 = 移动 + 按命名标准改名 + 原路径留 shim/alias
+  进入弃用窗口（016 §6.3 的 `*OLD` 协议等价物）。
+- **split**：core 模块按分类细化（diffusion）。只分裂不合并；
+  子模块路径为父路径的细化，旧路径保留 re-export shim。
+- **rename**：路径改名必须伴随 shim 与弃用窗口；模块身份与路径解耦。
+- **sync**：core 改名/重构后机械更新全部 frontier 模块。
+
+下游引用规则：**frontier 中的语句在 promote 之前不得被其它模块正式
+引用**（set.mm 规则照抄；工具必须让 promote 足够低摩擦）。
+
+## 5. 命名标准（Phase 1 审计口径）
+
+- 模块名必须是成员的**定义性特征**：能写出一句"凡满足 X 者属之"。
+- 反模式（拒收）：非定义性聚合（"misc"、"other"、"additional"）；
+  多主题交叉筐（除非有独立 definingness）；容量驱动的语义碎片
+  （为凑规模发明不存在的子学科）。
+- 名字冲突或含混时，遵循 [术语规范 000](../references/000-terminology.zh.md)
+  流程登记裁决。
+
+## 6. Phases 与验收门
+
+- **Phase 0（本轮）**：`plan-v3` schema + 草案生成器 + 校验器落地
+  partition 仓；logic 域生成 draft 方案。
+  - G0a：校验器对 logic draft 方案 P1–P5 全绿；
+  - G0b：partition 仓 ruff / mypy strict / pytest 全绿。
+- **Phase 1**：logic 域人工 definingness 审计（与用户合作），
+  产出 `draft: false` 正式方案；对 DP 基线的对比报告
+  （命名可解释性 + P6 指标）。
+  - G1：审计后方案全绿且每个模块 definingness 经人工确认。
+- **Phase 2**：frontier 机制与写作工具（scaffold / verify）。
+  - G2：膜校验（P5）有正反用例；scaffold 生成的前沿包可本地 verify。
+- **Phase 3**：promote / split / rename / sync 操作与 shim 登记。
+  - G3：每个操作有前后方案对 + 不变量保持的回归用例。
+- **Phase 4**：set-theory、numbers、number-theory 三域压力验证。
+  - G4：四域方案全绿；发现的规范缺口回写本文档。
+
+## 7. 与 transpiler 的接口
+
+plan-v3 取代 naming-profile 的 `module_paths` 作为模块路径来源；
+transpiler 消费 `modules[].path` 生成子包结构，消费 `imports`
+生成包内依赖声明。prelude 模块生成为全局 re-export 包。
+本项目不改 transpiler 的发射内核（025 的契约不动）。
+
+## 8. 实施进展
+
+- 2026-07-19：立项。依据 014/015/016 确立两支柱；plan-v3 schema、
+  不变量 P1–P6、演化操作与命名标准定稿如上。
+- 2026-07-19：Phase 0 完成。`mm_partition.planv3` 落地（draft 生成器 +
+  校验器 + CLI `plan-draft` / `plan-validate`），logic 域 draft 方案
+  生成并通过 P1–P5（G0a）；partition 仓 ruff / mypy strict / pytest
+  全绿（G0b）。draft 方案 prelude 取全域引用前 48 名，49 个 section
+  模块，definingness 为占位文本，待 Phase 1 人工审计。
+- 2026-07-19：Phase 0 实证结果（logic 域，partition 仓提交
+  `40514f6` + `5bcba0a`，工件
+  `domains/logic/artifacts/classification-plan-v3.draft.json`）：
+  - P6 指标：13348 条依赖边中 prelude（48 个标签）吸收 **49.5%**；
+    过滤 prelude 后模块内边占比 **51.1%**，对照 015 F1 的 cut 最优
+    区间基线 7–11%，支持"分类主导 + 枢纽单列"两支柱；
+  - prelude 内容自动命中胶水引理（`syl`、`ax-mp`、`a1i`、`adantr`、
+    `bitri`…）与语法构造子（`wi`、`wn`、`wa`、`wal`…），无需人工种子；
+  - 模块规模 min 2 / median 19 / max 452，import 声明共 294 条，
+    DAG 无环；两个 2 节点模块与 452 节点巨模块是 Phase 1 审计的
+    首批对象（前者考察分类树归并，后者按 L3 split-only 处理）；
+  - 名称直接采用 section 标题投影，"derive_the_*_axioms_from_*"
+    一族（替代公理系统）提示应在 Phase 1 归入 `logic.systems.*`
+    子树或考虑 frontier 定位（provisional，待裁决）。

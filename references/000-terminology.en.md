@@ -1,6 +1,6 @@
 # ProofScaffold Terminology
 
-> Status: Draft v0.2, 2026-07-19 (added Layer 9: Knowledge Organization and Release).  
+> Status: Draft v0.3, 2026-07-19 (Prelude boundary adjudicated in the 027 RFC, provisional marker removed; added capability slice and profile).  
 > Chinese version: [ProofScaffold 术语规范](000-terminology.zh.md)  
 > Scope: ProofScaffold design documents, public API documentation, code review, exchange-format specifications, and related bilingual material.  
 > This document defines preferred project terminology but does not freeze Python class names, file-format names, or serialization protocols.
@@ -333,7 +333,9 @@ knowledge base (adjudicated in Project 026, 2026-07-19).
 | Mathematical domain | 数学领域 | A first-level subpackage of a release package, giving a mathematical discipline (including bridge domains) its namespace and community boundary. | Within one release package, domain-to-domain dependencies MUST form a DAG (026 P7); this acyclicity requirement **honors engineering practice** (build, lazy loading, versioning). A domain is not a dependency layer: its concrete layering order is a snapshot of the current corpus and shifts as knowledge grows. |
 | Bridge domain | 桥领域 | A mathematical domain whose content inherently couples two or more core domains, named after mathematical tradition (e.g. arithmetic combinatorics, analytic number theory). | Absorbs cross-domain entanglement so core domains keep narrow boundaries; the mechanism that keeps the domain DAG satisfiable despite entangled knowledge. |
 | Module | 模块 | The smallest organizational unit inside a domain (a file or subpackage): its path and name come from classification, its dependencies from import declarations. | The granularity of hard dependency constraints: the module import graph must be acyclic and complete (026 P3/P4); statement placement follows proof dependencies. |
-| Prelude | 前导包（暂定） | The globally, implicitly visible base layer inside a release package. | Content standard pending adjudication (constructor vocabulary vs. base layer including glue lemmas, see 026 §2.1); marked provisional until frozen. |
+| Prelude | 前导包 | The globally, implicitly visible base layer inside a release package, bounded by **general theory-building capability** (representation primitives, combination mechanisms, finite constructions, up to natural numbers and finite recursion) and carrying no substantive theory of any specific mathematical domain. | Boundary principle in the 027 RFC; the quantitative boundary awaits empirical work. Semantic foundations belong to the prelude; authoring economy belongs to the Python layer. |
+| Capability slice | 能力簇 | The minimal usable closure of a construction together with its formation, equality/substitution, introduction/elimination, and recursion/induction rules. | The **migration unit** between the prelude and domain packages (027 §3): migration moves whole capability slices, never single labels or frequency-ranked lists. |
+| Profile | 聚合包 | A release package that owns no definitions and only aggregates stable dependencies (e.g. learning profile, program profile). | Gives application scenarios an out-of-the-box entry point without breaking theory boundaries; application demands are assembled via profiles and must not push content down into the prelude (027 §1/§5). |
 
 ## 14. Expressions to Avoid or Rewrite
 

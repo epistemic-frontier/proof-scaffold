@@ -163,10 +163,11 @@ transpiler 消费 `modules[].path` 生成子包结构，消费 `imports`
   全绿（G0b）。draft 方案 prelude 取全域引用前 48 名，49 个 section
   模块，definingness 为占位文本，待 Phase 1 人工审计。
 - 2026-07-19：Phase 0 实证结果（logic 域，partition 仓提交
-  `40514f6` + `5bcba0a`，工件
+  `1ca0897`，基于用户 `21060ff` 四域整理后的最新 set.mm 快照
+  （2740 节点）rebase 后重新生成并复验，工件
   `domains/logic/artifacts/classification-plan-v3.draft.json`）：
-  - P6 指标：13348 条依赖边中 prelude（48 个标签）吸收 **49.5%**；
-    过滤 prelude 后模块内边占比 **51.1%**，对照 015 F1 的 cut 最优
+  - P6 指标：13380 条依赖边中 prelude（48 个标签）吸收 **49.5%**；
+    过滤 prelude 后模块内边占比 **51.0%**，对照 015 F1 的 cut 最优
     区间基线 7–11%，支持"分类主导 + 枢纽单列"两支柱；
   - prelude 内容自动命中胶水引理（`syl`、`ax-mp`、`a1i`、`adantr`、
     `bitri`…）与语法构造子（`wi`、`wn`、`wa`、`wal`…），无需人工种子；

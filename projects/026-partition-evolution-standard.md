@@ -177,3 +177,29 @@ transpiler 消费 `modules[].path` 生成子包结构，消费 `imports`
   - 名称直接采用 section 标题投影，"derive_the_*_axioms_from_*"
     一族（替代公理系统）提示应在 Phase 1 归入 `logic.systems.*`
     子树或考虑 frontier 定位（provisional，待裁决）。
+- 2026-07-19：四域压力测试（Phase 4 提前执行，partition 仓提交
+  `5924a1b`）。基底更新为 set.mm develop `e514bf2`（2026-07-18，
+  source hash `ed3a34ef`），四域图重导，v2 流水线全量刷新，
+  plan-v3 draft 四域 P1–P5 **全绿**。发现与修复：
+  - **快照差分即晋升实录**：新旧快照唯一实质差异是 set.mm 顶部提交
+    "Copy bj-zfauscl to Main as sepg"（mathbox→Main 晋升 +
+    `zfausclOLD` 弃用 shim），Reference 016 §6.2/6.3 的协议
+    在一次例行更新中直接观测到；curated 边界经标签重映射平移 +2
+    即恢复，验证了"以标签为身份、序号为派生"的抗漂移设计。
+  - **生成器三处硬化**（压力暴露的缺陷）：slug 需解码 HTML 实体
+    并去变音符（B&eacute;zout→bezout）、域根需 slug 化
+    （set-theory→set_theory）；"X (cont.)" section 并回同章节
+    基础 section（线索化痕迹不是分类节点，set.mm 存在**同名
+    section 分置两处**的实例）；section 粒度依赖环经 Tarjan SCC
+    凝聚为合并模块并在 definingness 标记 Phase 1 语句级重分配。
+  - **环普查**：logic 0 个；set-theory 2 个 2-way（等势 +
+    Schröder–Bernstein、有限集 + 鸽笼原理）；number-theory 1 个
+    2-way（互素/Euclid 引理 + 同余消去）；numbers 存在 **25-section
+    大 SCC**（扩展实数系与序公理重述互依，1874/5475 节点）——
+    set.mm 实数层在 section 粒度不可分层，为 Phase 1 首要对象。
+  - **P6 四域画像**（prelude=48，吸收率 / 滤枢纽后模块内边占比）：
+    logic 49.5%/51.0%，set-theory 37.1%/26.9%，numbers 47.0%/49.0%，
+    number-theory 52.9%/72.8%。set-theory 双低说明全域统一
+    prelude 尺寸不足，prelude 应按域标定（Phase 1 待裁决）。
+  - G4 判据中"命名通过 definingness 审计"未达成（四域 definingness
+    仍为占位文本），Phase 1 人工审计后方可撤销 draft 标记。

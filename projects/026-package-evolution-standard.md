@@ -1,4 +1,9 @@
-# Project 026：划分演化标准（Partition Evolution Standard）
+# Project 026：包演化标准（Package Evolution Standard）
+
+> 2026-07-19 更名：原名"划分演化标准（Partition Evolution
+> Standard）"。000 §13 术语冻结后，本文的规范对象是**发布包**
+> 及其领域/模块结构的演化，而非一次性的"划分"；文件名同步改为
+> `026-package-evolution-standard.md`。
 
 > 状态：Phase 0 进行中（2026-07-19 立项）。
 >

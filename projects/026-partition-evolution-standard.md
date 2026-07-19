@@ -34,8 +34,10 @@ Reference 015 给出了结构性解释：
 2. **mathbox 机制化**：把 set.mm 已验证 25 年的前沿/核心单向膜
    （Reference 016）上升为包划分的一等机制，并提供写作工具链。
 
-成功判据：logic、set-theory、numbers、number-theory 四域的 plan-v3 方案
-全部通过第 3 节全部不变量校验，且命名通过 definingness 审计。
+成功判据：prelude、logic、set-theory、numbers、number-theory 五区在
+全语料统一图上的 plan-v3 方案通过第 3 节全部不变量校验（含跨区依赖
+的 P4），且命名通过 definingness 审计。（2026-07-19 起取代早先"四域
+各自独立校验"的口径。）
 
 ## 1. 规范模型
 
@@ -143,8 +145,10 @@ split-only），不得为满足规模而跨主题合并。
   - G2：膜校验（P5）有正反用例；scaffold 生成的前沿包可本地 verify。
 - **Phase 3**：promote / split / rename / sync 操作与 shim 登记。
   - G3：每个操作有前后方案对 + 不变量保持的回归用例。
-- **Phase 4**：set-theory、numbers、number-theory 三域压力验证。
-  - G4：四域方案全绿；发现的规范缺口回写本文档。
+- **Phase 4**：五区（prelude + logic + set-theory + numbers +
+  number-theory）在全语料统一图上的压力验证。
+  - G4：五区统一方案全绿（含跨区 P4 与逐区 P6 报告）；发现的
+    规范缺口回写本文档。
 
 ## 7. 与 transpiler 的接口
 
@@ -203,3 +207,28 @@ transpiler 消费 `modules[].path` 生成子包结构，消费 `imports`
     prelude 尺寸不足，prelude 应按域标定（Phase 1 待裁决）。
   - G4 判据中"命名通过 definingness 审计"未达成（四域 definingness
     仍为占位文本），Phase 1 人工审计后方可撤销 draft 标记。
+- 2026-07-19：压力测试范围重划为**五区统一模型**（partition 仓提交
+  `fb73bf3`，口径修正 `5565fe9`）：prelude 升格为全局第五区，与 logic / set_theory /
+  numbers / number_theory 并列，在全语料 [0, cstr)（17207 节点、
+  353810 边，`domains/corpus`）上统一校验，跨区依赖边纳入 P4。
+  - **prelude 定标判据**（provisional）：每区引用吸收率 ≥ 50% 的
+    最小规模。吸收率与 P6 同口径（prelude 节点自身发出的边不计入
+    分子分母；选择器初版含这些边导致 logic 报 49.7%，已修复为增量
+    精确扫描并加回归测试），精确解为 **215 个标签**（logic 99、
+    set_theory 88、numbers 27、number_theory 1；90 语法构造子/公理
+    + 125 胶水引理——prelude ≈ 全语料词汇表 + 推理胶水）。吸收率
+    曲线为幂律尾部、无明显拐点（约 48→34%，256→59%，1024→78%），
+    故用下限判据而非拐点判据。
+  - **五区统一校验全绿**：274 个模块（logic 48 + set_theory 125 +
+    numbers 70 + number_theory 31），7065 条 import 声明，跨区无环、
+    无跨区 section；逐区吸收率 logic 50.0%、set_theory 55.8%、
+    numbers 58.6%、number_theory 53.2%。
+  - **跨区画像**（单域视角不可见）：非 prelude 引用中指向本区的
+    比例 logic 100%、set_theory 57.7%、numbers 40.3%、number_theory
+    仅 8.5%（41726 条中 3546），number_theory 是 numbers/set_theory
+    的重度消费者；分区 within-module 占比 logic 51.0%、numbers
+    26.7%、set_theory 21.0%、number_theory 9.3%（后三者被跨区边
+    稀释，模块内聚评估应以域内边为准）。
+  - 工件：`domains/corpus/artifacts/classification-plan-v3.draft.json`
+    （五区）；四域单域 draft 保留作对照。zones 由 domain config 的
+    `zones` 字段声明，`--prelude-floor` 触发定标。

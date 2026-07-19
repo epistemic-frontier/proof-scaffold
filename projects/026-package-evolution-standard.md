@@ -426,3 +426,41 @@ transpiler 消费 `modules[].path` 生成子包结构，消费 `imports`
   函数）与实证基线保存于 027，"是否/何时扩展"为 027 §12 首项
   开放问题。program foundation / profile 进入方式同轮保留为
   开放问题。000 前导包词条改记现状定位（v0.5）。
+- 2026-07-19（第七轮）：**标准五领域分类方案落地**（partition 仓
+  提交 `21432bf`，工件
+  `domains/corpus/artifacts/classification-plan-v3.standard.json`），
+  供下一阶段编译压力测试。生成机制与裁决全部落进可执行配置
+  （`domains/corpus/domain.json` 的 `plan_v3` 块）：
+  - **显式 prelude**：`prelude_labels: [wn, wi]`（metamath-prelude
+    当前真实产物），取代频率 top-N；215 标签方案降级为历史压测
+    基线。频率机制保留为 fallback。
+  - **P7 校验器实装**：模块 import 图按 path 首段商化为领域图做
+    DAG 检查（模块级无环不蕴含领域级无环），`domain_imports`
+    进入 P6 报告。
+  - **combinatorics 领域抽取（实证裁决）**：词论 section 230–245、
+    容斥 260、van der Waerden 299、Ramsey 300 经 section 级
+    非连续归属移入；`sumhash`（被错放进素数计数 section 的纤维
+    计数引理，Ramsey 闭包需要）经**label 级 override** 拆出，
+    机制在 plan 双侧显式记录（策展模块 `labels` + 来源模块
+    `exclude_labels`），校验器保持严格 P1。两个方向实证对比后
+    取 **logic → set_theory → numbers → combinatorics →
+    number_theory**（符合"数论使用组合工具"的知识传统，代价仅
+    sumhash 一个标签移动；备选 nt 先于 comb 零标签移动但方向
+    倒置，弃）；binomial
+    theorem（259）因 numbers 侧 3 条反向引用留在 numbers，
+    necklace-prime section 304 依 §1.2 桥裁决留在 number_theory
+    区默认（其对 243 词论机器的依赖即 nt→comb 合法方向边）。
+  - **五领域画像**：276 模块，领域间依赖严格 DAG（comb 不依赖
+    nt）；logic 49 模块/2738 节点、set_theory 125/8090、numbers
+    53/5013、combinatorics 20/529、number_theory 29/835；
+    ruff / mypy strict / pytest（34 项）全绿；plan-draft 0.22s、
+    plan-validate 0.19s。
+  - **发布包映射元数据**：prelude→metamath-prelude、logic→
+    metamath-logic、set_theory→metamath-set-theory、numbers→
+    metamath-numbers、combinatorics→**metamath-combinatorics
+    （待建仓）**、number_theory→metamath-number-theory，写入
+    `plan_v3.packages`。
+  - 已知遗留：numbers 的 1895 节点 SCC 巨模块（Phase 1 语句级
+    重分配首要对象）；definingness 仍为占位文本，draft 标记
+    未撤销；策展命名（如 `primes.decimal_certificates`）待
+    Phase 1。

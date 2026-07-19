@@ -464,3 +464,46 @@ transpiler 消费 `modules[].path` 生成子包结构，消费 `imports`
     重分配首要对象）；definingness 仍为占位文本，draft 标记
     未撤销；策展命名（如 `primes.decimal_certificates`）待
     Phase 1。
+- 2026-07-19（第八轮）：**plan-v3 全语料编译压力测试通过**
+  （transpiler 提交 `60331e1`，分支 `semantic-api-v2`；partition
+  热修 `607e20e` 把凝聚 SCC 模块路径叶截断至 100 字符）。
+  - **SCC 巨模块成因定性**：set.mm 语句依赖图本身是 DAG；环出现
+    在按 authored section 商化之后——定义、闭包定理、运算与数系
+    嵌入在相邻 section 间交错回引，23 个 section（184–194、198–206、
+    208–210、212–213，扩展实数、复数初等性质、四则、完备性、
+    正整数/归纳、阿基米德性质等）凝聚成
+    `numbers.infinity_and_the_extended_real_number_system__scc_23`
+    （1895 标签）。这不是证明循环，而是 section 粒度过粗导致的
+    知识边界循环；解法是 Phase 1 的语句级 capability-slice 拆分
+    （`labels` + `exclude_labels` override），不是移动整个 section。
+  - **transpiler 直读 plan-v3**：`--plan` 模式取代连续边界分区，
+    支持非连续模块归属、显式 prelude 首模块、精确 ownership 校验
+    （17,207 标签不重不漏）与模块路径冲突检查；`--partition`
+    兼容模式保留。
+  - **表面渲染缺陷修复（首次全语料暴露）**：set.mm 结构变量
+    （`.x.`、`.+.` 等带点变量名）无法通过 notation 文本 round-trip
+    （tokenizer 拆散点号），触发从未被覆盖的 facade fallback 路径
+    且该路径崩溃。修复为渲染显式 `Judgment`/`App`/`Var` 表达式
+    （proof `subst` 值同样按 round-trip 检查逐个降级），变量引用
+    与生成 `Theory` 铸造规则结构相同。全语料仅 13/16,899 签名
+    （0.08%）落入 fallback，全部注册且 elaborate 正确；回归测试
+    以 monkeypatch 强制全 fallback 生成并全量 elaborate。
+  - **GC 悬崖**：首次全语料尝试 16 分钟未完成生成，`sample` 显示
+    ~85% 时间在 `_PyGC_Collect`/`mark_stacks`（约 3 GB 常驻对象图
+    被分代 GC 反复全量标记）。数据库扫描后 `gc.freeze()` +
+    `gc.disable()` 恢复线性行为。全语料工具链的固定作业要求。
+  - **时间开销**（Apple M4，单进程单次）：扫描 1.78s；生成
+    277.69s；惰性 import 7.96s；校验 0.03s；基准合计 287.46s。
+    另测全量 16,542 证明经活 `Theory` 注册表 elaborate 50.70s
+    （import 2.84s）。对照 07-18 四领域链式基线（生成 324.34s +
+    急切重放 import 91.01s ≈ 415.36s），单包五领域含全量
+    elaboration 约 336.4s（注意：本轮禁用 GC、渲染器已换代，
+    非严格同条件）。
+  - **SCC 模块负载表现**：1895 标签模块生成 3.84 MB Python 源，
+    生成/导入/elaboration 均无异常——当前规模下它是可读性与边界
+    卫生问题，不是性能热点。
+  - 工件：`transpiler/benchmarks/benchmark_plan_v3.py`、
+    `benchmarks/setmm-five-domains-plan-v3-20260719.{json,md}`；
+    82 项测试、ruff、mypy strict 全绿。
+  - 下一步：Phase 1 语句级拆分 SCC 巨模块与策展命名；
+    metamath-combinatorics 建仓；发布包元数据消费端接线。

@@ -1,6 +1,6 @@
 # ProofScaffold Terminology
 
-> Status: Draft v0.5, 2026-07-19 (Prelude positioning converged: minimal pre-logic state kept; expansion becomes an open question).  
+> Status: Draft v0.6, 2026-07-20 (sixteen bare mathematical import roots frozen as one-to-one mathematical release units; mathbox governance deferred).
 > Chinese version: [ProofScaffold 术语规范](000-terminology.zh.md)  
 > Scope: ProofScaffold design documents, public API documentation, code review, exchange-format specifications, and related bilingual material.  
 > This document defines preferred project terminology but does not freeze Python class names, file-format names, or serialization protocols.
@@ -324,18 +324,29 @@ Execution representations are derived from complete proofs, while search algorit
 
 ## 13. Layer 9: Knowledge Organization and Release
 
-This layer fixes the vocabulary for partitioning and releasing the
-knowledge base (adjudicated in Project 026, 2026-07-19).
+This layer fixes the vocabulary for organizing and releasing the knowledge
+base (adjudicated in Projects 026 and 028, 2026-07-19 through 2026-07-20).
 
 | English term / code name | Preferred Chinese | Meaning or definition | Role in the architecture |
 | --- | --- | --- | --- |
-| Release package | 发布包 | The unit of release and installation for the knowledge base, versioned as a whole; may contain multiple mathematical domains. | Build, versioning, and distribution operate on this unit; the top-level distribution unit emitted by the transpiler. Its capacity for multiple domains **honors mathematical knowledge tradition**: entangled disciplines ship together and are never carved up for release. |
-| Mathematical domain | 数学领域 | A first-level subpackage of a release package, giving a mathematical discipline (including bridge domains) its namespace and community boundary. | Within one release package, domain-to-domain dependencies MUST form a DAG (026 P7); this acyclicity requirement **honors engineering practice** (build, lazy loading, versioning). A domain is not a dependency layer: its concrete layering order is a snapshot of the current corpus and shifts as knowledge grows. |
-| Bridge domain | 桥领域 | A mathematical domain whose content inherently couples two or more core domains, named after mathematical tradition (e.g. arithmetic combinatorics, analytic number theory). | Absorbs cross-domain entanglement so core domains keep narrow boundaries; the mechanism that keeps the domain DAG satisfiable despite entangled knowledge. |
-| Module | 模块 | The smallest organizational unit inside a domain (a file or subpackage): its path and name come from classification, its dependencies from import declarations. | The granularity of hard dependency constraints: the module import graph must be acyclic and complete (026 P3/P4); statement placement follows proof dependencies. |
-| Prelude | 前导包 | The globally, implicitly visible base layer inside a release package. **Currently kept in its minimal pre-logic state**; any expansion is judged by **general theory-building capability** (candidate boundary: up to set/class basics and relations/functions, close to set.mm's native layering), carrying no substantive theory of any specific mathematical domain; natural numbers (including ω), finiteness, induction, and finite recursion stay out of the prelude. | Whether and when to expand is the leading open question of the 027 RFC; the decision framework and negative adjudications are frozen. Semantic foundations belong to the prelude; authoring economy belongs to the Python layer. |
+| Release package | 发布包 | A unit of release and installation, versioned as a whole. Releases have two kinds: mathematical and infrastructure. Profile and implementation-provider are roles or subtypes of infrastructure releases, not a third kind. | Build, versioning, installation, and distribution operate on this unit. The distribution name is distinct from its Python import root and stable release-unit identifier. |
+| Mathematical release unit | 数学发布单元 | A mathematical release package identified by `release_unit_id`, built and published through one distribution. | In set.mm V1 it participates in a bijection: one top-level mathematical domain ↔ one mathematical release unit/package ↔ one public import root ↔ one distribution name. |
+| Mathematical domain | 数学领域 | A top-level, curated mathematical discipline and canonical public-ownership scope. In set.mm V1, each domain is embodied by exactly one top-level mathematical package and one mathematical release unit. | Organizes knowledge according to mathematical meaning. A domain is not a dependency layer; proof and release dependencies are explicit implementation projections. The V1 domain registry is frozen by Project 028. |
+| Public import root | 公共导入根 | The bare top-level Python package name through which a mathematical domain is imported, such as `logic` or `combinatorics`. | In set.mm V1, each mathematical release owns exactly one root and each root has exactly one owner. The root is distinct from the distribution name and from stable declaration identifiers; multi-owner PEP 420 assembly is forbidden. |
+| Bridge subdomain | 桥子领域 | A mathematically named subdomain whose subject inherently connects two or more top-level domains, such as arithmetic combinatorics or analytic number theory. | In V1 it has one canonical owner under an adjudicated top-level root and may have plural discovery facets. It does not create another import root or release unit without a separate adjudication. |
+| Module | 模块 | The smallest organizational unit inside a top-level mathematical package (a file or subpackage). Its public declarations have ontology-curated owners; its proof providers derive complete imports from implementation requirements. | The granularity of hard implementation-dependency constraints: module import graphs must be acyclic and complete (026 P3/P4 as revised by 028). Proof dependencies constrain implementations and verification, not public subject ownership. |
+| Prelude | 前导包 | A separate infrastructure release and the Foundation Unit shared by compatible mathematical releases. **It remains in its minimal pre-logic state**; any expansion is judged by **general theory-building capability**, and natural numbers (including ω), finiteness, induction, and finite recursion remain outside it. | Prelude symbols may be implicitly available in a compatible object-theory surface, but installation dependency, version, content digest, and verification lock are explicit. It is not one of the sixteen mathematical roots. Project 027 governs its content boundary. |
 | Capability slice | 能力簇 | The minimal usable closure of a construction together with its formation, equality/substitution, introduction/elimination, and recursion/induction rules. | The **migration unit** between the prelude and domain packages (027 §3): migration moves whole capability slices, never single labels or frequency-ranked lists. |
-| Profile | 聚合包 | A release package that owns no definitions and only aggregates stable dependencies (e.g. learning profile, program profile). | Gives application scenarios an out-of-the-box entry point without breaking theory boundaries; application demands are assembled via profiles and must not push content down into the prelude (027 §1/§5). |
+| Profile | 聚合包 | The aggregation role of an infrastructure release that owns no definitions or mathematical import root and only aggregates stable dependencies (e.g. learning profile, program profile). | Gives application scenarios an out-of-the-box entry point without breaking the one-root/one-mathematical-release rule; application demands must not push content down into the prelude (027 §1/§5). |
+
+V0.6 compatibility impact: Project 028 supersedes Project 026's multi-domain
+release-container model, the plan-v3 interpretation of the first path segment,
+the domain-local form of P7, and automatic mathbox/frontier treatment. A
+follow-on plan schema must separate `release_unit_id`, `python_root`, and
+`distribution_name`. Project 027's Prelude content decisions remain valid,
+but its packaging topology is read through Project 028. The former term
+"bridge domain" is narrowed to **bridge subdomain** so it cannot be mistaken
+for another member of the top-level domain registry.
 
 ## 14. Expressions to Avoid or Rewrite
 
@@ -367,7 +378,11 @@ knowledge base (adjudicated in Project 026, 2026-07-19).
 
 ## 16. Related Design Documents
 
-- [Reference 011: Language as a First-Class Element](011-language-as-first-class.md)
-- [Reference 012: Semantic Definition of Structures, Axioms, and Proofs](012-defining-structures-axioms-and-proofs.md)
-- [Reference 013: Proof API for Verification, Construction, Search, and Exchange](013-proof-api-for-verification-construction-search-and-exchange.md)
-- [Project 024: First-Class Language Refactor](../projects/024-first-class-language-refactor.md)
+- [Reference 011: Language as a First-Class Element](011-language-as-first-class.en.md)
+- [Reference 012: Semantic Definition of Structures, Axioms, and Proofs](012-defining-structures-axioms-and-proofs.en.md)
+- [Reference 013: Proof API for Verification, Construction, Search, and Exchange](013-proof-api-for-verification-construction-search-and-exchange.en.md)
+- [Reference 017: Ontology Before Dependency](017-ontology-first-knowledge-organization.md)
+- [Project 024: First-Class Language Refactor](../projects/024-first-class-language-refactor.en.md)
+- [Project 026: Package Evolution Standard](../projects/026-package-evolution-standard.en.md)
+- [Project 027: Prelude Boundary RFC](../projects/027-prelude-boundary-rfc.en.md)
+- [Project 028: Top-Level Knowledge Packages as Release Units](../projects/028-top-level-knowledge-release-units.en.md)

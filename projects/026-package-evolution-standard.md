@@ -7,6 +7,14 @@
 
 > 状态：Phase 0 进行中（2026-07-19 立项）。
 >
+> **发布拓扑取代说明（2026-07-20）：**
+> [Project 028](028-top-level-knowledge-release-units.md) 取代本文中如下假设：
+> 由一个生成的发布 wrapper 容纳多个数学领域、由证明归属推导公共
+> ownership，或把 mathbox/frontier 治理纳入 V1。历史 plan-v3 记录
+> 继续作为可复现实证保留。现行 V1 语义是：十六个裸数学根各自对应
+> 一个数学发布单元；Prelude 是独立基础设施发布；mathbox 是明确
+> 排除、另待治理的范围。
+>
 > 规范性依据：[Reference 014](../references/014-module-partition-and-knowledge-classification.md)
 > （跨领域治理调研）、[Reference 015](../references/015-setmm-linearization-empirics.md)
 > （set.mm 线索化实证）、[Reference 016](../references/016-mathbox-community-practice.md)
@@ -33,16 +41,14 @@ Reference 015 给出了结构性解释：
 - **F5**：已定语料每年约 4% 证明重连、约 1% 语句迁移，静态最优解持续漂移。
 
 因此本项目规定的不是"一个划分结果"，而是**划分的表示、必须满足的不变量、
-与随知识生长而演化的操作**。两大支柱：
+与随知识生长而演化的操作**。在 Project 028 拓扑下，现行支柱有二：
 
 1. **分类主导**：模块边界与命名由知识分类（L1）声明，结构指标只做验证器；
-2. **mathbox 机制化**：把 set.mm 已验证 25 年的前沿/核心单向膜
-   （Reference 016）上升为包划分的一等机制，并提供写作工具链。
+2. **一根一数学发布**：十六个裸根及其 distribution owner 由
+   Project 028 固定；实现依赖保持完备、无环，但不决定公共 ownership。
 
-成功判据：prelude、logic、set-theory、numbers、number-theory 五区在
-全语料统一图上的 plan-v3 方案通过第 3 节全部不变量校验（含跨区依赖
-的 P4），且命名通过 definingness 审计。（2026-07-19 起取代早先"四域
-各自独立校验"的口径。）
+五区 plan-v3 压力测试继续作为历史里程碑保留。现行成功判据是
+Project 028 G0–G5。mathbox 工作仅在独立治理项目裁决后恢复。
 
 ## 1. 规范模型
 
@@ -50,30 +56,27 @@ Reference 015 给出了结构性解释：
 
 成熟数学中，学科商图**有环**：数、组合学、数论两两之间都有双向
 知识流动（necklace 计数证 Fermat 小定理方向、生成函数用分析、
-Ramsey 数构造性下界用数论）。数学社区对此的承认方式是给桥领域
+Ramsey 数构造性下界用数论）。数学社区对此的承认方式是给桥子领域
 起专名：*arithmetic combinatorics*、*combinatorial number theory*、
 *analytic number theory*、*additive combinatorics*。无环的只有
 语句图，以及（划得好时）模块图。因此：
 
-术语已冻结进 [000 §13（第九层：知识组织与发布）](../references/000-terminology.zh.md)：
-**发布包**（release package）是发布与安装单元，可包含多个领域；
-**数学领域**（mathematical domain）是发布包的一级子包，对应一个
-学科（含**桥领域**）的命名空间与社区边界。由此：
+术语已按 Project 028 修订并冻结进
+[000 §13（第九层：知识组织与发布）](../references/000-terminology.zh.md)。
+在 set.mm V1 中，数学领域、裸公共 Python 根与数学发布包一一对应；
+基础设施发布与无定义 profile 不拥有数学根。由此：
 
-- **数学领域 = 命名空间与社区边界**，不是依赖层；
-- **领域间依赖必须是 DAG**（P7，见 §3）——这是不变量；但领域的
-  **具体分层顺序**（谁在谁下游）是当前语料的快照属性，随知识
-  生长改变，不得写死；
-- DAG 在知识缠绕下仍可满足的机制是**桥领域**：学科名完整保留，
-  工程分层在发布包视图内成立，跨领域缠绕被逼入显式桥领域；
-  同一约束递归适用于领域内部的子包层级。
+- **数学领域 = 公共知识 ownership 范围**，不是依赖层；
+- **数学发布实现之间的依赖必须构成 DAG**（P7，见 §3），但具体
+  分层顺序只是快照属性，不得写死为本体；
+- **桥子领域**在一个已裁决根下有且仅有一个 canonical owner，同时
+  可有复数 discovery facets；未经独立裁决不得新建顶级根；
+- 同一实现无环与完备约束递归适用于模块与子包投影。
 
-设计权责（用户裁决，2026-07-19）：**发布包尊重数学的知识传统**
-——学科以领域名义完整聚合，缠绕的知识共同发布，无须为发布被
-拆散或强行分层；**领域间无环要求尊重工程实践**——构建、lazy
-加载、版本化需要可分层的依赖结构。妥协是双向各让一次：工程
-单元（发布包）在内部结构上容纳知识传统，知识单元（领域）在
-依赖纪律上服从工程约束。
+设计权责（用户修订裁决，2026-07-20）：公共根尊重数学知识传统；
+显式实现与发布依赖尊重工程约束。两种投影不一致时，工具链应分离
+公共 facade 与 proof provider，而不是只为修复商图就把声明移动到
+另一个数学主题。
 
 两个实证锚点（2026-07-19，set.mm `e514bf2`）：
 
@@ -91,16 +94,17 @@ Ramsey 数构造性下界用数论）。数学社区对此的承认方式是给�
 静态最优布局不存在；架构优化的目标是**让重新分层便宜**：模块
 粒度足够细 + 桥包吸收缠绕 + split/promote 低成本。
 
-### 1.2 归属与分类的两条编辑规则
+### 1.2 ownership 与实现的两条编辑规则
 
-1. **归属跟随证明依赖**。Metamath 依赖是证明依赖，存在"初等
-   陈述、解析证明"的定理（`bpos` 即是）。定理的物理归属不得
-   低于其证明所需的层；其传统分类身份记入 taxonomy 元数据供
-   检索呈现。否则会制造 `elementary → analytic` 上行边。
-2. **桥子包是一等公民**。A⊗B 内容不摊派给任一核心包，进显式
-   桥包（沿用数学传统命名）。核心包边界保持窄且稳定，缠绕全部
-   显式化。mathbox 膜（016）的晋升路径与此衔接：前沿内容孵化
-   成熟后晋升为桥包或核心包成员。
+1. **公共 ownership 跟随本体，实现跟随证明依赖。** Metamath
+   依赖是证明依赖，存在"初等陈述、解析证明"的定理（`bpos` 即是）。
+   此类定理仍由其数学主题公开拥有，provider 则记录解析侧的
+   `requires` 闭包。若现行 schema 不能表达由此得到的无环 provider
+   投影，rollout 必须暂停，等待 facade/provider 分离；不得静默
+   改写公共 ownership。
+2. **桥子领域必须显式，但不得擅造根。** A⊗B 内容在十六根之一
+   下获得一个 canonical owner，并附加跨领域 facets。独立发布的
+   bridge root 需要未来裁决。mathbox 晋升不在本项目 V1 范围内。
 
 案例裁决（2026-07-19，边数为语句级实测）：
 
@@ -128,18 +132,18 @@ Ramsey 数构造性下界用数论）。数学社区对此的承认方式是给�
   72% 的 section 对无依赖先后，文件顺序属 L3 渲染）。
 - **L3 物理分片**：文件布局、.mm 线索化顺序均为派生物，无规范内容。
 
-两区一层（继承 Reference 016）：
+原"两区一层"plan-v3 模型只为解释历史工件而保留。在 Project 028 下：
 
-- **prelude 层**：被全域引用的胶水引理集合，全局可见，
-  豁免 import 记账与 cut 类指标（015 F3）。
-- **core 区**：分类主导的主题模块，严格评审，ABI 稳定。
-- **frontier 区**：按作者/agent 组织的前沿模块（mathbox 的等价物），
-  宽松评审；**单向膜**：frontier 只能 import core 与 prelude，
-  core 不得 import frontier，frontier 之间不得互相 import。
+- **Prelude** 是独立且显式锁定的基础设施发布；
+- **core 数学内容**归入十六根之一；
+- **mathbox/frontier 内容**排除在 V1 目标来源范围之外，等待独立
+  治理裁决。
 
-## 2. 交付物：`proof-partition-plan-v3`
+## 2. 历史交付物：`proof-partition-plan-v3`
 
-partition 向 transpiler 的交接工件。规范形态：
+这是 partition 在 2026-07-19 压力测试中交给 transpiler 的工件。
+Project 028 已以 `knowledge-release-plan-v1` 取代它，作为现行 V1
+工作目标。下列形态只在复现历史 plan-v3 工件时仍具规范性：
 
 ```json
 {
@@ -181,8 +185,9 @@ partition 向 transpiler 的交接工件。规范形态：
   首项开放问题；
 - 边界判据（若扩展）是**通用理论构造能力**（表示原语、组合
   机制），不是"常用数学内容"——**自然数（含 ω）、有限性、
-  归纳、有限递归、有限序列/fold 均不入 prelude**，归集论与
-  数领域（二次裁决，实证依据见 027 §4.1 后注）；
+  归纳、有限递归、有限序列/fold 均不入 prelude**，归
+  `set_theory` 与 `number_systems` 数学发布单元（二次裁决，
+  实证依据见 027 §4.1 后注）；
 - 迁移单位是**能力簇**（capability slice：构造连同形成/相等/
   引入消去/归纳规则的最小可用闭包），不是单个 label，也不是
   频率排行榜前 N 名——这**取代**本节最初"只放构造子、不放
@@ -194,8 +199,8 @@ partition 向 transpiler 的交接工件。规范形态：
 - `--prelude-floor` 吸收率定标保留但**降级**为压力测试基线
   工具；量化边界待 027 §10 实证（能力簇 × 五指标）完成。
 
-当前五区 corpus 的 `prelude.core`（215 标签）继续作压测基线，
-直至能力簇 prelude 落地。
+历史五区 corpus 的 `prelude.core`（215 标签）只作为 plan-v3
+压测基线保留；Prelude 的现行独立发布边界由 Project 027/028 管辖。
 
 ## 3. 不变量（校验器 MUST 全部执行）
 
@@ -205,37 +210,44 @@ partition 向 transpiler 的交接工件。规范形态：
 | P2 | 路径合法且唯一；`title`、`definingness` 非空 | L1 命名 |
 | P3 | 声明 imports 构成 DAG；被引用路径存在 | L2 无环 |
 | P4 | 每条依赖边 u→v：同模块，或 v∈prelude，或 module(u) 直接声明 import module(v) | L2 完备 |
-| P5 | 膜：core 不得 import frontier；frontier 不得 import frontier | 016 §6.1 |
+| P5 | 旧膜校验，仅适用于另行治理的 frontier 范围；Project 028 V1 排除 mathbox/frontier，不调用 P5 | 016 §6.1；028 §3 |
 | P6 | （报告项）模块规模、prelude 吸收率、枢纽过滤后模块内边占比 | 015 F3 |
-| P7 | 领域 DAG：同一发布包内数学领域（一级子包）之间的依赖商图必须是 DAG；同一约束递归适用于领域内部各级子包（只计两端都在同一父节点内部的边） | §1.1 裁决；000 §13 |
+| P7 | 数学发布 DAG：十六个数学发布单元之间的实现依赖图必须是 DAG；同一约束递归适用于各根内部的模块/子包投影 | §1.1（经 028 修订）；000 §13 |
 
 P6 为报告项不阻塞：容量约束由 L3 分片处理（同一分类节点内
 split-only），不得为满足规模而跨主题合并。
 
-P7 说明：
+Project 028 拓扑下的 P7 说明：
 
-- **DAG 性质是不变量，具体分层顺序不是**：领域的排序快照（如
-  `numbers → combinatorics → number_theory`）仅输出为报告，供
+- **DAG 性质是不变量，具体分层顺序不是**：发布排序快照（如
+  `number_systems → combinatorics → number_theory`）仅输出为报告，供
   审计参考；把某个顺序写死会被解析数论一类内容击穿（§1.1）；
 - 结构性保证：mm 源是线性的、语句依赖恒指向物理前方，故**只要
   成员归属是区间，任何商图自动无环**——当前区间式五区 draft
   平凡满足 P7。P7 真正的约束力出现在引入**非连续的分类式归属**
   （如把词论从 numbers 区间抽入 combinatorics）之后：分类可以
   偏离物理顺序，每偏离一步，校验器在正确的层级上报告是否成环；
-- P7 永远可通过重新分组满足（极端情形子包退化为单模块，商图
-  退化为模块 DAG 诱导子图），问题只在分组是否仍有知识意义——
-  桥子包（§1.2）是有意义的分组方式；
-- 校验实现：沿路径树逐层商图环检测，O(E × 深度)。**validator
-  实现待落地**（当前实现覆盖 P1–P6）。
+- 不得只靠语义重分组满足 P7。发布层循环必须通过 facade/provider
+  分离、分阶段实现分片或真正的共同接口来修复，同时保留策展的
+  公共 owner；
+- 历史 plan-v3 validator 按 path 首段检测商图循环；
+  `knowledge-release-plan-v1` 必须改为校验 Project 028 要求的显式
+  发布单元 ownership 与发布依赖。
 
-成员归属模型升级（待实现）：zone 的区间声明降级为 **bootstrap
-默认值**；正式归属由分类声明（模块 → 包路径的显式映射）给出，
-允许非连续。combinatorics 包（词论簇 + Ramsey/vdW + 桥内容）是
-第一个非连续归属用例。
+历史 plan-v3 的成员归属模型提案：zone 的区间声明降级为
+**bootstrap 默认值**；正式归属由分类声明（模块 → 包路径的显式
+映射）给出，允许非连续。combinatorics 包（词论簇 + Ramsey/vdW +
+桥内容）是第一个非连续归属用例；后续实现记录见 §8。该模型不是
+现行 `knowledge-release-plan-v1` schema。
 
-## 4. 演化操作（Phase 2/3 落地）
+## 4. 历史 plan-v3 演化操作
 
-所有操作必须保持 P1–P5、P7 不变量，并在方案工件中留下可审计记录：
+下文涉及 frontier/mathbox 的 `create`、`promote`、`sync` 操作均已
+推迟，不具有 Project 028 V1 授权。保留主题的 `split` 与 `rename`
+在通过新 release plan 表达时仍然适用。
+
+复现 plan-v3 时，所有操作必须保持 P1–P5、P7 不变量，并在方案工件
+中留下可审计记录：
 
 - **create**：新建 frontier 模块（作者/agent 命名空间）。
 - **promote**：frontier → core。触发条件为需求拉动（出现第二个消费者，
@@ -266,7 +278,9 @@ P7 说明：
   - 词论 16 模块 → `combinatorics.words.{concatenation, subwords,
     prefixes, shifts, …}`。
 - 路径唯一性（P2）按父包作用域检查；跨包同名叶子合法（但注意
-  §1.2 案例：同名 section 未必同一知识单元，归属以依赖实证为准）。
+  §1.2 案例：同名 section 未必同一知识单元）。公共 ownership
+  跟随策展本体；依赖实证约束 proof provider，并可触发归属复核，
+  但不得直接决定公共归属。
 - 模块名必须是成员的**定义性特征**：能写出一句"凡满足 X 者属之"。
 - 反模式（拒收）：非定义性聚合（"misc"、"other"、"additional"）；
   多主题交叉筐（除非有独立 definingness）；容量驱动的语义碎片
@@ -274,7 +288,12 @@ P7 说明：
 - 名字冲突或含混时，遵循 [术语规范 000](../references/000-terminology.zh.md)
   流程登记裁决。
 
-## 6. Phases 与验收门
+## 6. 历史 plan-v3 Phases 与验收门
+
+下列阶段与验收门记录 2026-07-19 的 plan-v3 实施计划，仅用于历史
+复现。Project 028 G0–G5 是现行 V1 验收门；尤其 Phase 2/3 的
+mathbox/frontier、promote 与 membrane 工作已推迟，对 Project 028
+V1 不具规范权威。
 
 - **Phase 0（本轮）**：`plan-v3` schema + 草案生成器 + 校验器落地
   partition 仓；logic 域生成 draft 方案。
@@ -295,14 +314,15 @@ P7 说明：
 
 ## 7. 与 transpiler 的接口
 
-plan-v3 取代 naming-profile 的 `module_paths` 作为模块路径来源；
-transpiler 消费 `modules[].path` 生成子包结构，消费 `imports`
-生成包内依赖声明。prelude 模块生成为全局 re-export 包。
-本项目不改 transpiler 的发射内核（025 的契约不动）。
+历史 plan-v3 取代过 naming-profile 的 `module_paths`，并把 path
+首段视为单一 wrapper 产出物内的领域。Project 028 已取代该映射。
 
-术语映射（000 §13）：transpiler 的产出物即**发布包**；
-`modules[].path` 的首段即**数学领域**（一级子包）；其余段为
-领域内子包/模块。P7 校验器工作在该路径树上。
+现行 V1 中，一次 release emission 只拥有一个声明的 `python_root`；
+所有 `modules[].path` 都位于该根下。plan 分别记录
+`release_unit_id`、`python_root` 与 `distribution_name`，transpiler
+不再发射覆盖全项目的内容 wrapper。Prelude 作为显式基础设施发布
+依赖和 verification lock 解析，不再生成为每个数学发布的子包。
+下一版 schema 是 `knowledge-release-plan-v1`（028 §6）。
 
 ## 8. 实施进展
 
@@ -507,3 +527,9 @@ transpiler 消费 `modules[].path` 生成子包结构，消费 `imports`
     82 项测试、ruff、mypy strict 全绿。
   - 下一步：Phase 1 语句级拆分 SCC 巨模块与策展命名；
     metamath-combinatorics 建仓；发布包元数据消费端接线。
+- 2026-07-20（第九轮）：**发布拓扑由 Project 028 取代**。十六个
+  裸数学 Python 根冻结为十六个一一对应的数学发布单元；`numbers`
+  改为 `number_systems`；Prelude 成为独立基础设施发布；公共
+  ownership 改为本体主导，证明依赖保留为实现约束；mathbox/frontier
+  分类移出 V1，等待独立治理裁决。历史 plan-v3 工件与测量继续
+  保留，但新的实现工作面向 `knowledge-release-plan-v1`。

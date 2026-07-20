@@ -10,10 +10,14 @@
 > [Reference 014](014-module-partition-and-knowledge-classification.md),
 > [Reference 015](015-setmm-linearization-empirics.md), and
 > [Reference 016](016-mathbox-community-practice.md)
-> and identifies a proposed revision to
+> and motivated the ownership revision in
 > [Project 026 §1.2](../projects/026-package-evolution-standard.en.md).
-> It does not by itself amend Projects 025–027 or
-> [Terminology Standard 000](000-terminology.en.md).
+> [Project 028](../projects/028-top-level-knowledge-release-units.en.md)
+> subsequently adopted that distinction, froze sixteen ontology-led
+> mathematical roots as one-to-one release units, and deferred mathbox
+> governance. This essay remains non-normative; Projects 026–028 and
+> [Terminology Standard 000](000-terminology.en.md) carry the resulting
+> normative decisions.
 
 ---
 
@@ -150,7 +154,7 @@ must be renamed as part of the other.
 
 The first response should be to separate public facades from implementation
 shards, split implementations by dependency stage, extract a genuine shared
-interface theory, or introduce a bridge domain. Semantic reclassification
+interface theory, or introduce a bridge subdomain. Semantic reclassification
 should be the last response, not the automatic one.
 
 ---
@@ -327,7 +331,7 @@ changing the stable public identifier or formal assertion interface.
 The distinction changes how difficult examples are handled. Suppose a
 theorem whose statement concerns prime numbers is proved using complex
 analysis. Its public discoverability remains under number theory, possibly in
-an analytic-number-theory bridge domain. Its selected proof implementation
+an analytic-number-theory bridge subdomain. Its selected proof implementation
 records the analysis dependency and the resulting trust closure. If the
 statement is exposed through a weaker interface theory, that interface and
 its presentation in the stronger theory must be explicit.
@@ -337,17 +341,16 @@ cannot be advertised as derivable in a weak theory merely because its
 statement uses weak vocabulary. Conversely, a strong proof dependency need
 not erase the subject of the theorem from the public knowledge organization.
 
-This yields the proposed revision to Project 026 §1.2:
+This yields the distinction now adopted by Projects 026 and 028:
 
 > Public declaration and knowledge ownership follow ontology; proof
 > implementation and `requires` follow proof dependencies.
 
-That sentence is a proposal, not current Project 026 policy.
-Adopting it would require amending both Project 026 §1.2 and the frozen
-`Module` row in Terminology Standard 000, then extending Project 025 and the
-plan-v3 schema to distinguish a public declaration owner from an
-implementation provider. Project 026's P3, P4, and P7 acyclicity,
-completeness, and quotient-DAG requirements would continue to govern the
+Project 028 and Terminology Standard 000 v0.6 adopt that sentence as current
+policy. Project 025 and the follow-on `knowledge-release-plan-v1` schema still
+need to represent a public declaration owner separately from an
+implementation provider. Project 026's P3/P4 completeness rules and the
+Project 028 mathematical-release DAG continue to govern only the
 implementation/import projection.
 
 ---
@@ -383,11 +386,11 @@ ontology-shaped public facade
                 +-- backend emission data
 ```
 
-This split is not fully represented by the current plan-v3 schema or generated
-surface. In Project 025, partition ownership still determines module bindings,
-and the import graph is designed to mirror proof dependency. Lazy elaboration
-makes a follow-on design possible; it does not mean the follow-on design
-already exists.
+This split is not fully represented by the historical plan-v3 schema or the
+current generated surface. In Project 025, partition ownership still
+determines module bindings, and the import graph is designed to mirror proof
+dependency. Lazy elaboration makes a follow-on design possible; it does not
+mean the follow-on design already exists.
 
 Lazy loading also does **not**:
 
@@ -415,7 +418,7 @@ From actual implementations the toolchain should derive or verify:
 - build and elaboration order;
 - cache invalidation;
 - backend emission order;
-- frontier-to-core membrane violations;
+- governance-membrane violations when a future mathbox policy defines them;
 - unexpectedly expensive cross-concept dependencies.
 
 The graph is therefore an executable contract and an audit instrument.
@@ -440,20 +443,28 @@ the preferred remedies are, in order:
 1. split facade from implementation;
 2. divide implementation into dependency stages behind the same facade;
 3. factor a genuine common interface;
-4. introduce a bridge domain;
+4. name an explicit bridge subdomain under one adjudicated root and stage its
+   providers separately;
 5. only then revise semantic ownership.
 
-The core/frontier membrane of Reference 016 remains valid. Maturity and
-review policy are not generated by ontology alone. Ontology-first
-organization changes the meaning of the public core; it does not abolish
-governance or dependency discipline.
+Reference 016's core/frontier membrane remains important governance evidence,
+but Project 028 does not activate it for V1 or equate it automatically with
+mathbox. Maturity and review policy are not generated by ontology alone.
+Ontology-first organization does not abolish governance or dependency
+discipline; those policies require their own adjudication.
 
 ---
 
 ## 7. From a Partition Plan to a Knowledge-Organization Plan
 
-The next artifact should extend rather than merely retune
-`proof-partition-plan-v3`. In the provisional vocabulary below, a
+Project 028 now names `knowledge-release-plan-v1` as the immediate V1 release
+artifact replacing `proof-partition-plan-v3`. It records the frozen roots,
+source scope, canonical release ownership, and implementation dependencies.
+The richer `knowledge-organization-plan-v1` sketched below is not a competing
+release schema: it is a future semantic source from which a compatible release
+projection may be derived or to which that projection may refer.
+
+In the provisional vocabulary below, a
 *theory-scoped presentation* is a human concept presented within one exact
 formal perspective. It is neither a backend `Binding` nor a proof
 `Implementation`. A provisional shape is:
@@ -536,17 +547,19 @@ rules, while dependency and trust closures remain explicit and complete.
 **K8. Linearization is derived.** Source and emission order determine neither
 semantic classification nor stable identifiers.
 
-**K9. Evolution preserves references.** Rename, split, promotion, and
-bridge-domain extraction retain stable IDs and machine-readable migration
-records.
+**K9. Evolution preserves references.** Rename, split, subject-preserving
+subdomain refinement, and any later governance-authorized promotion retain
+stable IDs and machine-readable migration records.
 
 **K10. Structural metrics are reports.** Cut size, hub-filtered cohesion, and
 module size may identify risks but do not assign concepts or names.
 
-Project 026's definingness checks, stable migrations, bridge domains,
-frontier/core promotion, and exact coverage remain useful. The proposed
-change concerns what exact coverage means: it governs canonical declaration
-and storage, not all semantic membership.
+Project 026's definingness checks, stable migrations, bridge subdomains, and
+exact-coverage discipline remain useful. Reference 016's frontier/core
+promotion model remains evidence for a future mathbox-governance project, but
+Project 028 deliberately excludes it from V1. Exact coverage governs
+canonical declaration ownership within an explicitly declared source scope,
+not all semantic membership and not the excluded mathbox region.
 
 ---
 
@@ -558,7 +571,7 @@ the existing full-corpus plan.
 The best current canary is the cluster connecting words, cyclic shifts,
 necklaces, finite counting, and prime-number arguments. It already exposes
 the failure modes of section ownership, cross-domain dependency, and
-bridge-domain classification.
+bridge-subdomain classification.
 
 ### Phase A — curate without the DAG
 
@@ -568,7 +581,7 @@ Create a small concept graph for:
 - concatenation, subwords, prefixes, and cyclic shifts;
 - necklaces and orbit-like equivalence;
 - counting transformations;
-- prime-dependent results and arithmetic-combinatorics bridge domains.
+- prime-dependent results and arithmetic-combinatorics bridge subdomains.
 
 Write definingness criteria and typed relations before inspecting dependency
 edges.
@@ -583,7 +596,7 @@ Keep label identifiers and source order unchanged.
 Derive imports from the selected proofs. Record where the graph:
 
 - agrees with the ontology;
-- crosses a concept boundary for a genuine bridge-domain candidate;
+- crosses a concept boundary for a genuine bridge-subdomain candidate;
 - crosses because of a generic glue lemma;
 - forms a quotient cycle that requires implementation splitting.
 
@@ -600,7 +613,7 @@ old and new plans on:
 
 - whether a reader can predict where a concept or theorem is found;
 - whether every module has a clear membership sentence;
-- whether bridge domains and cross-domain dependencies are explicit rather
+- whether bridge subdomains and cross-domain dependencies are explicit rather
   than hidden;
 - whether proof changes leave public ownership stable;
 - whether imports and verification remain complete;
@@ -610,10 +623,12 @@ Raw cut minimization should appear only as a diagnostic. The pilot succeeds
 if the public organization becomes more intelligible without weakening the
 formal closure.
 
-[Project 027](../projects/027-prelude-boundary-rfc.en.md) remains orthogonal.
-Ontological centrality, explanatory value, or high citation frequency does
-not by itself place content in Prelude. Prelude is a foundation boundary with
-separate axiomatic, closure, and stability costs.
+[Project 027](../projects/027-prelude-boundary-rfc.en.md) remains orthogonal in
+its content criterion. Ontological centrality, explanatory value, or high
+citation frequency does not by itself place content in Prelude. Prelude is a
+foundation boundary with separate axiomatic, closure, and stability costs;
+Project 028 separately fixes it as an explicitly locked infrastructure
+release rather than one of the sixteen mathematical roots.
 
 ---
 
@@ -703,7 +718,7 @@ One engineering framework can host multiple foundations if it separates:
 
 `Knowledge view`, `concept hub`, `theory-scoped presentation`, and
 `cross-foundation alignment or translation` remain provisional names. The
-last is distinct from the frozen packaging term `Bridge domain`. The existing
+last is distinct from the frozen packaging term `Bridge subdomain`. The existing
 term `Profile` must not be reused because Terminology Standard 000 already
 assigns it to an aggregation package.
 

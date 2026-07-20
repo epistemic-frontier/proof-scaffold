@@ -7,6 +7,16 @@
 
 > Status: Phase 0 in progress (initiated 2026-07-19).
 >
+> **Topology supersession (2026-07-20):**
+> [Project 028](028-top-level-knowledge-release-units.en.md) supersedes this
+> document wherever it assumes one generated release wrapper containing
+> multiple mathematical domains, derives public ownership from proof
+> placement, or treats mathbox/frontier governance as part of V1. The
+> historical plan-v3 record remains reproducibility evidence. For current V1
+> semantics, each of sixteen bare mathematical roots is one mathematical
+> release unit; Prelude is a separate infrastructure release; mathbox is an
+> explicitly excluded governance scope.
+>
 > Normative basis: [Reference 014](../references/014-module-partition-and-knowledge-classification.md)
 > (cross-domain governance research), [Reference 015](../references/015-setmm-linearization-empirics.md)
 > (empirical study of set.mm linearization), [Reference 016](../references/016-mathbox-community-practice.md)
@@ -33,16 +43,17 @@ Reference 015 provides the structural explanation:
 - **F5**: the settled corpus undergoes about 4% proof rewiring and about 1% statement migration each year, so a static optimum continually drifts.
 
 This project therefore specifies not "a partition result" but **the representation of partitions, the invariants they MUST satisfy,
-and the operations by which they evolve as knowledge grows**. It has two pillars:
+and the operations by which they evolve as knowledge grows**. Under the
+Project 028 topology, it has two current pillars:
 
 1. **Classification-led**: module boundaries and names are declared by knowledge classification (L1); structural metrics serve only as validators;
-2. **Mechanized mathbox**: elevate the one-way frontier/core membrane validated by 25 years of set.mm practice
-   (Reference 016) into a first-class package-partitioning mechanism, with an authoring toolchain.
+2. **One root, one mathematical release**: the sixteen bare roots and their
+   distribution owners are fixed by Project 028; implementation dependencies
+   remain complete and acyclic without determining public ownership.
 
-Success criterion: the plan-v3 plan for the five zones—prelude, logic, set-theory, numbers, and number-theory—on the
-unified whole-corpus graph passes every invariant check in §3 (including P4 for cross-zone dependencies),
-and its names pass a definingness audit. (As of 2026-07-19, this replaces the earlier criterion of
-"independent validation of each of four domains.")
+The five-zone plan-v3 stress test remains a historical milestone. Current
+success criteria are Project 028 G0–G5. Mathbox work resumes only under a
+separately adjudicated governance project.
 
 ## 1. Normative Model
 
@@ -50,30 +61,33 @@ and its names pass a definingness audit. (As of 2026-07-19, this replaces the ea
 
 In mature mathematics, the discipline quotient graph **contains cycles**: numbers, combinatorics, and number theory each have bidirectional
 knowledge flows with the others (necklace counting in the direction that proves Fermat's little theorem, generating functions using analysis,
-and constructive lower bounds for Ramsey numbers using number theory). The mathematical community recognizes this by giving bridge domains
+and constructive lower bounds for Ramsey numbers using number theory). The mathematical community recognizes this by giving bridge subdomains
 distinct names: *arithmetic combinatorics*, *combinatorial number theory*,
 *analytic number theory*, and *additive combinatorics*. Only the
 statement graph and, when partitioned well, the module graph are acyclic. Therefore:
 
-The terminology is frozen in [000 §13 (Layer Nine: Knowledge Organization and Release)](../references/000-terminology.en.md):
-a **release package** is the unit of release and installation and may contain multiple domains;
-a **mathematical domain** is a first-level subpackage of a release package, providing the namespace and community boundary for a
-discipline (including a **bridge domain**). Consequently:
+Terminology is frozen in
+[000 §13 (Layer Nine: Knowledge Organization and Release)](../references/000-terminology.en.md)
+as revised by Project 028. A mathematical domain, bare public Python root, and
+mathematical release package are one-to-one in set.mm V1. Infrastructure
+releases and definition-free profiles own no mathematical root. Consequently:
 
-- **mathematical domain = namespace and community boundary**, not a dependency layer;
-- **domain-to-domain dependencies MUST form a DAG** (P7; see §3)—this is an invariant; but a domain's
-  **concrete layering order** (which domain is downstream of which) is a snapshot property of the current corpus, changes as
-  knowledge grows, and MUST NOT be hard-coded;
-- the mechanism that keeps the DAG satisfiable despite entangled knowledge is the **bridge domain**: discipline names remain intact,
-  engineering layers hold within the release-package view, and cross-domain entanglement is forced into explicit bridge domains;
-  the same constraint applies recursively to subpackage levels within a domain.
+- **mathematical domain = public knowledge-ownership scope**, not a dependency
+  layer;
+- **dependencies among mathematical release implementations MUST form a DAG**
+  (P7; see §3), while a concrete layering order remains a snapshot property
+  and MUST NOT be hard-coded as ontology;
+- a **bridge subdomain** has one canonical owner under an adjudicated root and
+  plural discovery facets; it does not create another top-level root without
+  separate adjudication;
+- the same implementation acyclicity and completeness constraints apply
+  recursively to module and subpackage projections.
 
-Design responsibilities (user adjudication, 2026-07-19): **release packages honor mathematical knowledge tradition**
-—disciplines are aggregated intact as domains, and entangled knowledge ships together without being
-carved up or forcibly layered for release; **the acyclicity requirement between domains honors engineering practice**—builds, lazy
-loading, and versioning require a layerable dependency structure. The compromise yields once in each direction: the engineering
-unit (the release package) accommodates knowledge tradition in its internal structure, while the knowledge unit (the domain)
-obeys engineering constraints in its dependency discipline.
+Design responsibility (revised by user adjudication, 2026-07-20): public roots
+honor mathematical knowledge tradition; explicit implementation and release
+dependencies honor engineering constraints. When the two projections differ,
+the toolchain separates public facade from proof provider rather than moving a
+declaration to a different subject merely to repair a quotient graph.
 
 Two empirical anchors (2026-07-19, set.mm `e514bf2`):
 
@@ -88,27 +102,33 @@ Two empirical anchors (2026-07-19, set.mm `e514bf2`):
    number_theory must therefore branch into two first-level subpackages, `elementary` and
    `analytic`, with P7 ensuring that they are acyclic.
 
-No static optimal layout exists; the architectural optimization target is to **make relayering cheap**: sufficiently fine module
-granularity + bridge packages that absorb entanglement + low-cost split/promote operations.
+No static optimal layout exists; the architectural optimization target is to
+**make relayering cheap**: sufficiently fine implementation granularity,
+explicit bridge subdomains and provider dependencies, and low-cost
+subject-preserving split/rename operations.
 
-### 1.2 Two Editing Rules for Placement and Classification
+### 1.2 Two Editing Rules for Ownership and Implementation
 
-1. **Placement follows proof dependencies**. Metamath dependencies are proof dependencies, and some theorems have an "elementary
-   statement, analytic proof" (`bpos` is one). A theorem's physical placement MUST NOT be
-   below the layer required by its proof; its traditional taxonomic identity is recorded in taxonomy metadata for
-   retrieval and presentation. Otherwise, an upward `elementary → analytic` edge would be created.
-2. **Bridge subpackages are first-class citizens**. A⊗B content is not assigned to either core package but goes into an explicit
-   bridge package (using its traditional mathematical name). Core-package boundaries remain narrow and stable, and all entanglement
-   is made explicit. The promotion path of the mathbox membrane (016) connects to this rule: once frontier content has incubated
-   and matured, it is promoted into a bridge package or becomes a member of a core package.
+1. **Public ownership follows ontology; implementations follow proof
+   dependencies.** Metamath dependencies are proof dependencies, and some
+   theorems have an “elementary statement, analytic proof” (`bpos` is one).
+   Such a theorem remains publicly owned by its mathematical subject while
+   its provider records the analytic `requires` closure. If the current schema
+   cannot express the resulting acyclic provider projection, rollout is
+   blocked pending facade/provider separation; public ownership MUST NOT be
+   silently changed.
+2. **Bridge subdomains are explicit but do not invent roots.** A⊗B content
+   receives one canonical owner under one of the sixteen roots and additional
+   cross-domain facets. A separately released bridge root requires a future
+   adjudication. Mathbox promotion is outside this project's V1 scope.
 
 Case adjudications (2026-07-19; edge counts are statement-level measurements):
 
 - In the `number_theory` zone, the reopened `decimal_arithmetic` section **MUST NOT**
-  be merged into the same-named module in numbers: 14 of its edges depend on gcd/divides/the division algorithm/
+  be merged into the same-named module in `number_systems`: 14 of its edges depend on gcd/divides/the division algorithm/
   prime properties, and its consumers are `specific_prime_numbers` (20 edges) and
   `very_large_primes` (37 edges)—it is a decimal lemma library for large-prime certification and is
-  **the same name but different knowledge** from the same-named section in numbers. Keep it in number_theory and
+  **the same name but different knowledge** from the same-named section in `number_systems`. Keep it in `number_theory` and
   rename it by definingness (for example, `primes.decimal_certificates`).
 - For `cyclical_shifts_of_words` (a reopened section in the nt zone), pure shift lemmas belong in
   `combinatorics.words.shifts`; necklace lemmas (the `cshwshash` family,
@@ -117,7 +137,7 @@ Case adjudications (2026-07-19; edge counts are statement-level measurements):
   dependency on nt, `ramcl → sumhash`, is a misclassification (`sumhash` is a general
   finite-sum lemma classified under the prime-counting section); after reclassification, there are no dependencies.
 - Extract the entire word-theory cluster into the `combinatorics` package; in the current corpus, the layering
-  `numbers → combinatorics → number_theory` holds cleanly.
+  `number_systems → combinatorics → number_theory` holds cleanly.
 
 ### 1.3 Three-Layer Decoupling (Inherited from Reference 014 §0)
 
@@ -128,18 +148,20 @@ Case adjudications (2026-07-19; edge counts are statement-level measurements):
   72% of section pairs have no dependency ordering, and file order is L3 rendering).
 - **L3 physical sharding**: file layout and .mm linearization order are derived and contain no normative content.
 
-Two zones and one layer (inherited from Reference 016):
+The former “two zones and one layer” plan-v3 model is retained only for
+historical artifact interpretation. Under Project 028:
 
-- **prelude layer**: a globally visible collection of glue lemmas referenced across all domains,
-  exempt from import accounting and cut-like metrics (015 F3).
-- **core zone**: classification-led topical modules, with strict review and a stable ABI.
-- **frontier zone**: frontier modules organized by author/agent (the equivalent of mathboxes),
-  with permissive review; **one-way membrane**: frontier may import only core and prelude,
-  core MUST NOT import frontier, and frontier modules MUST NOT import one another.
+- **Prelude** is a separate, explicitly locked infrastructure release;
+- **core mathematical content** is classified under one of the sixteen roots;
+- **mathbox/frontier content** is outside the V1 target source scope pending a
+  separate governance adjudication.
 
-## 2. Deliverable: `proof-partition-plan-v3`
+## 2. Historical Deliverable: `proof-partition-plan-v3`
 
-The handoff artifact from partition to the transpiler. Its normative form is:
+This was the handoff artifact from partition to the transpiler for the
+2026-07-19 stress test. Project 028 replaces it for current V1 work with
+`knowledge-release-plan-v1`. The form below remains normative only when
+reproducing historical plan-v3 artifacts:
 
 ```json
 {
@@ -182,7 +204,7 @@ For the decision framework and negative adjudications, see
 - the boundary criterion (if expansion occurs) is **general theory-building capability** (representational primitives and composition
   mechanisms), not "commonly used mathematical content"—**natural numbers (including ω), finiteness,
   induction, finite recursion, and finite sequences/fold all remain outside the prelude**, in set theory and the
-  numbers domain (second adjudication; see the postscript to 027 §4.1 for the empirical basis);
+  `number_systems` domain (second adjudication; see the postscript to 027 §4.1 for the empirical basis);
 - the migration unit is the **capability slice** (a construction together with the minimal usable closure of its formation/equality/
   introduction/elimination/induction rules), not a single label and not the top N entries
   in a frequency ranking—this **supersedes** the original statement in this section that the prelude should "contain constructors only, not
@@ -205,35 +227,41 @@ until a capability-slice prelude is implemented.
 | P2 | Paths are valid and unique; `title` and `definingness` are nonempty | L1 naming |
 | P3 | Declared imports form a DAG; every referenced path exists | L2 acyclicity |
 | P4 | For every dependency edge u→v: same module, or v∈prelude, or module(u) directly declares an import of module(v) | L2 completeness |
-| P5 | Membrane: core MUST NOT import frontier; frontier MUST NOT import frontier | 016 §6.1 |
+| P5 | Legacy membrane check, applicable only to a separately governed frontier scope; Project 028 V1 excludes mathbox/frontier and does not invoke P5 | 016 §6.1; 028 §3 |
 | P6 | (Report item) module size, prelude absorption rate, and proportion of within-module edges after hub filtering | 015 F3 |
-| P7 | Domain DAG: the dependency quotient graph among mathematical domains (first-level subpackages) in one release package MUST be a DAG; the same constraint applies recursively to all subpackage levels within a domain (counting only edges whose endpoints are both inside the same parent node) | §1.1 adjudication; 000 §13 |
+| P7 | Mathematical-release DAG: the implementation dependency graph among the sixteen mathematical release units MUST be a DAG; the same constraint applies recursively to module/subpackage projections inside each root | §1.1 as revised by 028; 000 §13 |
 
 P6 is a nonblocking report item: capacity constraints are handled by L3 sharding (split-only within the same
 classification node), and modules MUST NOT be merged across topics to meet a size target.
 
-Notes on P7:
+Notes on P7 under the Project 028 topology:
 
-- **The DAG property is an invariant; the concrete layering order is not**: a snapshot of domain ordering (for example,
-  `numbers → combinatorics → number_theory`) is emitted only as a report for
+- **The DAG property is an invariant; the concrete layering order is not**: a snapshot of release ordering (for example,
+  `number_systems → combinatorics → number_theory`) is emitted only as a report for
   audit reference; hard-coding an order would be broken by content such as analytic number theory (§1.1);
 - structural guarantee: the mm source is linear and statement dependencies always point physically backward, so **as long as
   membership assignments are intervals, every quotient graph is automatically acyclic**—the current interval-based five-zone draft
   trivially satisfies P7. P7 gains real force after the introduction of **noncontiguous classification-based placement**
-  (for example, extracting word theory from the numbers interval into combinatorics): classification may
+  (for example, extracting word theory from the historical `numbers` interval into `combinatorics`): classification may
   diverge from physical order, and at every divergence the validator reports whether a cycle exists at the correct level;
-- P7 can always be satisfied by regrouping (in the extreme, a subpackage degenerates into a single module and its quotient graph
-  degenerates into an induced subgraph of the module DAG); the only question is whether the grouping still has knowledge significance—
-  bridge subpackages (§1.2) provide a meaningful form of grouping;
-- validator implementation: detect quotient-graph cycles level by level along the path tree in O(E × depth). **The validator
-  implementation remains pending** (the current implementation covers P1–P6).
+- P7 MUST NOT be satisfied by semantic regrouping alone. A release-level cycle
+  requires facade/provider separation, staged implementation shards, or a
+  genuine common interface while preserving the curated public owner;
+- validator implementation: historical plan-v3 detects quotient cycles by
+  path segment; `knowledge-release-plan-v1` MUST instead validate explicit
+  release-unit ownership and release dependencies as required by Project 028.
 
 Membership-model upgrade (pending implementation): interval declarations for zones are downgraded to **bootstrap
 defaults**; formal placement is supplied by classification declarations (an explicit module → package-path mapping),
 and may be noncontiguous. The combinatorics package (word-theory cluster + Ramsey/vdW + bridge content) is
 the first noncontiguous-placement use case.
 
-## 4. Evolution Operations (Implemented in Phases 2/3)
+## 4. Historical plan-v3 Evolution Operations
+
+The `create`, `promote`, and `sync` operations involving frontier/mathbox
+below are deferred and have no Project 028 V1 authority. Subject-preserving
+`split` and `rename` operations remain relevant when expressed through the
+new release plan.
 
 Every operation MUST preserve invariants P1–P5 and P7 and leave an auditable record in the plan artifact:
 
@@ -265,8 +293,10 @@ promotion** (copied directly from the set.mm rule; the tooling MUST make promoti
     `set_theory.axioms.{extensionality, replacement, …}`;
   - 16 word-theory modules → `combinatorics.words.{concatenation, subwords,
     prefixes, shifts, …}`.
-- Path uniqueness (P2) is checked within the parent-package scope; same-named leaves across packages are valid (but note
-  the cases in §1.2: same-named sections are not necessarily the same knowledge unit, and placement follows dependency evidence).
+- Path uniqueness (P2) is checked within the parent-package scope; same-named
+  leaves across packages are valid. As the cases in §1.2 show, same-named
+  sections are not necessarily the same knowledge unit: public ownership
+  follows ontology, while dependency evidence determines provider imports.
 - A module name MUST be a **defining characteristic** of its members: one can write a sentence of the form "everything satisfying X belongs here."
 - Antipatterns (rejected): non-defining aggregates ("misc," "other," "additional");
   multi-topic catch-all baskets (unless they have independent definingness); capacity-driven semantic fragments
@@ -274,7 +304,11 @@ promotion** (copied directly from the set.mm rule; the tooling MUST make promoti
 - When names conflict or are ambiguous, follow the process in [Terminology Standard 000](../references/000-terminology.en.md)
   to record the adjudication.
 
-## 6. Phases and Acceptance Gates
+## 6. Historical plan-v3 Phases and Acceptance Gates
+
+The phases below record the superseded 2026-07-19 execution plan. They are
+retained for reproducibility and do not authorize frontier/mathbox work under
+Project 028. Current acceptance gates are Project 028 G0–G5.
 
 - **Phase 0 (this round)**: implement the `plan-v3` schema + draft generator + validator in the
   partition repository; generate a draft plan for the logic domain.
@@ -295,14 +329,17 @@ promotion** (copied directly from the set.mm rule; the tooling MUST make promoti
 
 ## 7. Interface with the Transpiler
 
-plan-v3 replaces naming-profile's `module_paths` as the source of module paths;
-the transpiler consumes `modules[].path` to generate the subpackage structure and consumes `imports`
-to generate intra-package dependency declarations. The prelude module is generated as a global re-export package.
-This project does not modify the transpiler's emission kernel (the 025 contract remains unchanged).
+Historical plan-v3 replaced naming-profile's `module_paths` and treated the
+first path segment as a domain inside one wrapper output. Project 028
+supersedes that mapping.
 
-Terminology mapping (000 §13): a transpiler output is a **release package**;
-the first segment of `modules[].path` is a **mathematical domain** (a first-level subpackage); the remaining segments are
-subpackage/module levels within the domain. The P7 validator operates on this path tree.
+For current V1, one release emission owns one declared `python_root`; all
+`modules[].path` entries lie below that root. The plan separately records
+`release_unit_id`, `python_root`, and `distribution_name`, and the transpiler
+emits no project-wide content wrapper. Prelude is resolved as an explicit
+infrastructure-release dependency and verification lock, not regenerated as a
+subpackage of every mathematical release. The next schema is
+`knowledge-release-plan-v1` (028 §6).
 
 ## 8. Implementation Progress
 
@@ -507,3 +544,11 @@ subpackage/module levels within the domain. The P7 validator operates on this pa
     82 tests, ruff, and mypy strict all green.
   - Next steps: Phase 1 statement-level splitting of the giant SCC module and curated naming;
     create the metamath-combinatorics repository; wire release-package metadata into consumers.
+- 2026-07-20 (ninth round): **release topology superseded by Project 028**.
+  Sixteen bare mathematical Python roots were frozen as sixteen one-to-one
+  mathematical release units; `numbers` became `number_systems`; Prelude
+  became a separate infrastructure release; public ownership became
+  ontology-led while proof dependencies remained implementation constraints;
+  and mathbox/frontier classification was removed from V1 pending a separate
+  governance adjudication. Historical plan-v3 artifacts and measurements are
+  preserved, but new implementation work targets `knowledge-release-plan-v1`.

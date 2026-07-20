@@ -1,6 +1,6 @@
 # ProofScaffold 术语规范
 
-> 状态：草案 v0.5，2026-07-19（Prelude 定位收敛：维持极小 pre-logic 现状，扩展为开放问题）。  
+> 状态：草案 v0.6，2026-07-20（冻结十六个裸数学导入根与数学发布单元的一一对应关系；mathbox 治理延后）。
 > 英文版：[ProofScaffold Terminology](000-terminology.en.md)  
 > 适用范围：ProofScaffold 的设计文档、公共 API 文档、代码评审、交换格式规范以及相关中文材料。  
 > 本文规定项目内的推荐用语，但不冻结 Python 类名、文件格式名或序列化协议。
@@ -324,18 +324,28 @@ ProofState <──精化/搜索────┘
 
 ## 13. 第九层：知识组织与发布
 
-本层规定知识库划分与发布相关的词汇（裁决来源：Project 026，
-2026-07-19）。
+本层规定知识库组织与发布相关的词汇（裁决来源：Projects 026、028，
+2026-07-19 至 2026-07-20）。
 
 | 英文术语／代码名 | 推荐中文 | 含义或定义 | 在体系中的作用 |
 | --- | --- | --- | --- |
-| Release package | 发布包 | 知识库的发布与安装单元，整体版本化；可包含多个数学领域。 | 构建、版本、分发以此为单位；transpiler 生成的顶层分发单元。其容纳多领域的能力**尊重数学的知识传统**：缠绕的学科共同发布，无须为发布被拆散。 |
-| Mathematical domain | 数学领域 | 发布包的一级子包，对应一个数学学科（含桥领域）的命名空间与社区边界。 | 同一发布包内领域间依赖必须构成 DAG（026 P7），该无环要求**尊重工程实践**（构建、lazy 加载、版本化）。领域不是依赖层：其具体分层顺序是当前语料的快照，随知识生长变化。 |
-| Bridge domain | 桥领域 | 内容本质上耦合两个以上核心领域的数学领域，沿用数学传统命名（如算术组合学、解析数论）。 | 吸收跨领域缠绕，使核心领域保持窄边界；是领域 DAG 在知识缠绕下仍可维持的机制。 |
-| Module | 模块 | 领域内部的最小组织单元（文件或子包）：路径与名字由分类声明，依赖由 import 声明。 | 依赖硬约束的粒度：模块 import 图必须无环且完备（026 P3/P4）；语句归属跟随证明依赖。 |
-| Prelude | 前导包 | 发布包内全局隐式可见的基础层。**当前维持极小 pre-logic 状态**；若扩展，边界判据为**通用理论构造能力**（候选边界到集合/类基础、关系与函数为止，贴近 set.mm 原生分层），不承载具体数学领域的实质理论；自然数（含 ω）、有限性、归纳与有限递归不入前导包。 | 是否/何时扩展是 027 RFC 的首项开放问题；判定框架与否定性裁决已冻结。语义基础归前导包，书写经济性归 Python 层。 |
+| Release package | 发布包 | 整体版本化的发布与安装单元。Release 只分数学型与基础设施型两类；profile 和实现 provider 是基础设施 release 的角色或子类型，不是第三类。 | 构建、版本、安装和分发以此为单位。Distribution 名与 Python import root、稳定发布单元标识符相互区分。 |
+| Mathematical release unit | 数学发布单元 | 由 `release_unit_id` 标识、通过一个 distribution 构建与发布的数学发布包。 | set.mm V1 中它参与一个双射：一个顶级数学领域 ↔ 一个数学发布单元／发布包 ↔ 一个公共导入根 ↔ 一个 distribution 名。 |
+| Mathematical domain | 数学领域 | 经人工审定的顶级数学学科与规范公共所有权范围。set.mm V1 中，每个领域恰好由一个数学顶级包和一个数学发布单元承载。 | 按数学含义组织知识。领域不是依赖层；证明与发布依赖是显式实现投影。V1 领域清单由 Project 028 冻结。 |
+| Public import root | 公共导入根 | 导入数学领域时使用的裸顶级 Python 包名，如 `logic` 或 `combinatorics`。 | set.mm V1 中，每个数学 release 恰好拥有一个根，每个根恰好有一个所有者。根不同于 distribution 名和稳定声明标识符；禁止多所有者 PEP 420 拼装。 |
+| Bridge subdomain | 桥子领域 | 主题本质上连接两个以上顶级领域、沿用数学传统命名的子领域，如算术组合学或解析数论。 | V1 中它在已裁定顶级根下有一个规范所有者，并可带有多个发现 facets。未经另行裁决，它不会产生新的 import root 或发布单元。 |
+| Module | 模块 | 数学顶级包内部的最小组织单元（文件或子包）。其公共声明由本体分类审定所有者；其证明 provider 从实现需求导出完整 imports。 | 实现依赖硬约束的粒度：模块 import 图必须无环且完备（经 028 修订的 026 P3/P4）。证明依赖约束实现与验证，不决定公共主题归属。 |
+| Prelude | 前导包 | 由兼容数学 release 共享的独立基础设施 release 与 Foundation Unit。**当前维持极小 pre-logic 状态**；若扩展，仍以**通用理论构造能力**为判据；自然数（含 ω）、有限性、归纳与有限递归仍在其外。 | Prelude 符号可在兼容对象理论表面中隐式可见，但安装依赖、版本、内容摘要与验证锁定保持显式。它不属于十六个数学根；内容边界由 Project 027 规定。 |
 | Capability slice | 能力簇 | 一个构造连同其形成、相等替换、引入消去与递归归纳规则的最小可用闭包。 | 前导包与领域包之间的**迁移单位**（027 §3）：迁移以能力簇为整体，不以单个 label 或频率排名。 |
-| Profile | 聚合包 | 只含稳定聚合依赖、不拥有底层定义的发布包（如 learning profile、program profile）。 | 为应用场景提供开箱即用入口而不破坏理论边界；应用需求经聚合包组装，不得反向压迫前导包（027 §1/§5）。 |
+| Profile | 聚合包 | 基础设施 release 的聚合角色：不拥有定义或数学 import root，只聚合稳定依赖（如 learning profile、program profile）。 | 为应用场景提供开箱即用入口而不破坏一根一数学发布规则；应用需求不得反向压迫前导包（027 §1/§5）。 |
+
+V0.6 兼容性影响：Project 028 取代 Project 026 的多领域发布容器模型、
+plan-v3 对 path 首段的解释、P7 的发布包内领域形式，以及自动
+mathbox/frontier 处理。后续 plan schema 必须区分 `release_unit_id`、
+`python_root` 与 `distribution_name`。Project 027 的 Prelude 内容裁决
+继续有效，但其包装拓扑以 Project 028 为准。旧称
+“桥领域（bridge domain）”收窄为**桥子领域（bridge
+subdomain）**，以免被误解为顶级领域清单的新成员。
 
 ## 14. 应避免的生硬表达
 
@@ -367,7 +377,11 @@ ProofState <──精化/搜索────┘
 
 ## 16. 相关设计文档
 
-- [Reference 011：将语言作为第一类元素](011-language-as-first-class.md)
-- [Reference 012：结构、公理与证明的语义化定义规范](012-defining-structures-axioms-and-proofs.md)
-- [Reference 013：面向验证、证明构造、搜索与交换的 Proof API](013-proof-api-for-verification-construction-search-and-exchange.md)
-- [Project 024：将语言提升为第一类理论接口](../projects/024-first-class-language-refactor.md)
+- [Reference 011：将语言作为第一类元素](011-language-as-first-class.zh.md)
+- [Reference 012：结构、公理与证明的语义化定义规范](012-defining-structures-axioms-and-proofs.zh.md)
+- [Reference 013：面向验证、证明构造、搜索与交换的 Proof API](013-proof-api-for-verification-construction-search-and-exchange.zh.md)
+- [Reference 017：依赖之前的本体组织](017-ontology-first-knowledge-organization.md)
+- [Project 024：将语言提升为第一类理论接口](../projects/024-first-class-language-refactor.zh.md)
+- [Project 026：发布包演化标准](../projects/026-package-evolution-standard.zh.md)
+- [Project 027：Prelude 边界 RFC](../projects/027-prelude-boundary-rfc.zh.md)
+- [Project 028：以顶级知识包作为发布单元](../projects/028-top-level-knowledge-release-units.zh.md)

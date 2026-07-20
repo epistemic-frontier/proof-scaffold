@@ -8,9 +8,9 @@
 >
 > 规范依据：[Reference 017](../references/017-ontology-first-knowledge-organization.md)、
 > [术语规范 000](../references/000-terminology.zh.md)、
-> [Project 025](025-semantic-source-surface.md)、
-> [Project 026](026-package-evolution-standard.md) 与
-> [Project 027](027-prelude-boundary-rfc.md)。
+> [Project 025](025-semantic-source-surface.zh.md)、
+> [Project 026](026-package-evolution-standard.zh.md) 与
+> [Project 027](027-prelude-boundary-rfc.zh.md)。
 >
 > 明确排除：本文不裁决 mathbox 的组织、所有权、审查、成熟度、
 > 晋升与语句归属。Mathbox 不是第十七个数学包。

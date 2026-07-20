@@ -16,8 +16,8 @@ Pseudocode fixes semantic responsibilities, not final public API spelling.
 ### Dependency on the first-class-language slice
 
 Project 023 remains downstream of the semantic sequence established by
-[Reference 011](../references/011-language-as-first-class.md) and
-[Project 024](./024-first-class-language-refactor.md):
+[Reference 011](../references/011-language-as-first-class.en.md) and
+[Project 024](./024-first-class-language-refactor.en.md):
 
 ```text
 Term v2 -> Language -> Judgment/Calculus -> apply_assertion -> combinators

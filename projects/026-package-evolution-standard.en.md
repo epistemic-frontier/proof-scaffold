@@ -408,10 +408,10 @@ subpackage of every mathematical release. The next schema is
     and no cross-zone sections; per-zone absorption rates were logic 50.0%, set_theory 55.8%,
     numbers 58.6%, and number_theory 53.2%.
   - **Cross-zone profile** (invisible from a single-domain view): among non-prelude references, the proportions pointing within the same zone were
-    logic 100%, set_theory 57.7%, numbers 40.3%, and number-theory
+    logic 100%, set_theory 57.7%, numbers 40.3%, and number_theory
     only 8.5% (among 41726 edges, 3546); number_theory is a heavy consumer of numbers/set_theory.
-    Partition-wide within-module proportions were logic 51.0%, numbers
-    26.7%, set-theory 21.0%, and number-theory 9.3% (the latter three are diluted by cross-zone edges,
+    Per-zone within-module proportions were logic 51.0%, numbers
+    26.7%, set_theory 21.0%, and number_theory 9.3% (the latter three are diluted by cross-zone edges,
     so module cohesion should be evaluated using within-domain edges).
   - Artifact: `domains/corpus/artifacts/classification-plan-v3.draft.json`
     (five zones); the four single-domain drafts were retained for comparison. Zones are declared by domain config's

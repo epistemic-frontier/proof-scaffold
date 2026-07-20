@@ -16,8 +16,8 @@ experiment.
 
 ### 2026-07-16 architecture amendment
 
-[Reference 011](../references/011-language-as-first-class.md) and
-[Project 024](./024-first-class-language-refactor.md) refine this project's
+[Reference 011](../references/011-language-as-first-class.en.md) and
+[Project 024](./024-first-class-language-refactor.en.md) refine this project's
 semantic layering. Where later sections of this draft describe one broad
 `LanguageSpec`, the following split is authoritative:
 

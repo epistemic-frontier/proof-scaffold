@@ -5,7 +5,7 @@
 > Scope: evidence base for the upcoming standard on "naming, knowledge
 > classification, and evolution of proof-library module partitions". The
 > motivation follows the partition normalization discussion after
-> [Project 025](../projects/025-semantic-source-surface.md): in the semantic
+> [Project 025](../projects/025-semantic-source-surface.en.md): in the semantic
 > package surface the import graph *is* the dependency graph, so module paths
 > (such as `metamath_logic.prop.equivalence`) become downstream ABI; yet the
 > current partition scheme is produced by graph-cut optimization with names
@@ -539,11 +539,11 @@ document (each backed by the sources above):
 ## 7. Relationship to Existing References
 
 - This document is the third track alongside
-  [Reference 011](011-language-as-first-class.md) (language as first-class)
-  and [Reference 013](013-proof-api-for-verification-construction-search-and-exchange.md)
+  [Reference 011](011-language-as-first-class.en.md) (language as first-class)
+  and [Reference 013](013-proof-api-for-verification-construction-search-and-exchange.en.md)
   (the proof API): the **knowledge organization track**. Module paths are
   where the semantic package's public authoring surface
-  ([Project 025](../projects/025-semantic-source-surface.md)'s generated
+  ([Project 025](../projects/025-semantic-source-surface.en.md)'s generated
   source surface) meets the downstream import ABI.
 - Terms such as "capacity-driven semantic fragmentation", "refinement
   constraint", and "definingness test" must be registered through the

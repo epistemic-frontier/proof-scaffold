@@ -28,14 +28,14 @@ the boundary question and freeze the decision framework for future adjudication:
   (equivalence and quotients remain to be adjudicated), close to set.mm's native layering; empirical baseline: 1,370
   nodes / 18 axioms (pilot-report postscript); **whether and when to expand remains
   an open question** (the first item in §12);
-- **Negative adjudications remain frozen**: the prelude must not absorb content upward along the disciplinary ladder of “logic—sets—numbers—linear algebra—
+- **Negative adjudications remain frozen**: the prelude MUST NOT absorb content upward along the disciplinary ladder of “logic—sets—numbers—linear algebra—
   calculus”; natural numbers (including the ω system), finiteness,
   induction, and finite recursion are excluded (second adjudication; see the note after §4.1); linear algebra
   belongs to the `linear_algebra` root (through `algebra`), while calculus belongs to the `analysis` root;
 - The prelude boundary criterion is **general theory-building capability**, not “commonly used mathematical
   content”; the migration unit is the capability slice (§3);
 - Application scenarios such as learning and program verification are assembled through **profiles** (aggregation entry points)
-  and must not exert reverse pressure on the foundation layer;
+  and MUST NOT exert reverse pressure on the foundation layer;
 - The Prelude is an infrastructure release rather than a mathematical package root. Its compatible symbols may be
   implicit in an object-theory surface, but its installation dependency, version, content digest, and verification lock
   MUST be explicit. It does not alter Project 028's closed list of sixteen mathematical roots;
@@ -313,7 +313,7 @@ explicitly scoped non-mathbox corpora):
 - A profile is a definition-free infrastructure-release role containing only aggregate dependencies. Program foundations and profiles may
   not claim or modify the sixteen mathematical roots; the program foundation's release role and the profile's membership/version policy
   remain open in §12.
-- The current five-region corpus's `prelude.core` (215 labels) remains a stress-test
+- The historical five-zone corpus's `prelude.core` (215 labels) remains a stress-test
   baseline until the §10 empirical work is complete and the capability-slice prelude is implemented.
 - Mathbox is outside this RFC's source scope and governance authority; it is neither a Prelude candidate pool nor an automatic frontier.
 

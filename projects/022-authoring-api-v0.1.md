@@ -21,8 +21,8 @@ important than their final spelling.
 ### 2026-07-16 architecture amendment
 
 The first-class-language work in
-[Reference 011](../references/011-language-as-first-class.md) and
-[Project 024](./024-first-class-language-refactor.md) narrows several types in
+[Reference 011](../references/011-language-as-first-class.en.md) and
+[Project 024](./024-first-class-language-refactor.en.md) narrows several types in
 this draft before they may be frozen:
 
 - `LanguageSpec` contains only semantic sorts, variable kinds, constructors,

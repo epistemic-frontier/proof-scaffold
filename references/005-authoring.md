@@ -138,7 +138,7 @@ This keeps the authoring experience clean while preserving formal rigor.
 
 Practical authoring ergonomics:
 
-- For quick authoring, use the string parser [parsing.wff](file:///Users/mingli/MetaMath/proof-scaffold/src/skfd/authoring/parsing.py#L142-L145) to build an `Expr`:
+- For quick authoring, use the string parser [parsing.wff](../src/skfd/authoring/parsing.py#L142-L145) to build an `Expr`:
 
 ```python
 from skfd.authoring.parsing import wff
@@ -192,7 +192,7 @@ def build(ctx: BuildContextV2) -> None:
 Key properties that keep authoring “clean” and toolchain behavior deterministic:
 
 - Authoring and emission never use string token DSL for proof payloads; they pass `SymbolId` sequences end-to-end.
-- `$f` boilerplate is handled by [MMBuilderV2.auto](file:///Users/mingli/MetaMath/proof-scaffold/src/skfd/builder_v2/builder.py#L112-L170) by default (`auto_f=True`), not by proof authors.
+- `$f` boilerplate is handled by [MMBuilderV2.auto](../src/skfd/builder_v2/builder.py#L112-L170) by default (`auto_f=True`), not by proof authors.
 
 ---
 

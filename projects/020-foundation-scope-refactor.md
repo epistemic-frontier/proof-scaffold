@@ -15,14 +15,14 @@ sometimes treat `metamath-prelude` as an ordinary package and sometimes rely on
 it as a global foundation frame. The implementation already depends on the
 second interpretation: prelude `$f` labels are effectively ambient.
 
-Normative reference: [references/010-foundation-scope.md](file:///Users/mingli/MetaMath/proof-scaffold/references/010-foundation-scope.md)
+Normative reference: [references/010-foundation-scope.md](../references/010-foundation-scope.md)
 
 Related references:
 
-- [references/002_link-model_v4.md](file:///Users/mingli/MetaMath/proof-scaffold/references/002_link-model_v4.md)
-- [references/007-package.md](file:///Users/mingli/MetaMath/proof-scaffold/references/007-package.md)
-- [references/009_builder-v2.md](file:///Users/mingli/MetaMath/proof-scaffold/references/009_builder-v2.md)
-- [projects/018-builder-v2-migration.md](file:///Users/mingli/MetaMath/proof-scaffold/projects/018-builder-v2-migration.md)
+- [references/002_link-model_v4.md](../references/002_link-model_v4.md)
+- [references/007-package.md](../references/007-package.md)
+- [references/009_builder-v2.md](../references/009_builder-v2.md)
+- [projects/018-builder-v2-migration.md](018-builder-v2-migration.md)
 
 ## Goals
 

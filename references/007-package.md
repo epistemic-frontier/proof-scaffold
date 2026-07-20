@@ -9,7 +9,7 @@ A ProofScaffold Package is a standard **Python Package** that follows specific c
 Package role matters for linker semantics. Most packages are ordinary library or
 application packages. The standard `metamath-prelude` package is the distinguished
 foundation unit and follows the global foundation-scope contract described in
-[010-foundation-scope.md](file:///Users/mingli/MetaMath/proof-scaffold/references/010-foundation-scope.md).
+[010-foundation-scope.md](010-foundation-scope.md).
 
 ## 2. Package Structure
 
@@ -84,8 +84,8 @@ The Driver constructs a `BuildContextV2` and calls `build(ctx)`.
 
 Key fields:
 
-* `ctx.mm`: an [MMBuilderV2](file:///Users/mingli/MetaMath/proof-scaffold/src/skfd/builder_v2/builder.py) instance (SymbolId-only emission).
-* `ctx.deps`: a [DepsView](file:///Users/mingli/MetaMath/proof-scaffold/src/skfd/api_v2.py) for accessing dependency exports.
+* `ctx.mm`: an [MMBuilderV2](../src/skfd/builder_v2/builder.py) instance (SymbolId-only emission).
+* `ctx.deps`: a [DepsView](../src/skfd/api_v2.py) for accessing dependency exports.
 * `ctx.names`: a `NameResolver` shared by the build and toolchain for Unicode authoring → ASCII canonicalization.
 * `ctx.unit`: stable metadata (`dist_name`, `module_name`, `build_path`) for origin tracking and diagnostics.
 

@@ -5,15 +5,15 @@ Draft
 
 BuilderV2 的主体方向已进入实现阶段；package role、foundation scope 与
 prelude/logic 边界问题由后续
-[Project 020](file:///Users/mingli/MetaMath/proof-scaffold/projects/020-foundation-scope-refactor.md)
+[Project 020](020-foundation-scope-refactor.md)
 继续推进。
  
 ## Context
 This project defines a concrete migration plan to land **BuilderV2** as specified by:
  
-- Frozen contract: [references/009_builder-v2.md](file:///Users/mingli/MetaMath/proof-scaffold/references/009_builder-v2.md)
-- Migration rationale & friction points: [projects/017-builder_v2.md](file:///Users/mingli/MetaMath/proof-scaffold/projects/017-builder_v2.md)
-- Linker/TCB/Determinism constraints: [WHITEPAPER.zh-CN.md](file:///Users/mingli/MetaMath/proof-scaffold/WHITEPAPER.zh-CN.md), [references/002_link-model_v4.md](file:///Users/mingli/MetaMath/proof-scaffold/references/002_link-model_v4.md)
+- Frozen contract: [references/009_builder-v2.md](../references/009_builder-v2.md)
+- Migration rationale & friction points: [projects/017-builder_v2.md](017-builder_v2.md)
+- Linker/TCB/Determinism constraints: [WHITEPAPER.zh-CN.md](../WHITEPAPER.zh-CN.md), [references/002_link-model_v4.md](../references/002_link-model_v4.md)
  
 This plan is written to be implementable in small, verifiable slices, while keeping the current toolchain working (pytest stays green at every step).
  
@@ -31,7 +31,7 @@ This plan is written to be implementable in small, verifiable slices, while keep
 - Immediately deleting Script Mode (`skfd.mm/skfd.deps`) or legacy `build(mm, **deps)`; these are deprecated later.
  
 ## Frozen Contract (Invariants)
-From [references/009_builder-v2.md](file:///Users/mingli/MetaMath/proof-scaffold/references/009_builder-v2.md):
+From [references/009_builder-v2.md](../references/009_builder-v2.md):
  
 - **I1 Single entrypoint**: packages expose `build(ctx)`.
 - **I2 Single truth layer**: cross-package interaction uses `SymbolId` only.
@@ -44,11 +44,11 @@ From [references/009_builder-v2.md](file:///Users/mingli/MetaMath/proof-scaffold
 Key “dirty” coupling points (to be removed in V2 path):
  
 - Driver injects deps via kwargs with `- -> _`, and builds exports by reading builder private state:
-  - [runner.py](file:///Users/mingli/MetaMath/proof-scaffold/src/skfd/driver/runner.py)
+  - [runner.py](../src/skfd/driver/runner.py)
 - Authoring emitter reads `mm._constants/_variables` and manufactures temporary token names (`c{id}`, `v{id}`):
-  - [emit.py](file:///Users/mingli/MetaMath/proof-scaffold/src/skfd/authoring/emit.py)
-- Builder front-end is primarily a **string token DSL** (`mm.a/e/p` accept `Sequence[str] | str`), requiring mapping layers:
-  - [builder.py](file:///Users/mingli/MetaMath/proof-scaffold/src/skfd/builder/builder.py)
+  - [emit.py](../src/skfd/authoring/emit.py)
+- The legacy Builder front-end was primarily a **string token DSL** (`mm.a/e/p` accepted `Sequence[str] | str`), requiring mapping layers; it was removed after the V2 migration. Its current replacement is:
+  - [builder_v2/builder.py](../src/skfd/builder_v2/builder.py)
  
 ## Target Shape (What “good” looks like)
 ### Build API

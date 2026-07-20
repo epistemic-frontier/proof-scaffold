@@ -73,14 +73,14 @@ This command:
 3. Builds the theorem dependency graph from their units.
 4. Starts a local HTTP server.
 
-Code: [cli.py](file:///Users/mingli/MetaMath/proof-scaffold/src/skfd/cli.py)
+Code: [cli.py](../src/skfd/cli.py)
 
 ### Web Module
 The web server and graph construction live under `skfd.web`:
 - Graph construction: `build_theorem_graph(...)`
 - HTTP server: stdlib `ThreadingHTTPServer` + `BaseHTTPRequestHandler`
 
-Code: [theorem_browser.py](file:///Users/mingli/MetaMath/proof-scaffold/src/skfd/web/theorem_browser.py)
+Code: [theorem_browser.py](../src/skfd/web/theorem_browser.py)
 
 ## Verification / Acceptance
 MVP is accepted when:
@@ -89,8 +89,8 @@ MVP is accepted when:
 3. `/api/graph` returns a consistent graph and `/api/node` resolves nodes correctly.
 
 Tests:
-- [test_theorem_browser.py](file:///Users/mingli/MetaMath/proof-scaffold/tests/feature/test_theorem_browser.py)
-- [test_theorem_browser_http.py](file:///Users/mingli/MetaMath/proof-scaffold/tests/feature/test_theorem_browser_http.py)
+- [test_theorem_browser.py](../tests/feature/test_theorem_browser.py)
+- [test_theorem_browser_http.py](../tests/feature/test_theorem_browser_http.py)
 
 ## Known Limitations (MVP)
 1. **No proof-step view**: dependencies are at the theorem/axiom label level only.
@@ -109,4 +109,3 @@ Tests:
 
 ## Notes on Relationship to Metamath HTML
 This project does not aim to replicate Metamath’s HTML generator. Instead, it leverages ProofScaffold’s IR and diagnostics infrastructure to provide a lightweight, local browsing experience that is consistent with the toolchain’s internal notion of labels, origins, and dependencies.
-

@@ -5,7 +5,7 @@
 > **目标**：在项目早期一次性钉死接口边界，使业务库只表达数学结构；BuilderV2 只产 IR；工具链只负责调度、链接、校验与产物输出。
 >
 > **后续解释**：全局 foundation scope 与 package/export 分类见
-> [010-foundation-scope.md](file:///Users/mingli/MetaMath/proof-scaffold/references/010-foundation-scope.md)。
+> [010-foundation-scope.md](010-foundation-scope.md)。
 
 ---
 

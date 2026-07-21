@@ -1,6 +1,6 @@
 # ProofScaffold 术语规范
 
-> 状态：草案 v0.6，2026-07-20（冻结十六个裸数学导入根与数学发布单元的一一对应关系；mathbox 治理延后）。
+> 状态：草案 v0.7，2026-07-21（冻结 catalog-compiler 边界、adapter/能力注入与最后归档迁移；mathbox 治理延后）。
 > 英文版：[ProofScaffold Terminology](000-terminology.en.md)  
 > 适用范围：ProofScaffold 的设计文档、公共 API 文档、代码评审、交换格式规范以及相关中文材料。  
 > 本文规定项目内的推荐用语，但不冻结 Python 类名、文件格式名或序列化协议。
@@ -324,8 +324,8 @@ ProofState <──精化/搜索────┘
 
 ## 13. 第九层：知识组织与发布
 
-本层规定知识库组织与发布相关的词汇（裁决来源：Projects 026、028，
-2026-07-19 至 2026-07-20）。
+本层规定知识库组织、编译与发布相关的词汇（裁决来源：Projects 026、
+028、029，2026-07-19 至 2026-07-21）。
 
 | 英文术语／代码名 | 推荐中文 | 含义或定义 | 在体系中的作用 |
 | --- | --- | --- | --- |
@@ -346,6 +346,27 @@ mathbox/frontier 处理。后续 plan schema 必须区分 `release_unit_id`、
 继续有效，但其包装拓扑以 Project 028 为准。旧称
 “桥领域（bridge domain）”收窄为**桥子领域（bridge
 subdomain）**，以免被误解为顶级领域清单的新成员。
+
+### 13.1 工具链角色
+
+Project 029 把通用 compiler 与带版本数学数据、注入实现明确分开。
+
+| 英文术语／代码名 | 推荐中文 | 含义或定义 | 在体系中的作用 |
+| --- | --- | --- | --- |
+| Catalog compiler | 目录编译器 | 通过显式能力协议，校验并编译带版本 catalog、source、foundation、theory 与 projection 数据的通用引擎。 | 计算经治理投影，但不拥有其中的数学裁决。规范 repository 为 `catalog-compiler`；Set.mm 是 adapter，不是 core 绑定。 |
+| Source adapter | 源适配器 | 把一个源码系统及锁定快照忠实转换为 compiler 输入与 source fact 的带版本能力。 | 把 scanner、scope、proof、region 与 identity 规则（例如 Set.mm 专用规则）隔离在通用 core 之外。 |
+| Compilation parameter | 编译参数 | 选择或描述 source、foundation、theory graph、projection 或其他编译维度的带版本、绑定摘要数据。 | 让政策显式且可复现；缺少必要参数时拒绝，而不是推断默认值。 |
+| Theory graph | 理论图 | 节点标识 foundation 或 theory、带类型边声明其关系的带版本图。 | 支持校验与同次编译分析，同时避免把某一种 foundation 或边词汇变成 core 政策。 |
+| Analysis pass | 分析遍 | 在同一份规范编译状态上运行的、注入且带版本的观察或校验计算。 | 产生绑定 provenance 的派生证据，包括逆向数学分析；不静默修改 ownership 或 foundation。 |
+| Projection specification | 投影规范 | 把经治理语义身份与 theory 信息映射为选定公共、发布或实现视图的带版本数据。 | 把 Project 028 的 Set.mm 发布拓扑及其他生态选择保持在通用 compiler core 之外。 |
+| Backend capability | 后端能力 | 以显式协议与版本选定、消费编译输入并发出具体表示的注入实现。 | Transpiler 以完整原始 Git 历史迁入这一角色；backend 默认值不成为 compiler 政策。 |
+| Historical compatibility layer | 历史兼容层 | consumer 迁移期间继续可用、但不再定义现行抽象的研究工件、schema、命令与 API。 | 描述原 partition 工具和工件，同时不重写其名字与可复现记录。 |
+| Archive-last gate | 最后归档门 | 旧 repository 归档前必须通过历史、文件树、测试、行为、能力、运行切换与独立审计检查的迁移规则。 | 保持迁移可恢复，禁止以提前归档强迫切换。 |
+
+V0.7 兼容性影响：repository 名 `catalog-compiler` 不等于 distribution、
+Python import、CLI 或 machine contract 标识。Compiler core 对 source、
+foundation、theory、projection 与 backend 都没有硬绑定。既有 partition 与
+`mm-transpiler` 名在另行版本化迁移前继续作为历史或兼容 contract。
 
 ## 14. 应避免的生硬表达
 
@@ -385,3 +406,4 @@ subdomain）**，以免被误解为顶级领域清单的新成员。
 - [Project 026：发布包演化标准](../projects/026-package-evolution-standard.zh.md)
 - [Project 027：Prelude 边界 RFC](../projects/027-prelude-boundary-rfc.zh.md)
 - [Project 028：以顶级知识包作为发布单元](../projects/028-top-level-knowledge-release-units.zh.md)
+- [Project 029：目录编译器边界](../projects/029-catalog-compiler-boundaries.zh.md)

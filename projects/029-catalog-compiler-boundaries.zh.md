@@ -322,3 +322,75 @@ Project 029 改变工具边界与迁移机制，不重开 Projects 027–028 的
 
 未来协议版本可以增加能力，但不得削弱零硬绑定规则、provenance 要求、保留 SHA
 的迁移或最后归档门。
+
+---
+
+## 13. Provider Layout V1 边界（2026-07-21）
+
+迁移后的第一个 semantic-package contract 是 `provider-layout-v1`。其规范
+schema 与 validator 位于 `catalog-compiler`，但 `CompilerSpec` 与通用 core
+都不 import 或构造它。Semantic-package backend 只能把它作为显式、绑定摘要
+的参数接收。
+
+该 contract 把五类事实正规化并保持分离：
+
+1. 带版本的 compiled subject contract 与摘要；
+2. 公共表面，以及各自不透明的公共 owner 与目标产物；
+3. 物理 provider shard，以及各自不透明的 provider、目标产物与精确直接
+   shard requirements；
+4. 选定实现身份、实现摘要与带类型目标入口；
+5. 每个声明到一个公共表面和一个选定实现的精确 binding。
+
+通用 contract 把 owner、provider、artifact、declaration、implementation、
+shard 与 entrypoint 标识全部视为不透明值。目标专用入口只能由显式选定、
+带版本的 companion validator 解释。基础 schema 不得出现 source label、
+assertion kind、source ordinal、Python path、distribution name、固定 release
+registry、Prelude 默认值或 proof-format 词汇。
+
+只通过 schema 仍不充分。Consumer 必须注入 authority context，提供精确的
+subject 摘要、公共表面、选定实现与摘要、声明 binding、provider/artifact
+权威与直接实现依赖关系。Endpoint validator 是独立显式 mapping，其 key 集
+必须与 layout 实际使用的 contract 集完全相等。Layout 本身把实现指派给物理
+shard。Validator 把 authority 提供的实现图折叠到 shard 后，声明边与所得直接
+边必须完全相等；缺边和多余边都拒绝。Shard、provider quotient 与目标
+artifact quotient 图都必须无环。
+
+Authority facts 有自己的带版本 contract 与规范 content digest，并与 authority
+producer 的 capability ID、protocol version 和 configuration digest 分开记录。
+Endpoint validator 同样暴露带版本、绑定配置的 descriptor。成功结果对 layout、
+authority descriptor 与精确 endpoint descriptor 集计算 validation-provenance
+digest；它只是 cache／provenance key，不是 Manifest V3 或 verification certificate。
+
+`provider-layout-v1` 不选择 provider、不优化 shard 边界，也不从 proof order
+推断公共 ownership。发现环时必须先裁决 shard 合并或分阶段，或抽取真正接口；
+不得借此把公共声明移给另一个 owner。V1 只验证给定 shard projection，不证明
+某个合并或分阶段选择已经过裁决；production producer 必须在 provenance 中显式
+记录 shard-projection capability 与 configuration digest。
+
+对于 Set.mm V1，compiled lock 的 `provider` 仍只是 release 级选择，`module`
+仍是公共 facade。Physical shard、generated path 与 implementation entrypoint
+不得进入 `knowledge-release-lock-v1` 或 declaration-placement attestation。
+后续 Set.mm authority companion 以声明 UUID 连接 snapshot-matched Mono graph
+与精确 proof/replay facts，再把物理裁决作为显式数据提供。
+
+本节不冻结 production Set.mm provider layout。当前 catalog 只是四声明的
+partial governance sample，这些证明依赖 partial lock 之外的声明，而已有 corpus
+graph 与 catalog pin 的 snapshot 不匹配。因此禁止虚构 shard ID，也禁止把历史
+public-module plan 当成实现位置。
+
+本阶段验收门为：
+
+| 门 | 要求 |
+| --- | --- |
+| PL1 | 通用 schema 与 validator 不含 Set.mm、固定 release、Python、foundation 或 backend 默认值。 |
+| PL2 | RFC 8785 摘要、规范顺序、唯一性与全部引用均 fail-closed 校验。 |
+| PL3 | Authority join 要求声明、owner、选定 provider／implementation、artifact、entrypoint 与实现摘要精确一致；authority facts 还必须独立内容寻址。 |
+| PL4 | 声明 shard requirements 与直接跨 shard 实现 quotient 完全相等；缺边和多余边都失败。 |
+| PL5 | Shard、provider 与目标 artifact quotient 均无环。 |
+| PL6 | 未知或不带版本的 endpoint contract 不得 ambient discovery；精确 authority 与 endpoint capability descriptor 必须绑定进 validation provenance。 |
+| PL7 | Set.mm catalog、placement 与 knowledge-release lock schema 保持不变，并显式记录 physical-layout 边界。 |
+| PL8 | 测试使用 synthetic 非 Set.mm authority context；规范数据中不出现虚构 production shard。 |
+
+Generated-tree ownership、manifest V3、trust/foundation closure、原子发布与独立
+verification receipt 仍是后续相邻 contract。有效 provider layout 是发布 semantic
+package 的必要但不充分条件。

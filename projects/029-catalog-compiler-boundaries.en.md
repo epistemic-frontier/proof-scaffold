@@ -372,3 +372,90 @@ This project does not:
 Future protocol versions may add capabilities, but they may not weaken the
 zero-hard-binding rule, provenance requirements, SHA-preserving migration, or
 archive-last gates.
+
+---
+
+## 13. Provider Layout V1 Boundary (2026-07-21)
+
+The first post-migration semantic-package contract is
+`provider-layout-v1`. Its normative schema and validator live in
+`catalog-compiler`, but neither `CompilerSpec` nor the generic core imports or
+constructs it. A semantic-package backend receives it as an explicit,
+digest-bound parameter.
+
+The contract normalizes five distinct facts:
+
+1. the versioned compiled subject contract and digest;
+2. public surfaces, each with an opaque public owner and target artifact;
+3. physical provider shards, each with an opaque provider, target artifact,
+   and exact direct shard requirements;
+4. selected implementation identities, implementation digests, and typed
+   target entry points;
+5. exact declaration bindings to one public surface and one selected
+   implementation.
+
+All owner, provider, artifact, declaration, implementation, shard, and entry
+point identifiers are opaque to the generic contract. A target-specific entry
+point is interpreted only by an explicitly selected, versioned companion
+validator. The base schema contains no source labels, assertion kinds, source
+ordinals, Python paths, distribution names, fixed release registry, Prelude
+default, or proof-format vocabulary.
+
+Schema validity alone is insufficient. A consumer MUST inject an authority
+context that supplies the exact subject digest, public surfaces, selected
+implementations and digests, declaration bindings, provider/artifact authority,
+and direct implementation dependency relation. Endpoint validators are a
+separate explicit mapping whose keys must exactly equal the contracts used by
+the layout. The layout assigns implementations to physical shards. Validation
+rejects both missing and surplus shard edges after collapsing the authority-
+supplied implementation graph. Shard, provider-quotient, and target-artifact-
+quotient graphs must all be acyclic.
+
+The authority facts have their own versioned contract and canonical content
+digest, separate from the authority producer's capability ID, protocol version,
+and configuration digest. Endpoint validators likewise expose versioned,
+configuration-bound descriptors. A successful result computes a validation-
+provenance digest over the layout, authority descriptor, and exact endpoint
+descriptor set; it is a cache/provenance key, not Manifest V3 or a verification
+certificate.
+
+`provider-layout-v1` does not choose a provider, optimize shard boundaries, or
+infer public ownership from proof order. A cycle requires an adjudicated shard
+merge or stage, or a real interface extraction; it never licenses moving a
+public declaration to another owner. V1 validates a supplied shard projection;
+it does not attest that a merge or staging choice was adjudicated. A production
+producer must therefore expose the shard-projection capability and
+configuration digest explicitly in provenance.
+
+For Set.mm V1, the compiled lock's `provider` remains a release-level
+selection and `module` remains the public facade. Physical shards, generated
+paths, and implementation entry points do not enter
+`knowledge-release-lock-v1` or declaration-placement attestations. A later
+Set.mm authority companion joins declaration UUIDs to a snapshot-matched Mono
+graph and exact proof/replay facts, then supplies the physical decisions as
+explicit data.
+
+No production Set.mm provider layout is frozen by this section. The current
+catalog is a partial four-declaration governance sample, its proofs require
+declarations outside that partial lock, and the available corpus graph is not
+snapshot-matched to the catalog pin. Inventing shard IDs or treating the
+historical public-module plan as implementation placement is therefore
+forbidden.
+
+Acceptance gates for this stage are:
+
+| Gate | Requirement |
+| --- | --- |
+| PL1 | The generic schema and validator contain no Set.mm, fixed release, Python, foundation, or backend defaults. |
+| PL2 | RFC 8785 digest, canonical ordering, uniqueness, and every reference are checked fail-closed. |
+| PL3 | Authority joins require exact declaration, owner, selected provider/implementation, artifact, entrypoint, and implementation-digest agreement; authority facts are independently content-addressed. |
+| PL4 | Declared shard requirements exactly equal the direct cross-shard implementation quotient; missing and surplus edges fail. |
+| PL5 | Shard, provider, and target-artifact quotients are acyclic. |
+| PL6 | Unknown or unversioned endpoint contracts cannot use ambient discovery; exact authority and endpoint capability descriptors are bound in validation provenance. |
+| PL7 | The Set.mm catalog, placement, and knowledge-release lock schemas remain unchanged; their physical-layout boundary is documented explicitly. |
+| PL8 | Tests use a synthetic non-Set.mm authority context; no fabricated production shard appears in normative data. |
+
+Generated-tree ownership, manifest V3, trust/foundation closure, atomic
+publication, and the independent verification receipt remain adjacent later
+contracts. A valid provider layout is necessary but not sufficient for a
+publishable semantic package.

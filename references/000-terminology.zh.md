@@ -360,6 +360,7 @@ Project 029 把通用 compiler 与带版本数学数据、注入实现明确分�
 | Analysis pass | 分析遍 | 在同一份规范编译状态上运行的、注入且带版本的观察或校验计算。 | 产生绑定 provenance 的派生证据，包括逆向数学分析；不静默修改 ownership 或 foundation。 |
 | Projection specification | 投影规范 | 把经治理语义身份与 theory 信息映射为选定公共、发布或实现视图的带版本数据。 | 把 Project 028 的 Set.mm 发布拓扑及其他生态选择保持在通用 compiler core 之外。 |
 | Backend capability | 后端能力 | 以显式协议与版本选定、消费编译输入并发出具体表示的注入实现。 | Transpiler 以完整原始 Git 历史迁入这一角色；backend 默认值不成为 compiler 政策。 |
+| Provider layout | 实现提供者布局 | 把经治理声明绑定到公共表面、选定实现闭包、provider shard、目标产物、带类型入口及精确直接跨 shard 依赖 quotient 的带版本、内容寻址物理实现投影。 | 保持公共 ownership 与可替换的实现位置相互分离。它是 semantic-package 的显式输入，不是 catalog 权威、proof order 推断或 compiler-core 默认值。 |
 | Historical compatibility layer | 历史兼容层 | consumer 迁移期间继续可用、但不再定义现行抽象的研究工件、schema、命令与 API。 | 描述原 partition 工具和工件，同时不重写其名字与可复现记录。 |
 | Archive-last gate | 最后归档门 | 旧 repository 归档前必须通过历史、文件树、测试、行为、能力、运行切换与独立审计检查的迁移规则。 | 保持迁移可恢复，禁止以提前归档强迫切换。 |
 

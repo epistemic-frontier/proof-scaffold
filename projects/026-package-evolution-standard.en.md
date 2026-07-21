@@ -17,13 +17,21 @@
 > release unit; Prelude is a separate infrastructure release; mathbox is an
 > explicitly excluded governance scope.
 >
+> **Toolchain-boundary update ([Project 029](029-catalog-compiler-boundaries.en.md),
+> 2026-07-21):** the former partition repository becomes the historical
+> compatibility layer of the generic `catalog-compiler`; partition plans and
+> reports below remain reproducibility evidence. Transpiler moves with its
+> complete original SHA history into the compiler as an injected backend.
+>
 > Normative basis: [Reference 014](../references/014-module-partition-and-knowledge-classification.md)
 > (cross-domain governance research), [Reference 015](../references/015-setmm-linearization-empirics.md)
 > (empirical study of set.mm linearization), [Reference 016](../references/016-mathbox-community-practice.md)
 > (mathbox community practice), and [Terminology Standard 000](../references/000-terminology.en.md).
 >
 > Upstream project: [Project 025](025-semantic-source-surface.en.md) (semantic source surface; all gates passed).
-> Handoff targets: the partition repository (plan production and validation) and the transpiler repository (plan consumption).
+> Historical plan-v3 handoff targets: the partition repository (plan
+> production and validation) and the transpiler repository (plan consumption).
+> The current compiler/backend handoff is governed by Project 029.
 >
 > In this document, "MUST," "MUST NOT," and "SHOULD" have normative meanings.
 > **If implementers encounter a decision point not covered by this document, they MUST stop and report it; they MUST NOT invent a decision themselves.**

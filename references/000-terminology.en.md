@@ -1,6 +1,6 @@
 # ProofScaffold Terminology
 
-> Status: Draft v0.6, 2026-07-20 (sixteen bare mathematical import roots frozen as one-to-one mathematical release units; mathbox governance deferred).
+> Status: Draft v0.7, 2026-07-21 (catalog-compiler boundary, adapter/capability injection, and archive-last migration frozen; mathbox governance deferred).
 > Chinese version: [ProofScaffold 术语规范](000-terminology.zh.md)  
 > Scope: ProofScaffold design documents, public API documentation, code review, exchange-format specifications, and related bilingual material.  
 > This document defines preferred project terminology but does not freeze Python class names, file-format names, or serialization protocols.
@@ -324,8 +324,9 @@ Execution representations are derived from complete proofs, while search algorit
 
 ## 13. Layer 9: Knowledge Organization and Release
 
-This layer fixes the vocabulary for organizing and releasing the knowledge
-base (adjudicated in Projects 026 and 028, 2026-07-19 through 2026-07-20).
+This layer fixes the vocabulary for organizing, compiling, and releasing the
+knowledge base (adjudicated in Projects 026, 028, and 029, 2026-07-19 through
+2026-07-21).
 
 | English term / code name | Preferred Chinese | Meaning or definition | Role in the architecture |
 | --- | --- | --- | --- |
@@ -347,6 +348,29 @@ follow-on plan schema must separate `release_unit_id`, `python_root`, and
 but its packaging topology is read through Project 028. The former term
 "bridge domain" is narrowed to **bridge subdomain** so it cannot be mistaken
 for another member of the top-level domain registry.
+
+### 13.1 Toolchain Roles
+
+Project 029 separates the generic compiler from versioned mathematical data
+and injected implementations.
+
+| English term / code name | Preferred Chinese | Meaning or definition | Role in the architecture |
+| --- | --- | --- | --- |
+| Catalog compiler | 目录编译器 | A generic engine that validates and compiles versioned catalog, source, foundation, theory, and projection data through explicit capability protocols. | Computes governed projections without owning their mathematical decisions. The canonical repository is `catalog-compiler`; Set.mm is an adapter rather than a core binding. |
+| Source adapter | 源适配器 | A versioned capability that faithfully converts one source system and pinned snapshot into compiler inputs and source facts. | Isolates scanner, scope, proof, region, and identity rules such as those specific to Set.mm from the generic core. |
+| Compilation parameter | 编译参数 | A versioned, digest-bound datum selecting or describing a source, foundation, theory graph, projection, or other compilation dimension. | Makes policy explicit and reproducible; a missing required parameter causes rejection rather than default inference. |
+| Theory graph | 理论图 | A versioned graph whose nodes identify foundations or theories and whose typed edges state declared relationships among them. | Supports validation and same-compilation analyses without turning one foundation or edge vocabulary into core policy. |
+| Analysis pass | 分析遍 | An injected, versioned observational or validating computation over one canonical compilation state. | Produces provenance-bound derived evidence, including reverse-mathematics analysis; it does not silently mutate ownership or foundations. |
+| Projection specification | 投影规范 | Versioned data that maps governed semantic identities and theory information into a selected public, release, or implementation view. | Keeps Project 028's Set.mm release topology and other ecosystem choices outside the generic compiler core. |
+| Backend capability | 后端能力 | An injected implementation, selected with an explicit protocol and version, that consumes compiled inputs and emits a concrete representation. | Transpiler is migrated with full original Git history into this role; backend defaults do not become compiler policy. |
+| Historical compatibility layer | 历史兼容层 | Preserved research artifacts, schemas, commands, and APIs that remain available while consumers migrate but no longer define the current abstraction. | Describes the former partition tooling and artifacts without rewriting their names or reproducibility record. |
+| Archive-last gate | 最后归档门 | A migration rule requiring history, tree, test, behavioral, capability, operational, and independent-audit checks before an old repository is archived. | Keeps migration recoverable and forbids using early archival to force a cutover. |
+
+V0.7 compatibility impact: the repository name `catalog-compiler` is distinct
+from distributions, Python imports, CLIs, and machine contract identifiers.
+The compiler core has no hard binding to a source, foundation, theory,
+projection, or backend. Existing partition and `mm-transpiler` names remain
+historical or compatibility contracts until separately versioned migrations.
 
 ## 14. Expressions to Avoid or Rewrite
 
@@ -386,3 +410,4 @@ for another member of the top-level domain registry.
 - [Project 026: Package Evolution Standard](../projects/026-package-evolution-standard.en.md)
 - [Project 027: Prelude Boundary RFC](../projects/027-prelude-boundary-rfc.en.md)
 - [Project 028: Top-Level Knowledge Packages as Release Units](../projects/028-top-level-knowledge-release-units.en.md)
+- [Project 029: Catalog Compiler Boundaries](../projects/029-catalog-compiler-boundaries.en.md)

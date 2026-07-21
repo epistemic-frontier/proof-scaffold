@@ -15,13 +15,20 @@
 > 一个数学发布单元；Prelude 是独立基础设施发布；mathbox 是明确
 > 排除、另待治理的范围。
 >
+> **工具链边界更新（[Project 029](029-catalog-compiler-boundaries.zh.md)，
+> 2026-07-21）：**原 partition repository 成为通用
+> `catalog-compiler` 的历史兼容层；下文 partition plan 与报告继续作为
+> 可复现实证。Transpiler 以完整原始 SHA 历史迁入 compiler，作为注入 backend。
+>
 > 规范性依据：[Reference 014](../references/014-module-partition-and-knowledge-classification.md)
 > （跨领域治理调研）、[Reference 015](../references/015-setmm-linearization-empirics.md)
 > （set.mm 线索化实证）、[Reference 016](../references/016-mathbox-community-practice.md)
 > （mathbox 社群实践）、[术语规范 000](../references/000-terminology.zh.md)。
 >
 > 上游项目：[Project 025](025-semantic-source-surface.zh.md)（语义源码表面，已全门通过）。
-> 交接对象：partition 仓（plan 生产与校验）与 transpiler 仓（plan 消费）。
+> 历史 plan-v3 交接对象：partition 仓（plan 生产与校验）与
+> transpiler 仓（plan 消费）。现行 compiler/backend 交接由 Project 029
+> 规范。
 >
 > 本文中的"必须（MUST）""不得（MUST NOT）""应当（SHOULD）"具有规范性含义。
 > **执行者遇到本文未覆盖的决策点时，必须停止并上报，不得自行发明。**

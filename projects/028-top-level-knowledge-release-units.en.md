@@ -17,6 +17,12 @@
 > promotion, and statement placement are not adjudicated here. Mathboxes are
 > not a seventeenth mathematical package.
 >
+> **Toolchain implementation update
+> ([Project 029](029-catalog-compiler-boundaries.en.md), 2026-07-21):** the
+> sixteen-root Set.mm topology is versioned adapter/catalog projection data,
+> not a generic compiler-core allowlist. Repository, backend, history-preserving
+> migration, and archive-last boundaries are governed by Project 029.
+>
 > In this document, “MUST,” “MUST NOT,” and “SHOULD” have normative meanings.
 
 ---
@@ -450,6 +456,10 @@ discovery facets, not an implicit seventeenth root.
 ---
 
 ## 12. Implementation Sequence
+
+The compiler/backend execution of steps 2–6 is governed by
+[Project 029](029-catalog-compiler-boundaries.en.md). This does not alter the
+release-unit adjudication in this project.
 
 1. Amend terminology and mark the superseded Project 026/027 topology.
 2. Add `knowledge-release-plan-v1` and its root/source-scope validator.

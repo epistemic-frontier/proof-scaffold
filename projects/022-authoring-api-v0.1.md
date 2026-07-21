@@ -113,13 +113,13 @@ This draft combines four evidence sources.
    the special foundation boundary in
    [`metamath-prelude`](https://github.com/epistemic-frontier/metamath-prelude).
 4. The module, naming, and public-surface experiments in
-   [`partition`](https://github.com/epistemic-frontier/partition), especially
+   [`partition`](https://github.com/epistemic-frontier/catalog-compiler/tree/21060ff051d559fe1575e35fbe4143c77ad2ecc0), especially
    the
-   [structural experiment](https://github.com/epistemic-frontier/partition/blob/main/reports/logic/structural-experiment.md),
-   [curated API report](https://github.com/epistemic-frontier/partition/blob/main/reports/logic/consolidated-curated.md),
-   [naming report](https://github.com/epistemic-frontier/partition/blob/main/reports/logic/naming.md),
+   [structural experiment](https://github.com/epistemic-frontier/catalog-compiler/blob/21060ff051d559fe1575e35fbe4143c77ad2ecc0/reports/logic/structural-experiment.md),
+   [curated API report](https://github.com/epistemic-frontier/catalog-compiler/blob/21060ff051d559fe1575e35fbe4143c77ad2ecc0/reports/logic/consolidated-curated.md),
+   [naming report](https://github.com/epistemic-frontier/catalog-compiler/blob/21060ff051d559fe1575e35fbe4143c77ad2ecc0/reports/logic/naming.md),
    and
-   [external-usage report](https://github.com/epistemic-frontier/partition/blob/main/reports/logic/external-usage.md).
+   [external-usage report](https://github.com/epistemic-frontier/catalog-compiler/blob/21060ff051d559fe1575e35fbe4143c77ad2ecc0/reports/logic/external-usage.md).
 
 The partition experiment is particularly important: its K=14 grouping is a
 useful implementation layout, while the K=37 regions are useful search

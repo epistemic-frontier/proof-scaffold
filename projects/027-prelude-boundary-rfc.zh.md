@@ -10,9 +10,15 @@
 > 之外独立且显式锁定的基础设施 release。Mathbox 的知识、社群与治理
 > 组织不在本项目范围内。
 >
+> **工具链边界更新（[Project 029](029-catalog-compiler-boundaries.zh.md)，
+> 2026-07-21）：**Prelude 继续作为经 Set.mm adapter 提供的 Set.mm
+> foundation/catalog 数据，而不是通用 compiler-core 常量。下文 partition
+> 试点引用继续作为历史实证。
+>
 > 上游：[Project 026 §2.1](026-package-evolution-standard.zh.md)（prelude
 > 内容标准立项）、[术语规范 000 §13](../references/000-terminology.zh.md)。
-> 交接对象：metamath-prelude 仓（边界执行）、partition 仓（实证统计）。
+> 现行内容边界交接对象为 metamath-prelude 仓。Partition 仓是历史实证统计
+> 交接对象，其兼容状态由 Project 029 规范。
 >
 > 本文中的"必须（MUST）""不得（MUST NOT）""应当（SHOULD）"具有规范性含义。
 

@@ -33,6 +33,14 @@
 > 2026-07-19): G2a/G2b/G3/G4/G6 passed for both the logic and set-theory slices, Phase 4E is closed,
 > and all acceptance gates for this project have passed.**
 >
+> **Toolchain-boundary update ([Project 029](029-catalog-compiler-boundaries.en.md),
+> 2026-07-21):** this project remains authoritative for the generated semantic
+> source surface, lazy elaboration, frame equivalence, and backend behavior.
+> Project 029 supersedes any reading in which a partition result determines
+> public ownership, and migrates the complete original Transpiler history into
+> `catalog-compiler` as an injected backend. Commands and measurements below
+> remain historical implementation records.
+>
 > Normative basis: [Reference 011](../references/011-language-as-first-class.en.md),
 > [Reference 012](../references/012-defining-structures-axioms-and-proofs.en.md),
 > [Reference 013](../references/013-proof-api-for-verification-construction-search-and-exchange.en.md),

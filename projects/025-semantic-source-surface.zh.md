@@ -26,6 +26,12 @@
 > logic 与 set-theory 两切片的 G2a/G2b/G3/G4/G6 全部通过，Phase 4E 闭合，
 > 本项目全部验收门已过。**
 >
+> **工具链边界更新（[Project 029](029-catalog-compiler-boundaries.zh.md)，
+> 2026-07-21）：**本项目继续规范生成语义源码表面、惰性详化、frame
+> equivalence 与 backend 行为。Project 029 取代“partition 结果决定公共
+> ownership”的解释，并把 Transpiler 完整原始历史迁入
+> `catalog-compiler`，作为注入 backend。下文命令与测量继续作为历史实施记录。
+>
 > 规范性依据：[Reference 011](../references/011-language-as-first-class.zh.md)、
 > [Reference 012](../references/012-defining-structures-axioms-and-proofs.zh.md)、
 > [Reference 013](../references/013-proof-api-for-verification-construction-search-and-exchange.zh.md)、

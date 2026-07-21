@@ -15,6 +15,12 @@
 > 明确排除：本文不裁决 mathbox 的组织、所有权、审查、成熟度、
 > 晋升与语句归属。Mathbox 不是第十七个数学包。
 >
+> **工具链实施更新
+> （[Project 029](029-catalog-compiler-boundaries.zh.md)，2026-07-21）：**
+> 十六根 Set.mm 拓扑是带版本 adapter/catalog projection 数据，不是通用
+> compiler-core allowlist。Repository、backend、保留历史的迁移与最后归档
+> 边界由 Project 029 规范。
+>
 > 本文中的“必须（MUST）”“不得（MUST NOT）”“应当（SHOULD）”
 > 具有规范性含义。
 
@@ -415,6 +421,10 @@ Project 027 在极小 Prelude 内容边界和 capability-slice 原则方面继�
 ---
 
 ## 12. 实施顺序
+
+第 2–6 步的 compiler/backend 执行由
+[Project 029](029-catalog-compiler-boundaries.zh.md) 规范。这不会改变本项目
+对 release unit 的裁决。
 
 1. 修订术语并标出 Projects 026/027 被取代的发布拓扑。
 2. 增加 `knowledge-release-plan-v1` 及根/源码范围 validator。

@@ -10,9 +10,16 @@
 > explicitly locked infrastructure release outside the sixteen mathematical roots. Mathbox knowledge,
 > community, and governance organization is outside this project's scope.
 >
+> **Toolchain-boundary update ([Project 029](029-catalog-compiler-boundaries.en.md),
+> 2026-07-21):** Prelude remains Set.mm foundation/catalog data supplied through
+> the Set.mm adapter; it is not a generic compiler-core constant. The partition
+> pilot references below remain historical evidence.
+>
 > Upstream: [Project 026 §2.1](026-package-evolution-standard.en.md) (commissioning the prelude
 > content standard), [Terminology Standard 000 §13](../references/000-terminology.en.md).
-> Handoff targets: the metamath-prelude repository (boundary implementation) and the partition repository (empirical statistics).
+> Current content-boundary handoff: the metamath-prelude repository. The
+> partition repository was the historical empirical-statistics handoff; its
+> compatibility status is governed by Project 029.
 >
 > In this document, “MUST,” “MUST NOT,” and “SHOULD” have normative meanings.
 

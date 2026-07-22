@@ -455,10 +455,11 @@ Acceptance gates for this stage are:
 | PL7 | The Set.mm catalog, placement, and knowledge-release lock schemas remain unchanged; their physical-layout boundary is documented explicitly. |
 | PL8 | Tests use a synthetic non-Set.mm authority context; no fabricated production shard appears in normative data. |
 
-Generated-tree ownership and atomic publication are now frozen by the adjacent
-Generated Tree V1 contract described below. Manifest V3, trust/foundation
-closure, and the independent verification receipt remain later contracts. A
-valid provider layout is necessary but not sufficient for a publishable
+Generated-tree ownership and atomic publication are frozen by the following
+Generated Tree V1 section. The next boundary also records Manifest V3 and the
+independent-verification protocol. Trust/foundation closure remains
+target-profile-defined and is checked only by an explicitly selected companion.
+A valid provider layout remains necessary but not sufficient for a publishable
 semantic package.
 
 ---
@@ -512,3 +513,58 @@ Acceptance gates for this boundary are:
 | GTB4 | Receipt paths and bytes, cleanup authority, control descriptors, and durability adapters are not caller-supplied session parameters. |
 | GTB5 | Two clean synthetic emissions are byte-identical, and a separate process can recompute the tree solely from frozen bytes. |
 | GTB6 | `COMPLETE` remains explicitly distinct from Manifest V3 and the independent semantic verification receipt. |
+
+---
+
+## 15. Manifest V3 and Independent Verification V1 Boundary (2026-07-22)
+
+`catalog-compiler` now owns the source-neutral, deterministic
+`semantic-package-manifest-v3` contract. It binds the exact source, catalog,
+inventory, and compiled-lock identities; the accepted provider layout and
+independently recomputable authority/endpoint validation provenance; Generated
+Tree record and content digests; semantic profile, facade, and role-qualified
+trust-lock references; coverage and publishable state; complete ordered
+generation-capability provenance; and its own canonical digest. Missing, extra,
+duplicate, noncanonical, or inconsistent fields fail closed. The manifest
+remains ordinary data: its self-digest is not an authority attestation, proof
+certificate, publication receipt, or release approval.
+
+`semantic-package-verification-v1` freezes externally selected Policy, Request,
+and Receipt contracts; bounded path-free value transport; a content-addressed
+complete worker artifact; an isolated, no-site launcher; and a tree-external,
+FD-only durable receipt store. The emitter does not select the policy, evaluator
+implementations, worker artifact, process limits, or receipt destination.
+
+The only V1 gate order is:
+
+1. `manifest-integrity`;
+2. `generated-tree-integrity`;
+3. `provider-trust-closure`;
+4. `declaration-lock-fidelity`;
+5. `frame-equivalence`;
+6. `proof-verification`;
+7. `reproducibility`.
+
+The generic chain establishes the source-neutral contract and cross-document
+joins. Target-specific trust/foundation meaning and mathematical G5–G7
+semantics come only from explicitly selected companions. A receipt contains
+either seven passed gates or one passed prefix, one failed gate, and a blocked
+suffix, with stable path-free diagnostics.
+
+Phase 2 acceptance uses two clean Synthetic Mod-7 producer processes and a
+third isolated verifier process. The producers emit byte-identical package
+maps; the verifier emits the canonical passed receipt; each G1–G7 earliest
+failure is independently reachable; and coherently resealed trust, authority,
+endpoint, declaration, coefficient, implementation, generator, artifact, and
+owned-root substitutions fail at G3, G4, G5, or G7.
+
+This completes the source-neutral Phase 2 protocol acceptance, not a production
+Set.mm release and not Project 029 as a whole. A real Set.mm production slice
+still requires a complete publishable catalog/release lock bound to the actual
+source snapshot; a snapshot-matched Mono dependency graph; an adjudicated
+provider/shard layout with exact endpoints; exact Prelude/provider trust locks
+and foundation closure; a Set.mm authority and semantic-profile companion; an
+independent Metamath proof/replay companion; and the resulting real Generated
+Tree, Manifest V3, and verification receipt. The current four-declaration
+partial catalog and the Synthetic Mod-7 receipt satisfy none of those
+production-instance obligations.

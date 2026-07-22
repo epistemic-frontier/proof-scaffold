@@ -391,9 +391,10 @@ public-module plan 当成实现位置。
 | PL7 | Set.mm catalog、placement 与 knowledge-release lock schema 保持不变，并显式记录 physical-layout 边界。 |
 | PL8 | 测试使用 synthetic 非 Set.mm authority context；规范数据中不出现虚构 production shard。 |
 
-Generated-tree ownership 与原子发布现已由下述相邻 Generated Tree V1 contract
-冻结。Manifest V3、trust/foundation closure 与独立 verification receipt 仍是后续
-contract。有效 provider layout 是发布 semantic package 的必要但不充分条件。
+Generated-tree ownership 与原子发布现已由下述 Generated Tree V1 章节冻结；
+再下一节同时记录 Manifest V3 与 independent-verification protocol。
+Trust/foundation closure 仍由目标 semantic profile 定义，并且只能由显式选定的
+companion 校验。有效 provider layout 仍是可发布 semantic package 的必要但不充分条件。
 
 ---
 
@@ -437,3 +438,53 @@ layout、精确 Prelude/provider locks 与独立验证。
 | GTB4 | Receipt path/bytes、cleanup authority、control descriptor 与 durability adapter 不是 caller 提供的 session 参数。 |
 | GTB5 | 两次 clean synthetic emission byte-identical，且独立进程可仅凭 frozen bytes 重算 tree。 |
 | GTB6 | `COMPLETE` 与 Manifest V3、独立 semantic verification receipt 保持显式分离。 |
+
+---
+
+## 15. Manifest V3 与 Independent Verification V1 边界（2026-07-22）
+
+`catalog-compiler` 现已拥有来源中立、确定性的
+`semantic-package-manifest-v3` contract。它绑定精确的 source、catalog、
+inventory 与 compiled-lock identity；已接受的 provider layout 及可独立重算的
+authority/endpoint validation provenance；Generated Tree record/content
+digest；semantic profile、facade 与按 role 标识的 trust-lock 引用；coverage 与
+publishable 状态；完整、有序的 generation-capability provenance；以及自身的
+canonical digest。缺失、多余、重复、非规范或不一致字段一律 fail closed。
+Manifest 仍只是普通数据：其 self-digest 不是 authority attestation、proof
+certificate、publication receipt 或 release approval。
+
+`semantic-package-verification-v1` 冻结由部署方在外部选择的 Policy、Request 与
+Receipt contract、受限且不含路径的 value transport、内容寻址的完整 worker
+artifact、隔离且禁用 site 的 launcher，以及 generated tree 外、仅接受 FD authority
+的 durable receipt store。Emitter 无权选择 policy、evaluator implementation、worker
+artifact、进程限制或 receipt destination。
+
+V1 唯一合法的 gate 顺序为：
+
+1. `manifest-integrity`；
+2. `generated-tree-integrity`；
+3. `provider-trust-closure`；
+4. `declaration-lock-fidelity`；
+5. `frame-equivalence`；
+6. `proof-verification`；
+7. `reproducibility`。
+
+通用 gate chain 建立来源中立的 contract 校验与跨文档 join。目标专用的
+trust/foundation 含义及 G5–G7 数学语义只能来自显式选定的 companion。Receipt
+只能是七门全部 passed，或一个 passed 前缀、唯一 failed gate 与 blocked 后缀，并
+只携带稳定且不含 host path 的 diagnostics。
+
+阶段 2 验收使用两个 clean Synthetic Mod-7 producer 进程和第三个隔离 verifier
+进程。两个 producer 发出 byte-identical package map；verifier 发出规范 passed
+receipt；G1–G7 的最早失败均可独立到达；对 trust、authority、endpoint、
+declaration、coefficient、implementation、generator、artifact 与 owned root 做完整
+重封装的一致替换，也会分别在 G3、G4、G5 或 G7 fail closed。
+
+这只完成来源中立的阶段 2 协议验收，不等于 production Set.mm release，也不等于
+Project 029 整体完成。首个真实 Set.mm production slice 仍需要：绑定实际 source
+snapshot 的 complete/publishable catalog 与 release lock；snapshot-matched Mono
+dependency graph；已裁决、带精确 endpoint 的 provider/shard layout；精确的
+Prelude/provider trust locks 与 foundation closure；Set.mm authority 和
+semantic-profile companion；独立 Metamath proof/replay companion；以及由这些真实
+输入产生的 Generated Tree、Manifest V3 与 verification receipt。当前四声明 partial
+catalog 和 Synthetic Mod-7 receipt 均不满足这些 production-instance 义务。

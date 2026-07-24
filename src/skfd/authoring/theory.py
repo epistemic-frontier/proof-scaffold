@@ -59,6 +59,7 @@ from .judgment import (
     DefinitionDecl,
     DistinctPair,
     Judgment,
+    PrimitiveRuleDecl,
     resolve_axiom,
     resolve_definition,
 )
@@ -553,6 +554,7 @@ class Theory:
         self,
         label: str,
         *,
+        assertion_id: AssertionId | str | None = None,
         schema: Sequence[str],
         conclusion: FormulaLike,
         premises: Sequence[FormulaLike] = (),
@@ -561,12 +563,12 @@ class Theory:
         deprecated: str | None = None,
         internal: bool = False,
     ) -> AssertionHandle:
-        assertion_id = self._new_assertion_id(label)
-        declared, names = self._schema(label, assertion_id, schema)
+        resolved_id = self._new_assertion_id(label, assertion_id)
+        declared, names = self._schema(label, resolved_id, schema)
         signature = self._wrap(
             label,
             lambda: AssertionSignature(
-                id=assertion_id,
+                id=resolved_id,
                 canonical_label=label,
                 kind="theorem",
                 schema_variables=declared,
@@ -590,6 +592,7 @@ class Theory:
         self,
         label: str,
         *,
+        assertion_id: AssertionId | str | None = None,
         schema: Sequence[str],
         conclusion: FormulaLike,
         distinct: Sequence[tuple[str, str]] = (),
@@ -597,15 +600,15 @@ class Theory:
         deprecated: str | None = None,
         internal: bool = False,
     ) -> AssertionHandle:
-        assertion_id = self._new_assertion_id(label)
-        declared, names = self._schema(label, assertion_id, schema)
+        resolved_id = self._new_assertion_id(label, assertion_id)
+        declared, names = self._schema(label, resolved_id, schema)
         signature = self._wrap(
             label,
             lambda: replace(
                 signature_from_axiom(
                     resolve_axiom(
                         AxiomDecl(
-                            id=assertion_id,
+                            id=resolved_id,
                             schema_variables=declared,
                             conclusion=self._judgment(conclusion, names),
                             mandatory_distinct=self._distinct(label, distinct, names),
@@ -630,6 +633,7 @@ class Theory:
         self,
         label: str,
         *,
+        assertion_id: AssertionId | str | None = None,
         schema: Sequence[str],
         conclusion: FormulaLike,
         distinct: Sequence[tuple[str, str]] = (),
@@ -637,15 +641,15 @@ class Theory:
         deprecated: str | None = None,
         internal: bool = False,
     ) -> AssertionHandle:
-        assertion_id = self._new_assertion_id(label)
-        declared, names = self._schema(label, assertion_id, schema)
+        resolved_id = self._new_assertion_id(label, assertion_id)
+        declared, names = self._schema(label, resolved_id, schema)
         signature = self._wrap(
             label,
             lambda: replace(
                 signature_from_definition(
                     resolve_definition(
                         DefinitionDecl(
-                            id=assertion_id,
+                            id=resolved_id,
                             schema_variables=declared,
                             conclusion=self._judgment(conclusion, names),
                             mandatory_distinct=self._distinct(label, distinct, names),
@@ -670,16 +674,19 @@ class Theory:
         self,
         label: str,
         *,
+        assertion_id: AssertionId | str | None = None,
         doc: str | None = None,
         deprecated: str | None = None,
         internal: bool = False,
     ) -> AssertionHandle:
-        assertion_id = self._new_assertion_id(label)
+        resolved_id = self._new_assertion_id(label, assertion_id)
         rule_id = RuleId(f"{self.namespace}#rule:{label}")
         rule = self._wrap(label, lambda: self.calculus.rule(rule_id))
+        if assertion_id is not None:
+            rule = _rebind_primitive_rule(rule, resolved_id)
         signature = signature_from_primitive_rule(
             rule,
-            assertion_id=assertion_id,
+            assertion_id=resolved_id,
             canonical_label=label,
         )
         names = {
@@ -721,9 +728,17 @@ class Theory:
 
     # ── internals ────────────────────────────────────────────────────
 
-    def _new_assertion_id(self, label: str) -> AssertionId:
+    def _new_assertion_id(
+        self,
+        label: str,
+        assertion_id: AssertionId | str | None,
+    ) -> AssertionId:
         if not label:
             raise TheoryError("assertion label must be non-empty")
+        try:
+            default_id = AssertionId(f"{self.namespace}#assertion:{label}")
+        except ValueError as error:
+            raise TheoryError(f"invalid assertion label: {label!r}") from error
         if label in self._handles:
             raise TheoryError(f"duplicate assertion label: {label}")
         for upstream in self._upstreams:
@@ -732,10 +747,38 @@ class Theory:
                     f"assertion label conflicts with upstream theory "
                     f"{upstream.namespace}: {label}"
                 )
+        resolved_id = (
+            default_id
+            if assertion_id is None
+            else self._explicit_assertion_id(label, assertion_id)
+        )
+        if resolved_id in self._by_id:
+            raise TheoryError(f"duplicate assertion identifier: {resolved_id}")
+        for upstream in self._upstreams:
+            if upstream._signature_for(resolved_id) is not None:
+                raise TheoryError(
+                    f"assertion identifier conflicts with upstream theory "
+                    f"{upstream.namespace}: {resolved_id}"
+                )
+        return resolved_id
+
+    @staticmethod
+    def _explicit_assertion_id(
+        label: str,
+        assertion_id: AssertionId | str,
+    ) -> AssertionId:
         try:
-            return AssertionId(f"{self.namespace}#assertion:{label}")
+            if isinstance(assertion_id, AssertionId):
+                return AssertionId(assertion_id.value)
+            if isinstance(assertion_id, str):
+                return AssertionId(assertion_id)
         except ValueError as error:
-            raise TheoryError(f"invalid assertion label: {label!r}") from error
+            raise TheoryError(
+                f"{label}: invalid assertion identifier: {assertion_id!r}"
+            ) from error
+        raise TheoryError(
+            f"{label}: assertion_id must be an AssertionId or string"
+        )
 
     def _owns_label(self, label: str) -> bool:
         if label in self._handles:
@@ -923,6 +966,51 @@ class Theory:
             raise
         except AuthoringSemanticError as error:
             raise TheoryError(f"{label}: {error}") from error
+
+
+def _rebind_primitive_rule(
+    rule: PrimitiveRuleDecl,
+    assertion_id: AssertionId,
+) -> PrimitiveRuleDecl:
+    """Alpha-rebind a calculus rule to an explicit assertion identity.
+
+    Calculus-owned variables remain the compatibility default. Generated
+    providers that supply an upstream assertion identity instead receive a
+    signature whose complete schema is owned by that identity.
+    """
+    owner = OwnerId(str(assertion_id))
+    rebound = {
+        variable: VariableRef(
+            variable.scope,
+            owner,
+            variable.local_key,
+            variable.kind,
+        )
+        for variable in rule.schema_variables
+    }
+
+    def term(value: Term) -> Term:
+        if isinstance(value, Var):
+            return Var(rebound[value.variable], value.sort)
+        return App(
+            value.constructor,
+            tuple(term(argument) for argument in value.arguments),
+            value.sort,
+        )
+
+    def judgment(value: Judgment) -> Judgment:
+        return Judgment(value.kind, tuple(term(argument) for argument in value.arguments))
+
+    return replace(
+        rule,
+        schema_variables=tuple(rebound[variable] for variable in rule.schema_variables),
+        premises=tuple(judgment(premise) for premise in rule.premises),
+        conclusion=judgment(rule.conclusion),
+        mandatory_distinct=tuple(
+            DistinctPair(rebound[pair.left], rebound[pair.right])
+            for pair in rule.mandatory_distinct
+        ),
+    )
 
 
 def _check_pin(upstream: Theory, pin: UpstreamPin) -> None:

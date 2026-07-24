@@ -1279,3 +1279,26 @@ strict 19 个源码文件通过；pytest 55 passed。全部命令均使用各仓
 
 没有触发 §18.4 或其他冻结停止条件，没有 label 特例、基线编辑或比较项弱化；生成包
 及 `.mm` 均未提交。**Phase 4E 至此闭合。**
+
+---
+
+## 20. 稳定上游断言同一性接缝（2026-07-24）
+
+`Theory.theorem`、`Theory.axiom`、`Theory.definition` 与 `Theory.primitive_rule`
+新增只增不改的 keyword-only 参数
+`assertion_id: AssertionId | str | None = None`。
+
+- `None` 保留既有 `<theory namespace>#assertion:<label>` 同一性政策，不改变兼容行为；
+  特别是默认 primitive-rule 签名继续保留由 calculus 所有的 schema 变量。
+- 显式值必须重新构造为 `AssertionId`；空值、非法值、重复值及与上游冲突的标识符均
+  fail closed。canonical label 校验及本地/上游 label 冲突检查保持独立，不能通过显式
+  标识符绕过。
+- theorem、axiom、definition 声明的 schema 变量归属 resolved assertion identity。
+  primitive rule 收到显式同一性时，其完整签名 alpha-rebind 到该同一性：
+  schema 变量、premises、conclusion 与 distinct-variable 端点均采用新 owner；
+  calculus rule 本身不变。
+- proof identity 继续由 theory namespace 与 canonical label 派生。该接缝改变的是
+  catalog/provider 的 assertion join，不改变惰性证明体注册与 proof identity 政策。
+
+因此 generated provider 可以把 `urn:uuid:...` 等权威 catalog identity 直接用于
+semantic handle，同时保持省略新参数的手写源码及既有生成源码兼容。

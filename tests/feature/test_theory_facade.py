@@ -1,12 +1,19 @@
 from __future__ import annotations
 
 import io
+from collections.abc import Mapping
 from dataclasses import dataclass, replace
+from typing import cast
 
 import pytest
 
 from skfd.api_v2 import BuildConfig
-from skfd.authoring.assertion import CompleteProof
+from skfd.authoring._canonical import JsonValue, canonical_digest
+from skfd.authoring.assertion import (
+    CompleteProof,
+    assertion_signature_document,
+    signature_from_primitive_rule,
+)
 from skfd.authoring.ids import (
     AssertionId,
     BackendBindingId,
@@ -21,10 +28,12 @@ from skfd.authoring.ids import (
     OwnerId,
     RuleId,
     SortId,
+    StepId,
     VariableKindId,
 )
 from skfd.authoring.judgment import (
     CalculusSpec,
+    DistinctPair,
     Judgment,
     JudgmentKindDecl,
     PrimitiveRuleDecl,
@@ -64,6 +73,7 @@ from skfd.authoring.notation import (
     resolve_notation,
 )
 from skfd.authoring.term import VariableRef
+from skfd.authoring.term_ops import variables
 from skfd.authoring.theory import (
     AssertionHandle,
     Theory,
@@ -92,7 +102,11 @@ class _Fixture:
     theory: Theory
 
 
-def _make_theory(namespace: str = _NAMESPACE) -> Theory:
+def _make_theory(
+    namespace: str = _NAMESPACE,
+    *,
+    mp_distinct: bool = False,
+) -> Theory:
     language = resolve_language(
         LanguageSpec(
             id=LanguageId(f"{_NAMESPACE}#language:prop"),
@@ -126,6 +140,9 @@ def _make_theory(namespace: str = _NAMESPACE) -> Theory:
                         Judgment(_PROVABLE, (language.apply(_IMP, (phi, psi)),)),
                     ),
                     conclusion=Judgment(_PROVABLE, (psi,)),
+                    mandatory_distinct=(
+                        (DistinctPair(mp_phi, mp_psi),) if mp_distinct else ()
+                    ),
                 ),
             ),
         ),
@@ -226,11 +243,188 @@ def test_schema_order_is_preserved_on_handles() -> None:
     ]
 
 
+def test_explicit_assertion_id_is_used_by_all_declaration_kinds() -> None:
+    theory = _make_theory()
+    axiom_id = AssertionId("urn:uuid:00000000-0000-4000-8000-000000000001")
+    definition_id = "urn:uuid:00000000-0000-4000-8000-000000000002"
+    theorem_id = "urn:uuid:00000000-0000-4000-8000-000000000003"
+    primitive_id = "urn:uuid:00000000-0000-4000-8000-000000000004"
+
+    axiom = theory.axiom(
+        "ax-stable",
+        assertion_id=axiom_id,
+        schema=("φ:wff",),
+        conclusion="φ → φ",
+    )
+    definition = theory.definition(
+        "df-stable",
+        assertion_id=definition_id,
+        schema=("φ:wff",),
+        conclusion="φ → φ",
+    )
+    theorem = theory.theorem(
+        "th-stable",
+        assertion_id=theorem_id,
+        schema=("φ:wff",),
+        premises=("φ",),
+        conclusion="φ",
+    )
+    primitive = theory.primitive_rule("mp", assertion_id=primitive_id)
+
+    @theorem.proof
+    def prove_th_stable(proof: TheoryProofAuthor) -> CompleteProof:
+        return proof.qed(proof.hypotheses[0])
+
+    assert tuple(
+        handle.id for handle in (axiom, definition, theorem, primitive)
+    ) == (
+        axiom_id,
+        AssertionId(definition_id),
+        AssertionId(theorem_id),
+        AssertionId(primitive_id),
+    )
+    for handle in (axiom, definition, theorem, primitive):
+        expected_owner = OwnerId(str(handle.id))
+        assert all(
+            variable.owner == expected_owner
+            for variable in handle.schema_variables
+        )
+    assert theorem.implementation.root == StepId(
+        f"{_NAMESPACE}#proof:th-stable/step:0"
+    )
+
+
+def test_default_primitive_rule_signature_remains_compatible() -> None:
+    theory = _make_theory()
+    rule = theory.calculus.rule(_MP_RULE)
+    expected = signature_from_primitive_rule(
+        rule,
+        assertion_id=AssertionId(f"{_NAMESPACE}#assertion:mp"),
+        canonical_label="mp",
+    )
+
+    handle = theory.primitive_rule("mp")
+
+    assert handle.signature == expected
+    assert canonical_digest(
+        cast(
+            Mapping[str, JsonValue],
+            assertion_signature_document(handle.signature),
+        )
+    ) == canonical_digest(
+        cast(Mapping[str, JsonValue], assertion_signature_document(expected))
+    )
+    assert all(
+        variable.owner == OwnerId(str(_MP_RULE))
+        for variable in handle.schema_variables
+    )
+
+
+def test_explicit_primitive_rule_rebinds_complete_schema_and_applies() -> None:
+    theory = _make_theory()
+    ax_1 = theory.axiom(
+        "ax-1",
+        schema=("φ:wff", "ψ:wff"),
+        conclusion="φ → (ψ → φ)",
+    )
+    assertion_id = AssertionId(
+        "urn:uuid:00000000-0000-4000-8000-000000000005"
+    )
+    mp = theory.primitive_rule("mp", assertion_id=assertion_id)
+    owner = OwnerId(str(assertion_id))
+    referenced = set(mp.schema_variables)
+    for judgment in (*mp.premises, mp.conclusion):
+        for argument in judgment.arguments:
+            referenced.update(variables(argument))
+    for pair in mp.signature.mandatory_distinct:
+        referenced.update((pair.left, pair.right))
+
+    assert referenced == set(mp.schema_variables)
+    assert all(variable.owner == owner for variable in referenced)
+
+    a1i, _ = _declare_a1i(theory, ax_1, mp)
+    assert a1i.implementation.signature is a1i.signature
+
+
+def test_explicit_primitive_rule_rebinds_distinct_endpoints() -> None:
+    theory = _make_theory(mp_distinct=True)
+    assertion_id = AssertionId(
+        "urn:uuid:00000000-0000-4000-8000-000000000011"
+    )
+
+    mp = theory.primitive_rule("mp", assertion_id=assertion_id)
+
+    (pair,) = mp.signature.mandatory_distinct
+    assert pair.left in mp.schema_variables
+    assert pair.right in mp.schema_variables
+    assert pair.left.owner == OwnerId(str(assertion_id))
+    assert pair.right.owner == OwnerId(str(assertion_id))
+
+
+@pytest.mark.parametrize("assertion_id", ("", "not a canonical id"))
+def test_invalid_explicit_assertion_id_fails_closed(assertion_id: str) -> None:
+    theory = _make_theory()
+    with pytest.raises(TheoryError, match="invalid assertion identifier"):
+        theory.axiom(
+            "ax-invalid-id",
+            assertion_id=assertion_id,
+            schema=("φ:wff",),
+            conclusion="φ → φ",
+        )
+
+
+def test_non_string_explicit_assertion_id_fails_closed() -> None:
+    theory = _make_theory()
+    with pytest.raises(TheoryError, match="must be an AssertionId or string"):
+        theory.axiom(
+            "ax-invalid-type",
+            assertion_id=cast(str, object()),
+            schema=("φ:wff",),
+            conclusion="φ → φ",
+        )
+
+
+def test_explicit_assertion_id_does_not_bypass_label_validation() -> None:
+    theory = _make_theory()
+    with pytest.raises(TheoryError, match="invalid assertion label"):
+        theory.axiom(
+            "not a canonical label",
+            assertion_id="urn:uuid:00000000-0000-4000-8000-000000000006",
+            schema=("φ:wff",),
+            conclusion="φ → φ",
+        )
+
+
+def test_duplicate_explicit_assertion_id_fails_closed() -> None:
+    theory = _make_theory()
+    assertion_id = "urn:uuid:00000000-0000-4000-8000-000000000007"
+    theory.axiom(
+        "ax-first",
+        assertion_id=assertion_id,
+        schema=("φ:wff",),
+        conclusion="φ → φ",
+    )
+
+    with pytest.raises(TheoryError, match="duplicate assertion identifier"):
+        theory.theorem(
+            "th-second",
+            assertion_id=assertion_id,
+            schema=("φ:wff",),
+            premises=("φ",),
+            conclusion="φ",
+        )
+
+
 def test_duplicate_label_fails_closed() -> None:
     theory = _make_theory()
     theory.axiom("ax-1", schema=("φ:wff", "ψ:wff"), conclusion="φ → (ψ → φ)")
     with pytest.raises(TheoryError, match="duplicate assertion label"):
-        theory.axiom("ax-1", schema=("φ:wff",), conclusion="φ → φ")
+        theory.axiom(
+            "ax-1",
+            assertion_id="urn:uuid:00000000-0000-4000-8000-000000000008",
+            schema=("φ:wff",),
+            conclusion="φ → φ",
+        )
 
 
 def test_undeclared_variable_fails_closed() -> None:
@@ -425,6 +619,38 @@ def test_extend_pins_upstream_digests() -> None:
         )
 
 
+def test_explicit_assertion_id_conflicting_with_upstream_fails_closed() -> None:
+    upstream = _make_theory()
+    assertion_id = "urn:uuid:00000000-0000-4000-8000-000000000009"
+    upstream.axiom(
+        "ax-upstream",
+        assertion_id=assertion_id,
+        schema=("φ:wff",),
+        conclusion="φ → φ",
+    )
+    downstream = Theory.extend(
+        upstream,
+        theory_id="test-down#theory:main",
+        namespace="test-down",
+        language=upstream.language,
+        calculus=upstream.calculus,
+        notation=upstream.notation,
+        provable_judgment=_PROVABLE,
+        variable_kinds={"wff": _WFF_KIND},
+    )
+
+    with pytest.raises(
+        TheoryError, match="assertion identifier conflicts with upstream theory"
+    ):
+        downstream.theorem(
+            "th-downstream",
+            assertion_id=assertion_id,
+            schema=("φ:wff",),
+            premises=("φ",),
+            conclusion="φ",
+        )
+
+
 def test_cross_theory_proof_uses_upstream_handles() -> None:
     upstream = _make_theory()
     ax_1 = upstream.axiom(
@@ -445,7 +671,12 @@ def test_cross_theory_proof_uses_upstream_handles() -> None:
     assert a1i.implementation.signature is a1i.signature  # type: ignore[attr-defined]
 
     with pytest.raises(TheoryError, match="conflicts with upstream"):
-        downstream.axiom("ax-1", schema=("φ:wff",), conclusion="φ → φ")
+        downstream.axiom(
+            "ax-1",
+            assertion_id="urn:uuid:00000000-0000-4000-8000-000000000010",
+            schema=("φ:wff",),
+            conclusion="φ → φ",
+        )
 
 
 def test_dummy_variables_and_proof_distinct_resolve_in_scope() -> None:

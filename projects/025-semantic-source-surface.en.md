@@ -1428,3 +1428,27 @@ proof-scaffold: `ruff check .` passed; mypy strict passed for 94 source files; p
 No condition in §18.4 or any other frozen stop condition was triggered, and there were no label
 special cases, baseline edits, or weakened comparison items; generated packages and `.mm` files were
 not committed. **Phase 4E is now closed.**
+
+---
+
+## 20. Stable Upstream Assertion Identity Seam (2026-07-24)
+
+`Theory.theorem`, `Theory.axiom`, `Theory.definition`, and `Theory.primitive_rule` accept an additive
+keyword-only `assertion_id: AssertionId | str | None = None`.
+
+- `None` retains the existing `<theory namespace>#assertion:<label>` identity policy without changing
+  compatibility behavior. In particular, a default primitive-rule signature retains its
+  calculus-owned schema variables.
+- An explicit value is reconstructed as an `AssertionId`; empty, malformed, duplicate, and
+  upstream-conflicting identifiers fail closed. Canonical-label validation and local/upstream label
+  collision checks remain independent and cannot be bypassed with an explicit identifier.
+- Schema variables declared by theorem, axiom, and definition are owned by the resolved assertion
+  identity. When a primitive rule receives an explicit identity, its complete signature is
+  alpha-rebound to that identity: schema variables, premises, conclusion, and distinct-variable
+  endpoints all use the new owner. The calculus rule itself is unchanged.
+- Proof identity remains derived from the theory namespace and canonical label. This seam changes
+  catalog/provider assertion joins, not the lazy proof-body registration or proof identity policy.
+
+This permits generated providers to use an authoritative catalog identity such as `urn:uuid:...`
+directly in the semantic handle while preserving handwritten and previously generated source that
+omits the new keyword.

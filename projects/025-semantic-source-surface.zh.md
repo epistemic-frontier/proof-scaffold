@@ -1302,3 +1302,22 @@ strict 19 个源码文件通过；pytest 55 passed。全部命令均使用各仓
 
 因此 generated provider 可以把 `urn:uuid:...` 等权威 catalog identity 直接用于
 semantic handle，同时保持省略新参数的手写源码及既有生成源码兼容。
+
+---
+
+## 21. 预声明源码顺序的目录接缝（2026-07-24）
+
+`Theory.create` 与 `Theory.extend` 新增只增不改的 keyword-only 参数
+`declaration_order: Sequence[str] | None = None`。
+
+- `None` 精确保留既有注册顺序行为。
+- 提供的序列是本 theory 全部允许的本地断言 label 顺序；空 label、重复 label，
+  以及注册未列入序列的 label 都 fail closed。
+- `Theory.assertions` 始终按该预声明顺序暴露当前已加载子集，不受惰性 provider shard
+  实际 import 顺序影响。
+- `Theory.assertions_complete` 表示完整序列是否均已注册；
+  `Theory.verify_all()` 在详化任何证明之前拒绝不完整的已配置 theory。
+- 断言同一性、proof identity、证明体登记与惰性详化语义均不改变。
+
+该接缝允许 ontology façade 按需导入任意 provider shard，同时使完整验证、派生目录视图
+与 Metamath 发射继续确定性地遵守冻结源码顺序。

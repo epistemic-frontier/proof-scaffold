@@ -1452,3 +1452,22 @@ keyword-only `assertion_id: AssertionId | str | None = None`.
 This permits generated providers to use an authoritative catalog identity such as `urn:uuid:...`
 directly in the semantic handle while preserving handwritten and previously generated source that
 omits the new keyword.
+
+---
+
+## 21. Predeclared Source-Order Registry Seam (2026-07-24)
+
+`Theory.create` and `Theory.extend` accept an additive keyword-only
+`declaration_order: Sequence[str] | None = None`.
+
+- `None` preserves the existing registration-order behavior exactly.
+- A supplied sequence is the complete allowed local assertion-label order. Empty or duplicate labels
+  and registration of an unlisted label fail closed.
+- `Theory.assertions` exposes the currently loaded subset in that predeclared order, independently of
+  the order in which lazy provider shards were imported.
+- `Theory.assertions_complete` reports whether the complete sequence has been registered.
+  `Theory.verify_all()` rejects an incomplete configured theory before elaborating any proof.
+- Assertion identity, proof identity, proof-body registration, and lazy elaboration are unchanged.
+
+This seam lets ontology facades import arbitrary provider shards on demand while full verification,
+derived catalog views, and Metamath emission retain the pinned source order deterministically.

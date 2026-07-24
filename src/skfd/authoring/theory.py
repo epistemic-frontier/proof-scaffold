@@ -22,7 +22,7 @@ in ``Theory.verify_all()``, or in explicit build/emission flows.
 from __future__ import annotations
 
 import warnings
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Callable, Iterator, Mapping, Sequence
 from dataclasses import dataclass, replace
 from types import MappingProxyType
 from typing import TypeAlias, TypeVar, overload
@@ -413,6 +413,31 @@ class TheoryProofAuthor:
         return step.id
 
 
+class _PredeclaredAssertionView(Mapping[str, AssertionHandle]):
+    """Live read-only view over a registry with a fixed label order."""
+
+    def __init__(
+        self,
+        handles: Mapping[str, AssertionHandle],
+        order: tuple[str, ...],
+    ) -> None:
+        self._handles = handles
+        self._order = order
+
+    def __getitem__(self, label: str) -> AssertionHandle:
+        return self._handles[label]
+
+    def __iter__(self) -> Iterator[str]:
+        return (
+            label
+            for label in self._order
+            if label in self._handles
+        )
+
+    def __len__(self) -> int:
+        return len(self._handles)
+
+
 class Theory:
     """Read-only facade binding language, calculus, notation and the
     package-level assertion registry."""
@@ -434,6 +459,7 @@ class Theory:
         variable_kinds: Mapping[str, VariableKindId],
         notation: NotationInterface | None = None,
         upstreams: Sequence[Theory] = (),
+        declaration_order: Sequence[str] | None = None,
     ) -> None:
         if not theory_id:
             raise TheoryError("theory_id must be non-empty")
@@ -461,6 +487,29 @@ class Theory:
                 raise TheoryError("variable kind names must be non-empty")
             if kind_id not in language.variable_kinds:
                 raise TheoryError(f"unknown variable kind: {kind_id}")
+        if isinstance(declaration_order, (str, bytes)):
+            raise TheoryError(
+                "declaration_order must be a sequence of assertion labels"
+            )
+        resolved_declaration_order = (
+            None
+            if declaration_order is None
+            else tuple(declaration_order)
+        )
+        if resolved_declaration_order is not None:
+            if any(
+                not isinstance(label, str) or not label
+                for label in resolved_declaration_order
+            ):
+                raise TheoryError(
+                    "declaration_order labels must be non-empty strings"
+                )
+            if len(set(resolved_declaration_order)) != len(
+                resolved_declaration_order
+            ):
+                raise TheoryError(
+                    "declaration_order contains duplicate assertion labels"
+                )
         seen_namespaces = {namespace}
         for upstream in upstreams:
             if upstream.namespace in seen_namespaces:
@@ -484,6 +533,23 @@ class Theory:
         self._handles: dict[str, AssertionHandle] = {}
         self._by_id: dict[AssertionId, AssertionHandle] = {}
         self._validated: set[tuple[Digest, AssertionId]] = set()
+        self._declaration_order = resolved_declaration_order
+        self._declaration_rank = (
+            {}
+            if resolved_declaration_order is None
+            else {
+                label: index
+                for index, label in enumerate(resolved_declaration_order)
+            }
+        )
+        self._ordered_handles = (
+            None
+            if resolved_declaration_order is None
+            else _PredeclaredAssertionView(
+                self._handles,
+                resolved_declaration_order,
+            )
+        )
 
     @classmethod
     def create(
@@ -496,6 +562,7 @@ class Theory:
         provable_judgment: JudgmentKindId,
         variable_kinds: Mapping[str, VariableKindId],
         notation: NotationInterface | None = None,
+        declaration_order: Sequence[str] | None = None,
     ) -> Theory:
         return cls(
             theory_id=theory_id,
@@ -505,6 +572,7 @@ class Theory:
             provable_judgment=provable_judgment,
             variable_kinds=variable_kinds,
             notation=notation,
+            declaration_order=declaration_order,
         )
 
     @classmethod
@@ -519,6 +587,7 @@ class Theory:
         variable_kinds: Mapping[str, VariableKindId],
         notation: NotationInterface | None = None,
         expected_upstream: Mapping[str, UpstreamPin] | None = None,
+        declaration_order: Sequence[str] | None = None,
     ) -> Theory:
         if not upstreams:
             raise TheoryError("Theory.extend requires at least one upstream theory")
@@ -546,6 +615,7 @@ class Theory:
             variable_kinds=variable_kinds,
             notation=notation,
             upstreams=upstreams,
+            declaration_order=declaration_order,
         )
 
     # ── declarations ─────────────────────────────────────────────────
@@ -706,8 +776,29 @@ class Theory:
 
     @property
     def assertions(self) -> Mapping[str, AssertionHandle]:
-        """Registered assertions by canonical label, in registration order."""
-        return MappingProxyType(self._handles)
+        """Registered assertions in the selected deterministic order.
+
+        By default this preserves registration order.  A theory configured
+        with ``declaration_order`` instead exposes the currently registered
+        subset in that predeclared order, independently of shard import order.
+        """
+        if self._declaration_order is None:
+            return MappingProxyType(self._handles)
+        assert self._ordered_handles is not None
+        return self._ordered_handles
+
+    @property
+    def declaration_order(self) -> tuple[str, ...] | None:
+        """Return the selected complete local declaration order, if any."""
+        return self._declaration_order
+
+    @property
+    def assertions_complete(self) -> bool:
+        """Whether every assertion in the selected order is registered."""
+        return (
+            self._declaration_order is None
+            or len(self._handles) == len(self._declaration_order)
+        )
 
     @property
     def upstreams(self) -> tuple[Theory, ...]:
@@ -715,8 +806,9 @@ class Theory:
 
     def verify_all(self) -> VerificationReport:
         """Elaborate every registered theorem and report per-assertion errors."""
+        self._require_complete_assertions()
         entries: list[VerificationEntry] = []
-        for handle in self._handles.values():
+        for handle in self.assertions.values():
             error: str | None = None
             if handle.kind == "theorem":
                 try:
@@ -741,6 +833,13 @@ class Theory:
             raise TheoryError(f"invalid assertion label: {label!r}") from error
         if label in self._handles:
             raise TheoryError(f"duplicate assertion label: {label}")
+        if (
+            self._declaration_order is not None
+            and label not in self._declaration_rank
+        ):
+            raise TheoryError(
+                f"assertion label is absent from declaration_order: {label}"
+            )
         for upstream in self._upstreams:
             if upstream._owns_label(label):
                 raise TheoryError(
@@ -822,6 +921,18 @@ class Theory:
         self._handles[signature.canonical_label] = handle
         self._by_id[signature.id] = handle
         return handle
+
+    def _require_complete_assertions(self) -> None:
+        if self._declaration_order is None or self.assertions_complete:
+            return
+        missing = next(
+            label
+            for label in self._declaration_order
+            if label not in self._handles
+        )
+        raise TheoryError(
+            f"theory is missing predeclared assertion: {missing}"
+        )
 
     def _schema(
         self,

@@ -106,6 +106,7 @@ def _make_theory(
     namespace: str = _NAMESPACE,
     *,
     mp_distinct: bool = False,
+    declaration_order: tuple[str, ...] | None = None,
 ) -> Theory:
     language = resolve_language(
         LanguageSpec(
@@ -176,6 +177,7 @@ def _make_theory(
         notation=notation,
         provable_judgment=_PROVABLE,
         variable_kinds={"wff": _WFF_KIND},
+        declaration_order=declaration_order,
     )
 
 
@@ -222,6 +224,68 @@ def test_theorem_lazy_elaboration_and_caching() -> None:
     report = theory.verify_all()
     assert report.ok
     assert [entry.label for entry in report.entries] == ["ax-1", "mp", "a1i"]
+
+
+def test_predeclared_order_is_independent_of_registration_order() -> None:
+    theory = _make_theory(
+        declaration_order=("ax-first", "ax-middle", "ax-last")
+    )
+    last = theory.axiom(
+        "ax-last",
+        schema=("φ:wff",),
+        conclusion="φ → φ",
+    )
+    first = theory.axiom(
+        "ax-first",
+        schema=("φ:wff",),
+        conclusion="φ → φ",
+    )
+
+    live_view = theory.assertions
+    assert tuple(live_view) == ("ax-first", "ax-last")
+    assert theory.assertions["ax-first"] is first
+    assert theory.assertions["ax-last"] is last
+    assert not theory.assertions_complete
+    with pytest.raises(
+        TheoryError, match="missing predeclared assertion: ax-middle"
+    ):
+        theory.verify_all()
+
+    middle = theory.axiom(
+        "ax-middle",
+        schema=("φ:wff",),
+        conclusion="φ → φ",
+    )
+    assert theory.assertions_complete
+    assert tuple(live_view) == ("ax-first", "ax-middle", "ax-last")
+    assert theory.declaration_order == (
+        "ax-first",
+        "ax-middle",
+        "ax-last",
+    )
+    assert tuple(theory.assertions.values()) == (first, middle, last)
+    assert [entry.label for entry in theory.verify_all().entries] == [
+        "ax-first",
+        "ax-middle",
+        "ax-last",
+    ]
+
+
+def test_predeclared_order_rejects_invalid_or_unknown_labels() -> None:
+    with pytest.raises(TheoryError, match="sequence of assertion labels"):
+        _make_theory(declaration_order=cast(tuple[str, ...], "ax-1"))
+    with pytest.raises(TheoryError, match="non-empty strings"):
+        _make_theory(declaration_order=("ax-1", ""))
+    with pytest.raises(TheoryError, match="duplicate assertion labels"):
+        _make_theory(declaration_order=("ax-1", "ax-1"))
+
+    theory = _make_theory(declaration_order=("ax-1",))
+    with pytest.raises(TheoryError, match="absent from declaration_order"):
+        theory.axiom(
+            "ax-unexpected",
+            schema=("φ:wff",),
+            conclusion="φ → φ",
+        )
 
 
 def test_schema_order_is_preserved_on_handles() -> None:

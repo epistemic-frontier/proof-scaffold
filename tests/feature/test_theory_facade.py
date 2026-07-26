@@ -226,10 +226,33 @@ def test_theorem_lazy_elaboration_and_caching() -> None:
     assert [entry.label for entry in report.entries] == ["ax-1", "mp", "a1i"]
 
 
-def test_predeclared_order_is_independent_of_registration_order() -> None:
-    theory = _make_theory(
-        declaration_order=("ax-first", "ax-middle", "ax-last")
+def test_concise_proof_author_call_surface() -> None:
+    theory = _make_theory()
+    ax_1 = theory.axiom(
+        "ax-1",
+        schema=("φ:wff", "ψ:wff"),
+        conclusion="φ → (ψ → φ)",
     )
+    mp = theory.primitive_rule("mp")
+    a1i = theory.theorem(
+        "a1i",
+        schema=("φ:wff", "ψ:wff"),
+        premises=("φ",),
+        conclusion="ψ → φ",
+    )
+
+    @a1i.proof
+    def prove_a1i(p: TheoryProofAuthor) -> CompleteProof:
+        (h1,) = p.hyps
+        axiom = p(ax_1, φ="φ", ψ="ψ")
+        return p.qed(p(mp, h1, axiom))
+
+    assert a1i.implementation.signature is a1i.signature
+    assert theory.verify_all().ok
+
+
+def test_predeclared_order_is_independent_of_registration_order() -> None:
+    theory = _make_theory(declaration_order=("ax-first", "ax-middle", "ax-last"))
     last = theory.axiom(
         "ax-last",
         schema=("φ:wff",),
@@ -246,9 +269,7 @@ def test_predeclared_order_is_independent_of_registration_order() -> None:
     assert theory.assertions["ax-first"] is first
     assert theory.assertions["ax-last"] is last
     assert not theory.assertions_complete
-    with pytest.raises(
-        TheoryError, match="missing predeclared assertion: ax-middle"
-    ):
+    with pytest.raises(TheoryError, match="missing predeclared assertion: ax-middle"):
         theory.verify_all()
 
     middle = theory.axiom(
@@ -301,7 +322,9 @@ def test_schema_order_is_preserved_on_handles() -> None:
         schema=("φ:wff", "ψ:wff"),
         conclusion="ψ → φ",
     )
-    assert [variable.local_key for variable in reversed_occurrence.schema_variables] == [
+    assert [
+        variable.local_key for variable in reversed_occurrence.schema_variables
+    ] == [
         "φ",
         "ψ",
     ]
@@ -339,9 +362,7 @@ def test_explicit_assertion_id_is_used_by_all_declaration_kinds() -> None:
     def prove_th_stable(proof: TheoryProofAuthor) -> CompleteProof:
         return proof.qed(proof.hypotheses[0])
 
-    assert tuple(
-        handle.id for handle in (axiom, definition, theorem, primitive)
-    ) == (
+    assert tuple(handle.id for handle in (axiom, definition, theorem, primitive)) == (
         axiom_id,
         AssertionId(definition_id),
         AssertionId(theorem_id),
@@ -350,12 +371,9 @@ def test_explicit_assertion_id_is_used_by_all_declaration_kinds() -> None:
     for handle in (axiom, definition, theorem, primitive):
         expected_owner = OwnerId(str(handle.id))
         assert all(
-            variable.owner == expected_owner
-            for variable in handle.schema_variables
+            variable.owner == expected_owner for variable in handle.schema_variables
         )
-    assert theorem.implementation.root == StepId(
-        f"{_NAMESPACE}#proof:th-stable/step:0"
-    )
+    assert theorem.implementation.root == StepId(f"{_NAMESPACE}#proof:th-stable/step:0")
 
 
 def test_default_primitive_rule_signature_remains_compatible() -> None:
@@ -379,8 +397,7 @@ def test_default_primitive_rule_signature_remains_compatible() -> None:
         cast(Mapping[str, JsonValue], assertion_signature_document(expected))
     )
     assert all(
-        variable.owner == OwnerId(str(_MP_RULE))
-        for variable in handle.schema_variables
+        variable.owner == OwnerId(str(_MP_RULE)) for variable in handle.schema_variables
     )
 
 
@@ -391,9 +408,7 @@ def test_explicit_primitive_rule_rebinds_complete_schema_and_applies() -> None:
         schema=("φ:wff", "ψ:wff"),
         conclusion="φ → (ψ → φ)",
     )
-    assertion_id = AssertionId(
-        "urn:uuid:00000000-0000-4000-8000-000000000005"
-    )
+    assertion_id = AssertionId("urn:uuid:00000000-0000-4000-8000-000000000005")
     mp = theory.primitive_rule("mp", assertion_id=assertion_id)
     owner = OwnerId(str(assertion_id))
     referenced = set(mp.schema_variables)
@@ -412,9 +427,7 @@ def test_explicit_primitive_rule_rebinds_complete_schema_and_applies() -> None:
 
 def test_explicit_primitive_rule_rebinds_distinct_endpoints() -> None:
     theory = _make_theory(mp_distinct=True)
-    assertion_id = AssertionId(
-        "urn:uuid:00000000-0000-4000-8000-000000000011"
-    )
+    assertion_id = AssertionId("urn:uuid:00000000-0000-4000-8000-000000000011")
 
     mp = theory.primitive_rule("mp", assertion_id=assertion_id)
 
@@ -520,9 +533,7 @@ def test_distinct_endpoint_must_be_declared() -> None:
 
 def test_subst_with_unknown_variable_fails_closed() -> None:
     theory = _make_theory()
-    ax_1 = theory.axiom(
-        "ax-1", schema=("φ:wff", "ψ:wff"), conclusion="φ → (ψ → φ)"
-    )
+    ax_1 = theory.axiom("ax-1", schema=("φ:wff", "ψ:wff"), conclusion="φ → (ψ → φ)")
     bad = theory.theorem(
         "bad-subst", schema=("φ:wff",), premises=(), conclusion="φ → (φ → φ)"
     )
@@ -601,12 +612,8 @@ def test_missing_proof_body_reported_by_verify_all() -> None:
 def test_foreign_assertion_and_step_fail_closed() -> None:
     theory = _make_theory()
     other = _make_theory()
-    foreign_ax = other.axiom(
-        "ax-foreign", schema=("φ:wff",), conclusion="φ → φ"
-    )
-    theorem = theory.theorem(
-        "t", schema=("φ:wff",), premises=("φ",), conclusion="φ"
-    )
+    foreign_ax = other.axiom("ax-foreign", schema=("φ:wff",), conclusion="φ → φ")
+    theorem = theory.theorem("t", schema=("φ:wff",), premises=("φ",), conclusion="φ")
 
     @theorem.proof
     def prove_t(proof: TheoryProofAuthor) -> CompleteProof:
@@ -616,9 +623,7 @@ def test_foreign_assertion_and_step_fail_closed() -> None:
     with pytest.raises(TheoryError, match="not registered in this theory"):
         theorem.implementation  # noqa: B018
 
-    donor = theory.theorem(
-        "donor", schema=("φ:wff",), premises=("φ",), conclusion="φ"
-    )
+    donor = theory.theorem("donor", schema=("φ:wff",), premises=("φ",), conclusion="φ")
 
     @donor.proof
     def prove_donor(proof: TheoryProofAuthor) -> CompleteProof:
@@ -717,9 +722,7 @@ def test_explicit_assertion_id_conflicting_with_upstream_fails_closed() -> None:
 
 def test_cross_theory_proof_uses_upstream_handles() -> None:
     upstream = _make_theory()
-    ax_1 = upstream.axiom(
-        "ax-1", schema=("φ:wff", "ψ:wff"), conclusion="φ → (ψ → φ)"
-    )
+    ax_1 = upstream.axiom("ax-1", schema=("φ:wff", "ψ:wff"), conclusion="φ → (ψ → φ)")
     mp = upstream.primitive_rule("mp")
     downstream = Theory.extend(
         upstream,
@@ -745,14 +748,10 @@ def test_cross_theory_proof_uses_upstream_handles() -> None:
 
 def test_dummy_variables_and_proof_distinct_resolve_in_scope() -> None:
     theory = _make_theory()
-    ax_1 = theory.axiom(
-        "ax-1", schema=("φ:wff", "ψ:wff"), conclusion="φ → (ψ → φ)"
-    )
+    ax_1 = theory.axiom("ax-1", schema=("φ:wff", "ψ:wff"), conclusion="φ → (ψ → φ)")
     # Declaration with an undeclared variable fails closed:
     with pytest.raises(TheoryError, match="with-dummy"):
-        theory.theorem(
-            "with-dummy", schema=("φ:wff",), premises=(), conclusion="χ → φ"
-        )
+        theory.theorem("with-dummy", schema=("φ:wff",), premises=(), conclusion="χ → φ")
     # Substitution values are parsed in the proof-body scope:
     theorem3 = theory.theorem(
         "subst-dummy",
@@ -916,9 +915,7 @@ def test_semantic_metamath_emission_rejects_missing_mapping() -> None:
         provable_judgment=binding.provable_judgment,
         provable_typecode=binding.provable_typecode,
         token_names={
-            token: name
-            for token, name in binding.token_names.items()
-            if name != "->"
+            token: name for token, name in binding.token_names.items() if name != "->"
         },
         variable_names=binding.variable_names,
         sort_typecodes=binding.sort_typecodes,
@@ -962,9 +959,7 @@ def test_semantic_metamath_emission_rejects_mismatched_primitive_floating() -> N
     theory, binding = _emission_fixture()
     broken = replace(
         binding,
-        primitive_rule_floating={
-            "mp": (MetamathFloatingEmission(_WFF, "ph"),)
-        },
+        primitive_rule_floating={"mp": (MetamathFloatingEmission(_WFF, "ph"),)},
     )
     with pytest.raises(MetamathEmissionError, match="do not match calculus rule"):
         _emit_text(theory, broken)

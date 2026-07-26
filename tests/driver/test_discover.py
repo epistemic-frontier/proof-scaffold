@@ -166,6 +166,24 @@ def test_get_package_deps_parses_project_deps_and_filters_self(tmp_path: Path) -
     assert get_package_name(pkg / "build.py") == "pkg"
 
 
+def test_get_package_deps_honors_explicit_build_boundary(tmp_path: Path) -> None:
+    pkg = tmp_path / "pkg"
+    _write(pkg / "build.py", "")
+    _write(
+        pkg / "pyproject.toml",
+        """
+        [project]
+        name = "pkg"
+        dependencies = ["metamath-setmm-provider==0.1.0"]
+
+        [tool.skfd]
+        build-dependencies = []
+        """,
+    )
+
+    assert get_package_deps(pkg / "build.py") == []
+
+
 def test_get_package_metadata_handles_bad_pyproject(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:

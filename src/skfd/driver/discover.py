@@ -127,6 +127,17 @@ def get_package_deps(build_path: Path) -> list[str]:
             try:
                 with open(p, "rb") as f:
                     data = tomllib.load(f)
+                skfd = data.get("tool", {}).get("skfd", {})
+                if "build-dependencies" in skfd:
+                    configured = skfd["build-dependencies"]
+                    if not isinstance(configured, list) or not all(
+                        isinstance(item, str) and item
+                        for item in configured
+                    ):
+                        raise ValueError(
+                            "tool.skfd.build-dependencies must be a string array"
+                        )
+                    return list(configured)
                 deps = data.get("project", {}).get("dependencies", [])
                 clean_deps = []
                 for d in deps:

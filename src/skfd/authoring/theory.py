@@ -109,9 +109,7 @@ class VerificationReport:
     def raise_if_failed(self) -> None:
         failures = self.failures
         if failures:
-            details = "; ".join(
-                f"{entry.label}: {entry.error}" for entry in failures
-            )
+            details = "; ".join(f"{entry.label}: {entry.error}" for entry in failures)
             raise TheoryError(f"theory verification failed: {details}")
 
 
@@ -212,9 +210,7 @@ class AssertionHandle:
             return self._register_body(body, (), ())
 
         def decorate(inner: ProofBody) -> ProofBody:
-            return self._register_body(
-                inner, tuple(dummy_variables), tuple(distinct)
-            )
+            return self._register_body(inner, tuple(dummy_variables), tuple(distinct))
 
         return decorate
 
@@ -225,13 +221,9 @@ class AssertionHandle:
         distinct: tuple[tuple[str, str], ...],
     ) -> ProofBody:
         if self.kind != "theorem":
-            raise TheoryError(
-                f"{self.label}: only theorems accept a proof body"
-            )
+            raise TheoryError(f"{self.label}: only theorems accept a proof body")
         if self._body is not None:
-            raise TheoryError(
-                f"{self.label}: proof body is already registered"
-            )
+            raise TheoryError(f"{self.label}: proof body is already registered")
         self._body = body
         self._dummy_variables = dummy_variables
         self._proof_distinct = distinct
@@ -288,8 +280,33 @@ class TheoryProofAuthor:
     def hypotheses(self) -> tuple[HypothesisStep, ...]:
         return self._base_prefix.hypotheses
 
+    @property
+    def hyps(self) -> tuple[HypothesisStep, ...]:
+        """Concise alias for generated and interactive proof source."""
+        return self.hypotheses
+
     def hypothesis(self, index: int) -> HypothesisStep:
         return self._base_prefix.hypotheses[index]
+
+    def __call__(
+        self,
+        assertion: AssertionHandle | AssertionSignature | AssertionId,
+        *premises: ProofStep,
+        **substitution: FormulaLike,
+    ) -> AssertionStep:
+        """Apply an assertion using keyword substitutions.
+
+        ``use`` remains the explicit API for callers that need ``target`` or a
+        substitution mapping keyed by ``VariableRef``.  Calling the author is
+        the compact source form used by generated mathematical proofs.
+        """
+        substitutions: dict[str | VariableRef, FormulaLike] = {}
+        substitutions.update(substitution)
+        return self.use(
+            assertion,
+            *premises,
+            subst=substitutions or None,
+        )
 
     def use(
         self,
@@ -312,8 +329,12 @@ class TheoryProofAuthor:
             known_results=self._results,
             step_index=len(self._base_prefix.hypotheses) + len(self._steps),
             validate_assertion_judgments=False,
-            target=None if target is None else self._theory._judgment(target, self._scope),
-            subst=None if subst is None else self._convert_subst(signature, names, subst),
+            target=None
+            if target is None
+            else self._theory._judgment(target, self._scope),
+            subst=None
+            if subst is None
+            else self._convert_subst(signature, names, subst),
         )
         self._steps.append(step)
         self._results[step.id] = step.result
@@ -378,8 +399,7 @@ class TheoryProofAuthor:
             by_name = names
         else:
             by_name = {
-                variable.local_key: variable
-                for variable in signature.schema_variables
+                variable.local_key: variable for variable in signature.schema_variables
             }
         converted: dict[VariableRef, Term] = {}
         for key, value in subst.items():
@@ -407,9 +427,7 @@ class TheoryProofAuthor:
     def _known_step_id(self, step: ProofStep) -> StepId:
         known = self._known_steps.get(id(step))
         if known is not step:
-            raise TheoryError(
-                "proof steps must be created by this proof author"
-            )
+            raise TheoryError("proof steps must be created by this proof author")
         return step.id
 
 
@@ -428,11 +446,7 @@ class _PredeclaredAssertionView(Mapping[str, AssertionHandle]):
         return self._handles[label]
 
     def __iter__(self) -> Iterator[str]:
-        return (
-            label
-            for label in self._order
-            if label in self._handles
-        )
+        return (label for label in self._order if label in self._handles)
 
     def __len__(self) -> int:
         return len(self._handles)
@@ -492,30 +506,22 @@ class Theory:
                 "declaration_order must be a sequence of assertion labels"
             )
         resolved_declaration_order = (
-            None
-            if declaration_order is None
-            else tuple(declaration_order)
+            None if declaration_order is None else tuple(declaration_order)
         )
         if resolved_declaration_order is not None:
             if any(
                 not isinstance(label, str) or not label
                 for label in resolved_declaration_order
             ):
-                raise TheoryError(
-                    "declaration_order labels must be non-empty strings"
-                )
-            if len(set(resolved_declaration_order)) != len(
-                resolved_declaration_order
-            ):
+                raise TheoryError("declaration_order labels must be non-empty strings")
+            if len(set(resolved_declaration_order)) != len(resolved_declaration_order):
                 raise TheoryError(
                     "declaration_order contains duplicate assertion labels"
                 )
         seen_namespaces = {namespace}
         for upstream in upstreams:
             if upstream.namespace in seen_namespaces:
-                raise TheoryError(
-                    f"duplicate theory namespace: {upstream.namespace}"
-                )
+                raise TheoryError(f"duplicate theory namespace: {upstream.namespace}")
             seen_namespaces.add(upstream.namespace)
             if not is_semantic_subset(upstream.language, language):
                 raise TheoryError(
@@ -538,8 +544,7 @@ class Theory:
             {}
             if resolved_declaration_order is None
             else {
-                label: index
-                for index, label in enumerate(resolved_declaration_order)
+                label: index for index, label in enumerate(resolved_declaration_order)
             }
         )
         self._ordered_handles = (
@@ -595,9 +600,7 @@ class Theory:
             for upstream in upstreams:
                 pin = expected_upstream.get(upstream.namespace)
                 if pin is None:
-                    raise TheoryError(
-                        f"missing upstream pin: {upstream.namespace}"
-                    )
+                    raise TheoryError(f"missing upstream pin: {upstream.namespace}")
                 _check_pin(upstream, pin)
             unknown = set(expected_upstream) - {
                 upstream.namespace for upstream in upstreams
@@ -642,9 +645,7 @@ class Theory:
                 canonical_label=label,
                 kind="theorem",
                 schema_variables=declared,
-                premises=tuple(
-                    self._judgment(premise, names) for premise in premises
-                ),
+                premises=tuple(self._judgment(premise, names) for premise in premises),
                 conclusion=self._judgment(conclusion, names),
                 mandatory_distinct=self._distinct(label, distinct, names),
             ),
@@ -760,8 +761,7 @@ class Theory:
             canonical_label=label,
         )
         names = {
-            variable.local_key: variable
-            for variable in signature.schema_variables
+            variable.local_key: variable for variable in signature.schema_variables
         }
         return self._register(
             signature,
@@ -795,9 +795,8 @@ class Theory:
     @property
     def assertions_complete(self) -> bool:
         """Whether every assertion in the selected order is registered."""
-        return (
-            self._declaration_order is None
-            or len(self._handles) == len(self._declaration_order)
+        return self._declaration_order is None or len(self._handles) == len(
+            self._declaration_order
         )
 
     @property
@@ -833,10 +832,7 @@ class Theory:
             raise TheoryError(f"invalid assertion label: {label!r}") from error
         if label in self._handles:
             raise TheoryError(f"duplicate assertion label: {label}")
-        if (
-            self._declaration_order is not None
-            and label not in self._declaration_rank
-        ):
+        if self._declaration_order is not None and label not in self._declaration_rank:
             raise TheoryError(
                 f"assertion label is absent from declaration_order: {label}"
             )
@@ -875,9 +871,7 @@ class Theory:
             raise TheoryError(
                 f"{label}: invalid assertion identifier: {assertion_id!r}"
             ) from error
-        raise TheoryError(
-            f"{label}: assertion_id must be an AssertionId or string"
-        )
+        raise TheoryError(f"{label}: assertion_id must be an AssertionId or string")
 
     def _owns_label(self, label: str) -> bool:
         if label in self._handles:
@@ -926,13 +920,9 @@ class Theory:
         if self._declaration_order is None or self.assertions_complete:
             return
         missing = next(
-            label
-            for label in self._declaration_order
-            if label not in self._handles
+            label for label in self._declaration_order if label not in self._handles
         )
-        raise TheoryError(
-            f"theory is missing predeclared assertion: {missing}"
-        )
+        raise TheoryError(f"theory is missing predeclared assertion: {missing}")
 
     def _schema(
         self,
@@ -958,9 +948,7 @@ class Theory:
                     f"{label}: unknown schema variable kind: {kind_name!r}"
                 )
             if name in names:
-                raise TheoryError(
-                    f"{label}: duplicate schema variable: {name!r}"
-                )
+                raise TheoryError(f"{label}: duplicate schema variable: {name!r}")
             reference = VariableRef("schema", owner, name, kind)
             declared.append(reference)
             names[name] = reference
@@ -999,8 +987,7 @@ class Theory:
                 self._provable, (self._parse_term(value, scope),)
             )
         raise TheoryError(
-            "premises and conclusions must be notation strings, terms, "
-            "or judgments"
+            "premises and conclusions must be notation strings, terms, " "or judgments"
         )
 
     def _parse_term(self, text: str, scope: Mapping[str, VariableRef]) -> Term:
@@ -1014,9 +1001,7 @@ class Theory:
     def _elaborate(self, handle: AssertionHandle) -> CompleteProof:
         body = handle._body
         if body is None:
-            raise TheoryError(
-                f"{handle.label}: no proof implementation registered"
-            )
+            raise TheoryError(f"{handle.label}: no proof implementation registered")
         proof_id = ProofId(f"{self.namespace}#proof:{handle.label}")
         scope: dict[str, VariableRef] = dict(handle._names)
         dummy_owner = OwnerId(str(proof_id))
@@ -1032,13 +1017,10 @@ class Theory:
             kind = self._variable_kinds.get(kind_name)
             if kind is None:
                 raise TheoryError(
-                    f"{handle.label}: unknown dummy variable kind: "
-                    f"{kind_name!r}"
+                    f"{handle.label}: unknown dummy variable kind: " f"{kind_name!r}"
                 )
             if name in scope:
-                raise TheoryError(
-                    f"{handle.label}: duplicate dummy variable: {name!r}"
-                )
+                raise TheoryError(f"{handle.label}: duplicate dummy variable: {name!r}")
             scope[name] = VariableRef("local", dummy_owner, name, kind)
         active: list[DistinctPair] = list(handle.signature.mandatory_distinct)
         for left, right in handle._proof_distinct:
@@ -1110,7 +1092,9 @@ def _rebind_primitive_rule(
         )
 
     def judgment(value: Judgment) -> Judgment:
-        return Judgment(value.kind, tuple(term(argument) for argument in value.arguments))
+        return Judgment(
+            value.kind, tuple(term(argument) for argument in value.arguments)
+        )
 
     return replace(
         rule,
@@ -1125,16 +1109,10 @@ def _rebind_primitive_rule(
 
 
 def _check_pin(upstream: Theory, pin: UpstreamPin) -> None:
-    if pin.language is not None and (
-        pin.language != upstream.language.semantic_digest
-    ):
-        raise TheoryError(
-            f"upstream language digest mismatch: {upstream.namespace}"
-        )
+    if pin.language is not None and (pin.language != upstream.language.semantic_digest):
+        raise TheoryError(f"upstream language digest mismatch: {upstream.namespace}")
     if pin.calculus is not None and pin.calculus != upstream.calculus.digest:
-        raise TheoryError(
-            f"upstream calculus digest mismatch: {upstream.namespace}"
-        )
+        raise TheoryError(f"upstream calculus digest mismatch: {upstream.namespace}")
     if pin.notation is not None:
         if upstream.notation is None or pin.notation != upstream.notation.digest:
             raise TheoryError(

@@ -71,6 +71,7 @@ from skfd.authoring.notation import (
     BinderForm,
     CallForm,
     InfixForm,
+    MixfixForm,
     NotationDecl,
     NotationInterface,
     NotationRequirement,
@@ -123,10 +124,20 @@ def test_end_to_end_semantic_core() -> None:
     notation = resolve_notation(
         NotationSpec(
             id=NotationId("ascii"),
-            language=LanguageRequirement(id=language.id, semantic_digest=language.semantic_digest),
+            language=LanguageRequirement(
+                id=language.id, semantic_digest=language.semantic_digest
+            ),
             declarations=(
-                NotationDecl(constructor=neg, form=PrefixForm(token="~", precedence=20), aliases=("¬",)),
-                NotationDecl(constructor=imp, form=InfixForm(token="->", precedence=10, associativity="right"), aliases=("→",)),
+                NotationDecl(
+                    constructor=neg,
+                    form=PrefixForm(token="~", precedence=20),
+                    aliases=("¬",),
+                ),
+                NotationDecl(
+                    constructor=imp,
+                    form=InfixForm(token="->", precedence=10, associativity="right"),
+                    aliases=("→",),
+                ),
                 NotationDecl(constructor=and3, form=CallForm(token="and3")),
             ),
         ),
@@ -137,7 +148,12 @@ def test_end_to_end_semantic_core() -> None:
     assert notation.parse(rendered, refs) == term
     assert notation.parse("¬ p → q", refs) == term
     triple = language.apply(and3, tuple(variables.values()))
-    assert notation.parse(notation.render(triple, {ref: name for name, ref in refs.items()}), refs) == triple
+    assert (
+        notation.parse(
+            notation.render(triple, {ref: name for name, ref in refs.items()}), refs
+        )
+        == triple
+    )
     assert language.semantic_digest == reordered.semantic_digest
     with pytest.raises(AuthoringSemanticError):
         notation.parse("unknown", refs)
@@ -175,7 +191,9 @@ def test_end_to_end_semantic_core() -> None:
         CalculusSpec(
             id=CalculusId("prop"),
             language=LanguageRequirement(id=language.id),
-            judgments=(JudgmentKindDecl(id=JudgmentKindId("provable"), arguments=(wff,)),),
+            judgments=(
+                JudgmentKindDecl(id=JudgmentKindId("provable"), arguments=(wff,)),
+            ),
         ),
         language,
     )
@@ -207,7 +225,9 @@ def _minimal_language(*, language_id: str = "test#language:base") -> LanguageInt
     )
 
 
-def _variables(language: LanguageInterface) -> tuple[dict[str, VariableRef], dict[str, Var]]:
+def _variables(
+    language: LanguageInterface,
+) -> tuple[dict[str, VariableRef], dict[str, Var]]:
     kind = VariableKindId("test#variable-kind:formula")
     refs = {
         name: VariableRef("schema", OwnerId("test#assertion:variables"), name, kind)
@@ -297,14 +317,18 @@ def test_language_extensions_merge_identical_diamonds() -> None:
     left = resolve_language(
         LanguageSpec(
             id=LanguageId("test#language:left"),
-            extends=(LanguageRequirement(id=base.id, semantic_digest=base.semantic_digest),),
+            extends=(
+                LanguageRequirement(id=base.id, semantic_digest=base.semantic_digest),
+            ),
         ),
         {base.id: base},
     )
     right = resolve_language(
         LanguageSpec(
             id=LanguageId("test#language:right"),
-            extends=(LanguageRequirement(id=base.id, semantic_digest=base.semantic_digest),),
+            extends=(
+                LanguageRequirement(id=base.id, semantic_digest=base.semantic_digest),
+            ),
         ),
         {base.id: base},
     )
@@ -376,8 +400,12 @@ def _notation(
 ) -> NotationInterface:
     return resolve_notation(
         NotationSpec(
-            id=NotationId(f"test#notation:{'unicode' if implication_token == '→' else 'ascii'}"),
-            language=LanguageRequirement(id=language.id, semantic_digest=language.semantic_digest),
+            id=NotationId(
+                f"test#notation:{'unicode' if implication_token == '→' else 'ascii'}"
+            ),
+            language=LanguageRequirement(
+                id=language.id, semantic_digest=language.semantic_digest
+            ),
             declarations=(
                 NotationDecl(
                     constructor=ConstructorId("test#constructor:not"),
@@ -461,7 +489,9 @@ def test_notation_digest_is_separate_and_alias_collisions_fail() -> None:
                     ),
                     NotationDecl(
                         constructor=ConstructorId("test#constructor:imp"),
-                        form=InfixForm(token="->", precedence=20, associativity="right"),
+                        form=InfixForm(
+                            token="->", precedence=20, associativity="right"
+                        ),
                         aliases=("~",),
                     ),
                 ),
@@ -566,16 +596,25 @@ def test_same_backend_token_supports_distinct_binary_and_ternary_constructors() 
     binary = language.apply(and2, variables[:2])
     ternary = language.apply(and3, variables)
     assert binary != ternary
-    assert binding.formations[and2].syntax_assertion != binding.formations[and3].syntax_assertion
+    assert (
+        binding.formations[and2].syntax_assertion
+        != binding.formations[and3].syntax_assertion
+    )
     assert [
-        atom.token.local_name if isinstance(atom, LiteralAtom) else atom.variable.local_key
+        atom.token.local_name
+        if isinstance(atom, LiteralAtom)
+        else atom.variable.local_key
         for atom in binding.lower(binary)
     ] == ["(", "p", "/\\", "q", ")"]
     assert [
-        atom.token.local_name if isinstance(atom, LiteralAtom) else atom.variable.local_key
+        atom.token.local_name
+        if isinstance(atom, LiteralAtom)
+        else atom.variable.local_key
         for atom in binding.lower(ternary)
     ] == ["(", "p", "/\\", "q", "/\\", "r", ")"]
-    assert all(isinstance(atom, (LiteralAtom, VariableAtom)) for atom in binding.lower(ternary))
+    assert all(
+        isinstance(atom, (LiteralAtom, VariableAtom)) for atom in binding.lower(ternary)
+    )
 
 
 def test_backend_digest_is_separate_and_template_coverage_is_checked() -> None:
@@ -588,7 +627,9 @@ def test_backend_digest_is_separate_and_template_coverage_is_checked() -> None:
             MetamathLanguageBinding(
                 id=BackendBindingId(f"test#binding:{assertion}"),
                 language=LanguageRequirement(id=language.id),
-                foundation=FoundationRequirement(id=FoundationId("test#foundation:setmm")),
+                foundation=FoundationRequirement(
+                    id=FoundationId("test#foundation:setmm")
+                ),
                 formations=(
                     FormationBinding(
                         constructor=and2,
@@ -611,7 +652,9 @@ def test_backend_digest_is_separate_and_template_coverage_is_checked() -> None:
             MetamathLanguageBinding(
                 id=BackendBindingId("test#binding:invalid"),
                 language=LanguageRequirement(id=language.id),
-                foundation=FoundationRequirement(id=FoundationId("test#foundation:setmm")),
+                foundation=FoundationRequirement(
+                    id=FoundationId("test#foundation:setmm")
+                ),
                 formations=(
                     FormationBinding(
                         constructor=and2,
@@ -624,14 +667,20 @@ def test_backend_digest_is_separate_and_template_coverage_is_checked() -> None:
             language,
             {},
         )
-    with pytest.raises(AuthoringSemanticError, match="missing Metamath binding dependency"):
+    with pytest.raises(
+        AuthoringSemanticError, match="missing Metamath binding dependency"
+    ):
         resolve_metamath_language(
             MetamathLanguageBinding(
                 id=BackendBindingId("test#binding:missing-parent"),
                 language=LanguageRequirement(id=language.id),
-                foundation=FoundationRequirement(id=FoundationId("test#foundation:setmm")),
+                foundation=FoundationRequirement(
+                    id=FoundationId("test#foundation:setmm")
+                ),
                 extends=(
-                    MetamathLanguageRequirement(id=BackendBindingId("test#binding:absent")),
+                    MetamathLanguageRequirement(
+                        id=BackendBindingId("test#binding:absent")
+                    ),
                 ),
             ),
             language,
@@ -811,7 +860,9 @@ def test_minimal_calculus_makes_provability_an_explicit_judgment() -> None:
     calculus = resolve_calculus(
         CalculusSpec(
             id=CalculusId("test#calculus:hilbert"),
-            language=LanguageRequirement(id=language.id, semantic_digest=language.semantic_digest),
+            language=LanguageRequirement(
+                id=language.id, semantic_digest=language.semantic_digest
+            ),
             judgments=(
                 JudgmentKindDecl(
                     id=provable,
@@ -831,7 +882,9 @@ def test_minimal_calculus_makes_provability_an_explicit_judgment() -> None:
         CalculusSpec(
             id=CalculusId("test#calculus:reordered"),
             language=LanguageRequirement(id=language.id),
-            judgments=(JudgmentKindDecl(id=provable, arguments=(SortId("test#sort:wff"),)),),
+            judgments=(
+                JudgmentKindDecl(id=provable, arguments=(SortId("test#sort:wff"),)),
+            ),
             rules=(replace(modus_ponens, schema_variables=(refs["q"], refs["p"])),),
         ),
         language,
@@ -879,9 +932,7 @@ def test_minimal_calculus_makes_provability_an_explicit_judgment() -> None:
                     id=CalculusId("test#calculus:bad-extension"),
                     language=LanguageRequirement(id=language.id),
                 ),
-                extends=(
-                    CalculusRequirement(id=calculus.id, digest=Digest("0" * 64)),
-                ),
+                extends=(CalculusRequirement(id=calculus.id, digest=Digest("0" * 64)),),
             ),
             language,
             {calculus.id: calculus},
@@ -909,18 +960,23 @@ def test_minimal_calculus_makes_provability_an_explicit_judgment() -> None:
     assert definition.declaration.schema_variables == (refs["p"], refs["q"])
     assert definition.digest != axiom.digest
     assert axiom.declaration.mandatory_distinct == (DistinctPair(refs["p"], refs["q"]),)
-    assert axiom.digest == resolve_axiom(
-        replace(
-            axiom.declaration,
-            schema_variables=(refs["q"], refs["p"]),
-            mandatory_distinct=(DistinctPair(refs["q"], refs["p"]),),
-        ),
-        calculus,
-    ).digest
+    assert (
+        axiom.digest
+        == resolve_axiom(
+            replace(
+                axiom.declaration,
+                schema_variables=(refs["q"], refs["p"]),
+                mandatory_distinct=(DistinctPair(refs["q"], refs["p"]),),
+            ),
+            calculus,
+        ).digest
+    )
     with pytest.raises(AuthoringSemanticError, match="different endpoints"):
         DistinctPair(refs["p"], refs["p"])
     undeclared_ref = replace(refs["q"], local_key="r")
-    with pytest.raises(AuthoringSemanticError, match="undeclared distinct-variable endpoint"):
+    with pytest.raises(
+        AuthoringSemanticError, match="undeclared distinct-variable endpoint"
+    ):
         resolve_axiom(
             replace(
                 axiom.declaration,
@@ -941,7 +997,9 @@ def test_minimal_calculus_makes_provability_an_explicit_judgment() -> None:
     )
     with pytest.raises(AuthoringSemanticError, match="unknown term constructor"):
         calculus.judgment(provable, (forged,))
-    with pytest.raises(AuthoringSemanticError, match="calculus language requirement mismatch"):
+    with pytest.raises(
+        AuthoringSemanticError, match="calculus language requirement mismatch"
+    ):
         resolve_calculus(
             CalculusSpec(
                 id=CalculusId("test#calculus:wrong-language"),
@@ -961,7 +1019,9 @@ def test_minimal_calculus_makes_provability_an_explicit_judgment() -> None:
             CalculusSpec(
                 id=CalculusId("test#calculus:invalid-rule"),
                 language=LanguageRequirement(id=language.id),
-                judgments=(JudgmentKindDecl(id=provable, arguments=(SortId("test#sort:wff"),)),),
+                judgments=(
+                    JudgmentKindDecl(id=provable, arguments=(SortId("test#sort:wff"),)),
+                ),
                 rules=(undeclared,),
             ),
             language,
@@ -978,14 +1038,23 @@ def test_minimal_calculus_makes_provability_an_explicit_judgment() -> None:
             CalculusSpec(
                 id=CalculusId("test#calculus:unknown-kind"),
                 language=LanguageRequirement(id=language.id),
-                judgments=(JudgmentKindDecl(id=provable, arguments=(SortId("test#sort:wff"),)),),
-                rules=(replace(modus_ponens, schema_variables=(*modus_ponens.schema_variables, unknown_kind)),),
+                judgments=(
+                    JudgmentKindDecl(id=provable, arguments=(SortId("test#sort:wff"),)),
+                ),
+                rules=(
+                    replace(
+                        modus_ponens,
+                        schema_variables=(*modus_ponens.schema_variables, unknown_kind),
+                    ),
+                ),
             ),
             language,
         )
 
 
-def test_binder_semantics_support_free_variables_alpha_renaming_and_capture_avoidance() -> None:
+def test_binder_semantics_support_free_variables_alpha_renaming_and_capture_avoidance() -> (
+    None
+):
     wff = SortId("test#sort:wff")
     setvar = SortId("test#sort:setvar")
     formula_kind = VariableKindId("test#variable-kind:formula")
@@ -1045,7 +1114,9 @@ def test_binder_semantics_support_free_variables_alpha_renaming_and_capture_avoi
 
     renamed = alpha_rename(quantified_x, z_ref, language)
     assert renamed.arguments[0] == language.variable(z_ref)
-    assert renamed.arguments[1] == language.apply(predicate, (language.variable(z_ref),))
+    assert renamed.arguments[1] == language.apply(
+        predicate, (language.variable(z_ref),)
+    )
 
     shadowed = language.apply(all_, (x, language.apply(all_, (x, pred_x))))
     shadowed_renamed = alpha_rename(shadowed, z_ref, language)
@@ -1152,7 +1223,10 @@ def test_binder_semantics_support_free_variables_alpha_renaming_and_capture_avoi
     )
     variable_names = {x_ref: "x", y_ref: "y", z_ref: "z"}
     term = language.apply(all_, (x, pred_y))
-    assert notation.parse(notation.render(term, variable_names), {"x": x_ref, "y": y_ref}) == term
+    assert (
+        notation.parse(notation.render(term, variable_names), {"x": x_ref, "y": y_ref})
+        == term
+    )
     assert notation.parse("forall x P(y)", {"x": x_ref, "y": y_ref}) == term
     names = {"x": x_ref, "y": y_ref, "phi": phi_ref}
     displays = {x_ref: "x", y_ref: "y", phi_ref: "phi"}
@@ -1172,7 +1246,9 @@ def test_binder_semantics_support_free_variables_alpha_renaming_and_capture_avoi
         ),
         {},
     )
-    with pytest.raises(AuthoringSemanticError, match="inherited binder semantics changed"):
+    with pytest.raises(
+        AuthoringSemanticError, match="inherited binder semantics changed"
+    ):
         resolve_language(
             LanguageSpec(
                 id=LanguageId("test#language:illegal-binder-extension"),
@@ -1223,7 +1299,9 @@ def test_setmm_class_abstractions_support_multiple_binding_clauses() -> None:
             ConstructorDecl(id=member, inputs=(setvar, class_sort), output=wff),
             ConstructorDecl(id=name, inputs=(), output=setvar),
             ConstructorDecl(id=cab, inputs=(wff, setvar), output=class_sort),
-            ConstructorDecl(id=crab, inputs=(wff, setvar, class_sort), output=class_sort),
+            ConstructorDecl(
+                id=crab, inputs=(wff, setvar, class_sort), output=class_sort
+            ),
             ConstructorDecl(id=copab, inputs=(wff, setvar, setvar), output=class_sort),
             ConstructorDecl(
                 id=coprab,
@@ -1248,9 +1326,7 @@ def test_setmm_class_abstractions_support_multiple_binding_clauses() -> None:
             ),
             BinderDecl(
                 constructor=crab,
-                bindings=(
-                    BindingClause(variable_argument=1, scoped_arguments=(0, 2)),
-                ),
+                bindings=(BindingClause(variable_argument=1, scoped_arguments=(0, 2)),),
             ),
             BinderDecl(
                 constructor=copab,
@@ -1276,9 +1352,7 @@ def test_setmm_class_abstractions_support_multiple_binding_clauses() -> None:
             ),
             BinderDecl(
                 constructor=wide,
-                bindings=(
-                    BindingClause(variable_argument=2, scoped_arguments=(1, 0)),
-                ),
+                bindings=(BindingClause(variable_argument=2, scoped_arguments=(1, 0)),),
             ),
         ),
     )
@@ -1296,16 +1370,20 @@ def test_setmm_class_abstractions_support_multiple_binding_clauses() -> None:
     assert free_variables(language.apply(cab, (body, x)), language) == frozenset(
         (refs["y"], refs["z"])
     )
-    assert free_variables(language.apply(crab, (body, x, class_var)), language) == frozenset(
-        (refs["y"], refs["z"], class_ref)
-    )
+    assert free_variables(
+        language.apply(crab, (body, x, class_var)), language
+    ) == frozenset((refs["y"], refs["z"], class_ref))
     restricted = language.apply(crab, (body, x, language.apply(class_of, (x,))))
     assert substitute(restricted, {refs["x"]: w}, language) == restricted
     abstraction = language.apply(copab, (body, x, y))
     assert free_variables(abstraction, language) == frozenset((refs["z"],))
-    assert free_variables(language.apply(coprab, (body, x, y, z)), language) == frozenset()
+    assert (
+        free_variables(language.apply(coprab, (body, x, y, z)), language) == frozenset()
+    )
 
-    with pytest.raises(AuthoringSemanticError, match="requires a variable_argument selector"):
+    with pytest.raises(
+        AuthoringSemanticError, match="requires a variable_argument selector"
+    ):
         alpha_rename(abstraction, refs["u"], language)
     with pytest.raises(AuthoringSemanticError, match="selector must be an integer"):
         alpha_rename(abstraction, refs["u"], language, variable_argument=True)
@@ -1319,7 +1397,9 @@ def test_setmm_class_abstractions_support_multiple_binding_clauses() -> None:
         copab,
         (language.apply(relation, (x, x, z)), x, x),
     )
-    assert alpha_rename(duplicate, refs["u"], language, variable_argument=2) == language.apply(
+    assert alpha_rename(
+        duplicate, refs["u"], language, variable_argument=2
+    ) == language.apply(
         copab,
         (language.apply(relation, (u, u, z)), u, u),
     )
@@ -1385,7 +1465,9 @@ def test_setmm_class_abstractions_support_multiple_binding_clauses() -> None:
         copab,
         (language.apply(relation, (x, y, w)), x_1, y),
     )
-    assert free_variables(substituted_one, language) == frozenset((refs["x"], refs["w"]))
+    assert free_variables(substituted_one, language) == frozenset(
+        (refs["x"], refs["w"])
+    )
 
     capture_both = language.apply(
         copab,
@@ -1545,7 +1627,9 @@ def test_binder_variable_sort_requires_a_variable_kind() -> None:
     wff = SortId("test#sort:binder-without-kind-wff")
     setvar = SortId("test#sort:binder-without-kind-setvar")
     constructor = ConstructorId("test#constructor:binder-without-kind")
-    with pytest.raises(AuthoringSemanticError, match="binder variable has no variable kind"):
+    with pytest.raises(
+        AuthoringSemanticError, match="binder variable has no variable kind"
+    ):
         resolve_language(
             LanguageSpec(
                 id=LanguageId("test#language:binder-without-kind"),
@@ -1571,3 +1655,81 @@ def test_binder_variable_sort_requires_a_variable_kind() -> None:
             ),
             {},
         )
+
+
+def test_mixfix_notation_reorders_and_delimits_arguments() -> None:
+    cls = SortId("class")
+    kind = VariableKindId("class-variable")
+    apply = ConstructorId("apply")
+    pair = ConstructorId("pair")
+    ordered_pair = ConstructorId("ordered-pair")
+    language = resolve_language(
+        LanguageSpec(
+            id=LanguageId("mixfix"),
+            sorts=(SortDecl(id=cls),),
+            variable_kinds=(VariableKindDecl(id=kind, sort=cls),),
+            constructors=(
+                ConstructorDecl(id=apply, inputs=(cls, cls), output=cls),
+                ConstructorDecl(id=pair, inputs=(cls, cls), output=cls),
+                ConstructorDecl(id=ordered_pair, inputs=(cls, cls), output=cls),
+            ),
+        ),
+        {},
+    )
+    notation = resolve_notation(
+        NotationSpec(
+            id=NotationId("mixfix"),
+            language=LanguageRequirement(
+                id=language.id,
+                semantic_digest=language.semantic_digest,
+            ),
+            declarations=(
+                NotationDecl(
+                    constructor=apply,
+                    form=MixfixForm(
+                        tokens=("", "`", ""),
+                        arguments=(1, 0),
+                        precedence=80,
+                    ),
+                ),
+                NotationDecl(
+                    constructor=pair,
+                    form=MixfixForm(
+                        tokens=("{", ",", "}"),
+                        arguments=(0, 1),
+                        precedence=100,
+                    ),
+                ),
+                NotationDecl(
+                    constructor=ordered_pair,
+                    form=MixfixForm(
+                        tokens=("⟨", ",", "⟩"),
+                        arguments=(0, 1),
+                        precedence=100,
+                    ),
+                ),
+            ),
+        ),
+        language,
+        {},
+    )
+    refs = {
+        name: VariableRef("schema", OwnerId("mixfix"), name, kind)
+        for name in ("A", "B", "F")
+    }
+    variables = {name: language.variable(ref) for name, ref in refs.items()}
+    terms = (
+        (language.apply(apply, (variables["A"], variables["F"])), "(F ` A)"),
+        (language.apply(pair, (variables["A"], variables["B"])), "{A, B}"),
+        (
+            language.apply(
+                ordered_pair,
+                (variables["A"], variables["B"]),
+            ),
+            "⟨A, B⟩",
+        ),
+    )
+    names = {ref: name for name, ref in refs.items()}
+    for term, rendered in terms:
+        assert notation.render(term, names) == rendered
+        assert notation.parse(rendered, refs) == term

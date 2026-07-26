@@ -38,7 +38,21 @@ class BinderForm:
     precedence: int
 
 
-NotationForm: TypeAlias = PrefixForm | InfixForm | CallForm | BinderForm
+@dataclass(frozen=True, slots=True, kw_only=True)
+class MixfixForm:
+    """Notation with lexical pieces around a permutation of all arguments.
+
+    ``tokens`` has one more entry than ``arguments``.  Empty outer tokens
+    describe an infix form; non-empty outer tokens describe a delimited form.
+    ``arguments`` maps presentation positions to constructor argument indexes.
+    """
+
+    tokens: tuple[str, ...]
+    arguments: tuple[int, ...]
+    precedence: int
+
+
+NotationForm: TypeAlias = PrefixForm | InfixForm | CallForm | BinderForm | MixfixForm
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -87,11 +101,17 @@ class NotationInterface:
                     )
                 return name
             declaration = next(
-                (entry for entry in self.declarations if entry.constructor == item.constructor),
+                (
+                    entry
+                    for entry in self.declarations
+                    if entry.constructor == item.constructor
+                ),
                 None,
             )
             if declaration is None:
-                raise AuthoringSemanticError(f"no notation for constructor: {item.constructor}")
+                raise AuthoringSemanticError(
+                    f"no notation for constructor: {item.constructor}"
+                )
             form = declaration.form
             if isinstance(form, PrefixForm):
                 return f"{form.token} {render_at(item.arguments[0], nested=True)}"
@@ -101,8 +121,24 @@ class NotationInterface:
                 rendered = f"{form.token} {variable} {body}"
                 return f"({rendered})" if nested else rendered
             if isinstance(form, CallForm):
-                arguments = ", ".join(render_at(argument, nested=True) for argument in item.arguments)
+                arguments = ", ".join(
+                    render_at(argument, nested=True) for argument in item.arguments
+                )
                 return f"{form.token}({arguments})"
+            if isinstance(form, MixfixForm):
+                displayed = [
+                    render_at(item.arguments[index], nested=True)
+                    for index in form.arguments
+                ]
+                if form.tokens[0] == form.tokens[-1] == "":
+                    rendered = f"{displayed[0]} {form.tokens[1]} {displayed[1]}"
+                    return f"({rendered})"
+                rendered = form.tokens[0]
+                for index, argument in enumerate(displayed):
+                    rendered += argument + form.tokens[index + 1]
+                    if index + 1 < len(displayed):
+                        rendered += " "
+                return rendered
             left = render_at(item.arguments[0], nested=True)
             right = render_at(item.arguments[1], nested=True)
             return f"({left} {form.token} {right})"
@@ -111,11 +147,39 @@ class NotationInterface:
 
     def parse(self, text: str, variables: Mapping[str, VariableRef]) -> Term:
         aliases: dict[str, NotationDecl] = {}
+        mixfix_prefixes: dict[str, NotationDecl] = {}
+        mixfix_infixes: dict[str, NotationDecl] = {}
         for declaration in self.declarations:
-            for token in (declaration.form.token, *declaration.aliases):
+            form = declaration.form
+            if isinstance(form, MixfixForm):
+                if form.tokens[0] == form.tokens[-1] == "":
+                    mixfix_infixes[form.tokens[1]] = declaration
+                else:
+                    mixfix_prefixes[form.tokens[0]] = declaration
+                continue
+            for token in (form.token, *declaration.aliases):
                 aliases[token] = declaration
-        tokens = re.findall(r"[^\W\d]\w*|\d+|[(),]|[^\s\w(),]+", text, re.UNICODE)
+        tokens = re.findall(
+            r"[^\W\d]\w*|\d+|[(),{}]|[^\s\w(),{}]+",
+            text,
+            re.UNICODE,
+        )
         position = 0
+
+        def apply_mixfix(
+            declaration: NotationDecl,
+            displayed: list[Term],
+        ) -> Term:
+            form = declaration.form
+            assert isinstance(form, MixfixForm)
+            arguments: list[Term | None] = [None] * len(form.arguments)
+            for displayed_index, argument_index in enumerate(form.arguments):
+                arguments[argument_index] = displayed[displayed_index]
+            assert all(argument is not None for argument in arguments)
+            return self.language.apply(
+                declaration.constructor,
+                tuple(argument for argument in arguments if argument is not None),
+            )
 
         def expression(minimum: int) -> Term:
             nonlocal position
@@ -124,21 +188,28 @@ class NotationInterface:
             token = tokens[position]
             position += 1
             declaration = aliases.get(token)
+            mixfix = mixfix_prefixes.get(token)
             if token == "(":
                 left = expression(0)
                 if position >= len(tokens) or tokens[position] != ")":
                     raise AuthoringSemanticError("missing closing parenthesis")
                 position += 1
             elif declaration is not None and isinstance(declaration.form, PrefixForm):
-                left = self.language.apply(declaration.constructor, (expression(declaration.form.precedence),))
+                left = self.language.apply(
+                    declaration.constructor, (expression(declaration.form.precedence),)
+                )
             elif declaration is not None and isinstance(declaration.form, BinderForm):
                 if position >= len(tokens):
-                    raise AuthoringSemanticError(f"expected bound variable after {token}")
+                    raise AuthoringSemanticError(
+                        f"expected bound variable after {token}"
+                    )
                 variable_name = tokens[position]
                 position += 1
                 variable = variables.get(variable_name)
                 if variable is None:
-                    raise AuthoringSemanticError(f"unknown bound variable: {variable_name}")
+                    raise AuthoringSemanticError(
+                        f"unknown bound variable: {variable_name}"
+                    )
                 left = self.language.apply(
                     declaration.constructor,
                     (
@@ -161,18 +232,52 @@ class NotationInterface:
                     raise AuthoringSemanticError("missing closing parenthesis")
                 position += 1
                 left = self.language.apply(declaration.constructor, args)
+            elif mixfix is not None:
+                form = mixfix.form
+                assert isinstance(form, MixfixForm)
+                displayed: list[Term] = []
+                for separator in form.tokens[1:]:
+                    displayed.append(expression(0))
+                    if not separator:
+                        continue
+                    if position >= len(tokens) or tokens[position] != separator:
+                        raise AuthoringSemanticError(
+                            f"expected mixfix token: {separator}"
+                        )
+                    position += 1
+                left = apply_mixfix(mixfix, displayed)
             else:
                 variable = variables.get(token)
                 if variable is None:
-                    raise AuthoringSemanticError(f"unknown variable or notation: {token}")
+                    raise AuthoringSemanticError(
+                        f"unknown variable or notation: {token}"
+                    )
                 left = self.language.variable(variable)
             while position < len(tokens):
+                mixfix_infix = mixfix_infixes.get(tokens[position])
+                if mixfix_infix is not None:
+                    form = mixfix_infix.form
+                    assert isinstance(form, MixfixForm)
+                    if form.precedence < minimum:
+                        break
+                    position += 1
+                    right = expression(form.precedence + 1)
+                    left = apply_mixfix(mixfix_infix, [left, right])
+                    continue
                 infix = aliases.get(tokens[position])
-                if infix is None or not isinstance(infix.form, InfixForm) or infix.form.precedence < minimum:
+                if (
+                    infix is None
+                    or not isinstance(infix.form, InfixForm)
+                    or infix.form.precedence < minimum
+                ):
                     break
                 position += 1
-                next_minimum = infix.form.precedence + (1 if infix.form.associativity == "left" else 0)
-                left = self.language.apply(infix.constructor, (left, expression(next_minimum)))
+                next_minimum = infix.form.precedence + (
+                    1 if infix.form.associativity == "left" else 0
+                )
+                left = self.language.apply(
+                    infix.constructor, (left, expression(next_minimum))
+                )
             return left
 
         result = expression(0)
@@ -181,29 +286,44 @@ class NotationInterface:
         return result
 
 
-def resolve_notation(spec: NotationSpec, language: LanguageInterface, dependencies: Mapping[NotationId, NotationInterface]) -> NotationInterface:
-    if spec.language.id != language.id or (spec.language.semantic_digest is not None and spec.language.semantic_digest != language.semantic_digest):
+def resolve_notation(
+    spec: NotationSpec,
+    language: LanguageInterface,
+    dependencies: Mapping[NotationId, NotationInterface],
+) -> NotationInterface:
+    if spec.language.id != language.id or (
+        spec.language.semantic_digest is not None
+        and spec.language.semantic_digest != language.semantic_digest
+    ):
         raise AuthoringSemanticError("notation language requirement mismatch")
     declarations: dict[ConstructorId, NotationDecl] = {}
     for requirement in sorted(spec.extends, key=lambda item: item.id):
         dependency = dependencies.get(requirement.id)
         if dependency is None:
-            raise AuthoringSemanticError(f"missing notation dependency: {requirement.id}")
+            raise AuthoringSemanticError(
+                f"missing notation dependency: {requirement.id}"
+            )
         if requirement.digest is not None and requirement.digest != dependency.digest:
             raise AuthoringSemanticError(f"notation digest mismatch: {requirement.id}")
         if not is_semantic_subset(dependency.language, language):
-            raise AuthoringSemanticError(f"notation dependency language mismatch: {requirement.id}")
+            raise AuthoringSemanticError(
+                f"notation dependency language mismatch: {requirement.id}"
+            )
         for declaration in dependency.declarations:
             declaration = _normalized(declaration)
             old = declarations.get(declaration.constructor)
             if old is not None and old != declaration:
-                raise AuthoringSemanticError(f"conflicting notation: {declaration.constructor}")
+                raise AuthoringSemanticError(
+                    f"conflicting notation: {declaration.constructor}"
+                )
             declarations[declaration.constructor] = declaration
     for declaration in spec.declarations:
         declaration = _normalized(declaration)
         old = declarations.get(declaration.constructor)
         if old is not None and old != declaration:
-            raise AuthoringSemanticError(f"conflicting notation: {declaration.constructor}")
+            raise AuthoringSemanticError(
+                f"conflicting notation: {declaration.constructor}"
+            )
         declarations[declaration.constructor] = declaration
     tokens: set[str] = set()
     for declaration in declarations.values():
@@ -215,8 +335,36 @@ def resolve_notation(spec: NotationSpec, language: LanguageInterface, dependenci
             if isinstance(declaration.form, (InfixForm, BinderForm))
             else None
         )
-        if constructor is None or (expected is not None and len(constructor.inputs) != expected):
-            raise AuthoringSemanticError(f"notation arity/target mismatch: {declaration.constructor}")
+        if isinstance(declaration.form, MixfixForm):
+            mixfix_form = declaration.form
+            expected = len(mixfix_form.arguments)
+            if (
+                len(mixfix_form.tokens) != expected + 1
+                or expected == 0
+                or tuple(sorted(mixfix_form.arguments)) != tuple(range(expected))
+                or mixfix_form.precedence < 0
+                or (
+                    mixfix_form.tokens[0] == mixfix_form.tokens[-1] == ""
+                    and (expected != 2 or not mixfix_form.tokens[1])
+                )
+                or (
+                    mixfix_form.tokens[0] != ""
+                    and (
+                        not mixfix_form.tokens[-1]
+                        or any(not token for token in mixfix_form.tokens)
+                    )
+                )
+                or declaration.aliases
+            ):
+                raise AuthoringSemanticError(
+                    f"invalid mixfix notation: {declaration.constructor}"
+                )
+        if constructor is None or (
+            expected is not None and len(constructor.inputs) != expected
+        ):
+            raise AuthoringSemanticError(
+                f"notation arity/target mismatch: {declaration.constructor}"
+            )
         if isinstance(declaration.form, BinderForm):
             binder = language.binders.get(declaration.constructor)
             if (
@@ -225,26 +373,64 @@ def resolve_notation(spec: NotationSpec, language: LanguageInterface, dependenci
                 or binder.bindings[0].variable_argument != 0
                 or binder.bindings[0].scoped_arguments != (1,)
             ):
-                raise AuthoringSemanticError(f"notation binder mismatch: {declaration.constructor}")
-        for token in (declaration.form.token, *declaration.aliases):
+                raise AuthoringSemanticError(
+                    f"notation binder mismatch: {declaration.constructor}"
+                )
+        form_tokens: tuple[str, ...]
+        if isinstance(declaration.form, MixfixForm):
+            form_tokens = (
+                declaration.form.tokens[1]
+                if declaration.form.tokens[0] == declaration.form.tokens[-1] == ""
+                else declaration.form.tokens[0],
+            )
+        else:
+            form_tokens = (
+                declaration.form.token,
+                *declaration.aliases,
+            )
+        for token in form_tokens:
             if not token or token in tokens:
                 raise AuthoringSemanticError(f"notation alias collision: {token!r}")
             tokens.add(token)
     ordered = tuple(sorted(declarations.values(), key=lambda item: item.constructor))
     declarations_json: list[JsonValue] = []
     for declaration in ordered:
-        form = declaration.form
-        form_json: dict[str, JsonValue] = {"token": form.token}
+        form: NotationForm = declaration.form
+        form_json: dict[str, JsonValue]
         if isinstance(form, PrefixForm):
-            form_json.update({"kind": "prefix", "precedence": form.precedence})
+            form_json = {
+                "token": form.token,
+                "kind": "prefix",
+                "precedence": form.precedence,
+            }
         elif isinstance(form, InfixForm):
-            form_json.update({"kind": "infix", "precedence": form.precedence, "associativity": form.associativity})
+            form_json = {
+                "token": form.token,
+                "kind": "infix",
+                "precedence": form.precedence,
+                "associativity": form.associativity,
+            }
         elif isinstance(form, BinderForm):
-            form_json.update({"kind": "binder", "precedence": form.precedence})
+            form_json = {
+                "token": form.token,
+                "kind": "binder",
+                "precedence": form.precedence,
+            }
+        elif isinstance(form, MixfixForm):
+            form_json = {
+                "kind": "mixfix",
+                "tokens": list(form.tokens),
+                "arguments": list(form.arguments),
+                "precedence": form.precedence,
+            }
         else:
-            form_json["kind"] = "call"
+            form_json = {"token": form.token, "kind": "call"}
         declarations_json.append(
-            {"constructor": str(declaration.constructor), "form": form_json, "aliases": list(declaration.aliases)}
+            {
+                "constructor": str(declaration.constructor),
+                "form": form_json,
+                "aliases": list(declaration.aliases),
+            }
         )
     digest = canonical_digest(
         {
